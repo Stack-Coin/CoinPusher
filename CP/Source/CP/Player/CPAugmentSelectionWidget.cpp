@@ -37,8 +37,9 @@ void UCPAugmentSelectionWidget::OpenAugmentSelection(TScriptInterface<ICPStatInt
 		if (UHorizontalBoxSlot* CardSlot = CardContainer->AddChildToHorizontalBox(Card))
 		{
 			CardSlot->SetPadding(FMargin(CardSpacing * 0.5f, 0.0f));
-			CardSlot->SetHorizontalAlignment(HAlign_Fill);
-			CardSlot->SetVerticalAlignment(VAlign_Fill);
+			CardSlot->SetSize(FSlateChildSize(ESlateSizeRule::Automatic));
+			CardSlot->SetHorizontalAlignment(HAlign_Center);
+			CardSlot->SetVerticalAlignment(VAlign_Center);
 		}
 	}
 

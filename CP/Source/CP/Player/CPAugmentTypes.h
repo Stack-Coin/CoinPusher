@@ -16,8 +16,10 @@ struct FCPAugmentEffect
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Augment")
 	ECPStatType StatType = ECPStatType::AttackPower;
 
-	/** Percent change to apply to the stat's current value. e.g. 5.0 = +5%, -5.0 = -5% */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Augment", meta = (Units = "Percent"))
+	/** Percent change to apply to the stat's current value. e.g. 5.0 = +5%, -5.0 = -5% (NOT the resulting 105/95) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Augment",
+		meta = (Units = "Percent", DisplayName = "증가/감소율 (%)",
+		ToolTip = "증가면 양수(예: 10 = +10%), 감소면 음수(예: -20 = -20%)를 입력하세요.\n110이나 80처럼 변경 후 최종값을 입력하는 것이 아닙니다."))
 	float PercentChange = 0.0f;
 };
 

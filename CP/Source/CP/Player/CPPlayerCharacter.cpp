@@ -260,10 +260,10 @@ void ACPPlayerCharacter::AddExperience(float Amount)
 		return;
 	}
 
-	Stats.Experience += Amount;
+	Stats.Experience = FMath::Clamp(Stats.Experience + Amount, ExperienceRange.Min, ExperienceRange.Max);
 
 	float RequiredExperience = GetRequiredExperience();
-	while (Stats.Experience >= RequiredExperience && RequiredExperience > 0.0f)
+	while (Stats.Level < FMath::RoundToInt32(LevelRange.Max) && Stats.Experience >= RequiredExperience && RequiredExperience > 0.0f)
 	{
 		Stats.Experience -= RequiredExperience;
 		Stats.Level += 1;
@@ -272,6 +272,8 @@ void ACPPlayerCharacter::AddExperience(float Amount)
 
 		RequiredExperience = GetRequiredExperience();
 	}
+
+	Stats.Level = FMath::Clamp(Stats.Level, FMath::RoundToInt32(LevelRange.Min), FMath::RoundToInt32(LevelRange.Max));
 }
 
 void ACPPlayerCharacter::ModifyStat(ECPStatType StatType, float Delta)
@@ -290,25 +292,25 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 	switch (StatType)
 	{
 	case ECPStatType::Health:
-		Stats.Health = NewValue;
+		Stats.Health = FMath::Clamp(NewValue, HealthRange.Min, HealthRange.Max);
 		break;
 	case ECPStatType::Experience:
-		Stats.Experience = NewValue;
+		Stats.Experience = FMath::Clamp(NewValue, ExperienceRange.Min, ExperienceRange.Max);
 		break;
 	case ECPStatType::AttackPower:
-		Stats.AttackPower = NewValue;
+		Stats.AttackPower = FMath::Clamp(NewValue, AttackPowerRange.Min, AttackPowerRange.Max);
 		break;
 	case ECPStatType::MoveSpeed:
-		Stats.MoveSpeed = NewValue;
+		Stats.MoveSpeed = FMath::Clamp(NewValue, MoveSpeedRange.Min, MoveSpeedRange.Max);
 		break;
 	case ECPStatType::AttackSpeed:
-		Stats.AttackSpeed = NewValue;
+		Stats.AttackSpeed = FMath::Clamp(NewValue, AttackSpeedRange.Min, AttackSpeedRange.Max);
 		break;
 	case ECPStatType::Defense:
-		Stats.Defense = NewValue;
+		Stats.Defense = FMath::Clamp(NewValue, DefenseRange.Min, DefenseRange.Max);
 		break;
 	case ECPStatType::Level:
-		Stats.Level = FMath::RoundToInt32(NewValue);
+		Stats.Level = FMath::Clamp(FMath::RoundToInt32(NewValue), FMath::RoundToInt32(LevelRange.Min), FMath::RoundToInt32(LevelRange.Max));
 		break;
 	}
 

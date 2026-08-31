@@ -60,6 +60,34 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	FCPPlayerStats Stats;
 
+	/** Min/Max bounds for Health. SetStat/ModifyStat clamp to this range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
+	FCPStatRange HealthRange = FCPStatRange(0.0f, 100.0f);
+
+	/** Min/Max bounds for Experience. SetStat/ModifyStat/AddExperience clamp to this range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
+	FCPStatRange ExperienceRange = FCPStatRange(0.0f, 999999.0f);
+
+	/** Min/Max bounds for AttackPower. SetStat/ModifyStat clamp to this range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
+	FCPStatRange AttackPowerRange = FCPStatRange(0.0f, 999.0f);
+
+	/** Min/Max bounds for MoveSpeed. SetStat/ModifyStat clamp to this range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
+	FCPStatRange MoveSpeedRange = FCPStatRange(0.0f, 1200.0f);
+
+	/** Min/Max bounds for AttackSpeed. SetStat/ModifyStat clamp to this range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
+	FCPStatRange AttackSpeedRange = FCPStatRange(0.1f, 5.0f);
+
+	/** Min/Max bounds for Defense. SetStat/ModifyStat clamp to this range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
+	FCPStatRange DefenseRange = FCPStatRange(0.0f, 999.0f);
+
+	/** Min/Max bounds for Level. SetStat/ModifyStat/AddExperience clamp to this range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
+	FCPStatRange LevelRange = FCPStatRange(1.0f, 99.0f);
+
 	/** Experience required to level up from Level 1 to Level 2 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Leveling", meta = (ClampMin = 0))
 	float BaseRequiredExperience = 100.0f;

@@ -18,6 +18,23 @@ enum class ECPStatType : uint8
 	Level
 };
 
+/** Inclusive Min/Max bounds for a single stat. SetStat/ModifyStat clamp to this range, so augments and
+ *  debuffs can never push a stat outside the values designers set here. */
+USTRUCT(BlueprintType)
+struct FCPStatRange
+{
+	GENERATED_BODY()
+
+	FCPStatRange() = default;
+	FCPStatRange(float InMin, float InMax) : Min(InMin), Max(InMax) {}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
+	float Min = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
+	float Max = 100.0f;
+};
+
 /** Data for all of the player's core stats */
 USTRUCT(BlueprintType)
 struct FCPPlayerStats
