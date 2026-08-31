@@ -7,6 +7,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
+#include "Tasks/CPAI.h"
 
 ACPMonsterAIController::ACPMonsterAIController()
 {
@@ -29,6 +30,8 @@ void ACPMonsterAIController::RunAI()
 	UBlackboardComponent* BBComp = Blackboard.Get();
 	if (UseBlackboard(MonsterBB, BBComp)) 
 	{
+		Blackboard->SetValueAsVector(BBKEY_SPAWNPOS, GetPawn()->GetActorLocation());
+
 		bool bResult = RunBehaviorTree(MonsterBT);
 		ensure(bResult);
 	}
