@@ -30,3 +30,23 @@ void ACPMonsterBase::AttackHitCheck()
 void ACPMonsterBase::Dead()
 {
 }
+
+float ACPMonsterBase::GetAIPatrolRadius()
+{
+	return 800.0f;
+}
+
+float ACPMonsterBase::GetAIDetectRange()
+{
+	return 400.0f;
+}
+
+float ACPMonsterBase::GetAIAttackRange()
+{
+	return 0.0f;
+}
+
+float ACPMonsterBase::GetAITurnSpeed()
+{
+	return 0.0f;
+}

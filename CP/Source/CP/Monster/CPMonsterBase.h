@@ -5,10 +5,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Monster/CPMonsterAttackInterface.h"
+#include "Monster/CPMonsterAIInterface.h"
 #include "CPMonsterBase.generated.h"
 
 UCLASS()
-class CP_API ACPMonsterBase : public ACharacter, public ICPMonsterAttackInterface
+class CP_API ACPMonsterBase : public ACharacter, public ICPMonsterAttackInterface, public ICPMonsterAIInterface
 {
 	GENERATED_BODY()
 
@@ -28,6 +29,12 @@ public:
 	//virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;	
 
 	virtual void Dead();
+
+public:
+	virtual float GetAIPatrolRadius() override;
+	virtual float GetAIDetectRange() override;
+	virtual float GetAIAttackRange() override;
+	virtual float GetAITurnSpeed() override;
 
 protected:
 	// todo. Data Asset 형태로

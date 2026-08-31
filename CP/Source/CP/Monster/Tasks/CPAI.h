@@ -2,4 +2,4 @@
 
 #define BBKEY_SPAWNPOS  TEXT("SpawnPos")
 #define BBKEY_PATROLPOS TEXT("PatrolPos")
-#define BBKEY_TARGET    TEXT("HomePos")
+#define BBKEY_TARGET    TEXT("Target")

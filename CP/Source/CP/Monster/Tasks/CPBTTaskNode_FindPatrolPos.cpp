@@ -6,6 +6,7 @@
 #include "../CPMonsterAIController.h"
 #include "NavigationSystem.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "Monster/CPMonsterAIInterface.h"
 
 UCPBTTaskNode_FindPatrolPos::UCPBTTaskNode_FindPatrolPos()
 {
@@ -27,10 +28,17 @@ EBTNodeResult::Type UCPBTTaskNode_FindPatrolPos::ExecuteTask(UBehaviorTreeCompon
 		return EBTNodeResult::Failed;
 	}
 
+	ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(ControllingPawn);
+	if (AIPawn == nullptr) 
+	{
+		return EBTNodeResult::Failed;
+	}
+
 	FVector Origin = OwnerComp.GetBlackboardComponent()->GetValueAsVector(BBKEY_SPAWNPOS);
+	float PatrolRadius = AIPawn->GetAIPatrolRadius();
 	FNavLocation NextPatrolPos;
 	
-	if (NavSystem->GetRandomPointInNavigableRadius(Origin, 500.0f, NextPatrolPos)) 
+	if (NavSystem->GetRandomPointInNavigableRadius(Origin, PatrolRadius, NextPatrolPos))
 	{
 		OwnerComp.GetBlackboardComponent()->SetValueAsVector(BBKEY_PATROLPOS, NextPatrolPos.Location);
 		return EBTNodeResult::Succeeded;
