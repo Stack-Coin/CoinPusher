@@ -43,10 +43,22 @@ float ACPMonsterBase::GetAIDetectRange()
 
 float ACPMonsterBase::GetAIAttackRange()
 {
-	return 0.0f;
+	// todo. Stat Component에서 구하기
+
+	return 50.0f;
 }
 
 float ACPMonsterBase::GetAITurnSpeed()
 {
 	return 0.0f;
+}
+
+void ACPMonsterBase::SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished)
+{
+	OnAttackFinished = InOnAttackFinished;
+}
+
+void ACPMonsterBase::AttackByAI()
+{
+	// todo. 공격
 }
