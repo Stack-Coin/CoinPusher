@@ -41,6 +41,12 @@ void ACPDispenser::DispenseCoin()
 
 	if (ACPCoin* Coin = GetWorld()->SpawnActor<ACPCoin>(CoinClass, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation(), SpawnParams))
 	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("SpawnPoint ForwardVector: %s"),
+			*SpawnPoint->GetForwardVector().ToString()
+		);
 		const FVector LaunchVelocity = SpawnPoint->GetForwardVector() * LaunchForwardSpeed + FVector::UpVector * LaunchUpwardSpeed;
 		Coin->Launch(LaunchVelocity);
 	}
