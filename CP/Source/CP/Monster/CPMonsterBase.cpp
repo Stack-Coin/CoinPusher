@@ -5,6 +5,7 @@
 #include "Monster/CPMonsterAIController.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 ACPMonsterBase::ACPMonsterBase()
@@ -25,6 +26,26 @@ void ACPMonsterBase::BeginPlay()
 
 void ACPMonsterBase::AttackHitCheck()
 {
+	FHitResult HitResult;
+	FCollisionQueryParams Params(NAME_None, false, this);
+	bool bResult = GetWorld()->SweepSingleByChannel
+	(
+		HitResult,
+		GetActorLocation(),
+		GetActorLocation() + GetActorForwardVector() * GetAIAttackRange(),
+		FQuat::Identity,
+		ECollisionChannel::ECC_GameTraceChannel2, // todo. 코인 푸셔 채널 파기
+		FCollisionShape::MakeSphere(10.f),
+		Params
+	);
+
+	if (bResult)
+	{
+		if (HitResult.GetActor()->IsValidLowLevel())
+		{
+			UGameplayStatics::ApplyDamage(HitResult.GetActor(), 50.0f, GetController(), this, UDamageType::StaticClass());
+		}
+	}
 }
 
 void ACPMonsterBase::Dead()
@@ -45,7 +66,7 @@ float ACPMonsterBase::GetAIAttackRange()
 {
 	// todo. Stat Component에서 구하기
 
-	return 50.0f;
+	return 100.0f;
 }
 
 float ACPMonsterBase::GetAITurnSpeed()

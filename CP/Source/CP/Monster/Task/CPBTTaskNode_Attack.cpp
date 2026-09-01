@@ -33,7 +33,9 @@ EBTNodeResult::Type UCPBTTaskNode_Attack::ExecuteTask(UBehaviorTreeComponent& Ow
 		}
 	);
 
-	AIPawn->SetAIAttackDelegate(OnAttackFinished);
-	AIPawn->AttackByAI();
+	// todo. 타이밍 기반으로 Notify로 전달할지.
+	/*AIPawn->SetAIAttackDelegate(OnAttackFinished);
+	AIPawn->AttackByAI();*/
+
 	return EBTNodeResult::InProgress;
 }

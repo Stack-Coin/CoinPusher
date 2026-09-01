@@ -2,6 +2,7 @@
 
 
 #include "Monster/Animation/CPMonsterAttackAnimNotify.h"
+#include "Monster/CPMonsterAttackInterface.h"
 
 UCPMonsterAttackAnimNotify::UCPMonsterAttackAnimNotify()
 {
@@ -9,4 +10,8 @@ UCPMonsterAttackAnimNotify::UCPMonsterAttackAnimNotify()
 
 void UCPMonsterAttackAnimNotify::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
 {
+	if (ICPMonsterAttackInterface* Monster = Cast<ICPMonsterAttackInterface>(MeshComp->GetOwner()))
+	{
+		Monster->AttackHitCheck();
+	}
 }
