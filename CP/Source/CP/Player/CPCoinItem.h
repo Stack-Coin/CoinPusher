@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Player/CPInteractable.h"
-#include "CPCoin.generated.h"
+#include "CPCoinItem.generated.h"
 
 class USphereComponent;
 class UStaticMeshComponent;
@@ -16,7 +16,7 @@ class UStaticMeshComponent;
  *  is simply triggered by the coin itself on overlap, instead of by a player key press.
  */
 UCLASS(abstract)
-class CP_API ACPCoin : public AActor, public ICPInteractable
+class CP_API ACPCoinItem : public AActor, public ICPInteractable
 {
 	GENERATED_BODY()
 
@@ -44,7 +44,7 @@ protected:
 public:
 
 	/** Constructor */
-	ACPCoin();
+	ACPCoinItem();
 
 protected:
 

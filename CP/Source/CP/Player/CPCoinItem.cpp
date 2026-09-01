@@ -1,11 +1,11 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "Player/CPCoin.h"
+#include "Player/CPCoinItem.h"
 #include "Player/CPCoinWallet.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 
-ACPCoin::ACPCoin()
+ACPCoinItem::ACPCoinItem()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -18,17 +18,17 @@ ACPCoin::ACPCoin()
 	CoinMesh->SetupAttachment(CollisionSphere);
 	CoinMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	CollisionSphere->OnComponentBeginOverlap.AddDynamic(this, &ACPCoin::OnCollisionSphereBeginOverlap);
+	CollisionSphere->OnComponentBeginOverlap.AddDynamic(this, &ACPCoinItem::OnCollisionSphereBeginOverlap);
 }
 
-void ACPCoin::Tick(float DeltaTime)
+void ACPCoinItem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
 	AddActorLocalRotation(FRotator(0.0f, RotationSpeed * DeltaTime, 0.0f));
 }
 
-void ACPCoin::OnCollisionSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+void ACPCoinItem::OnCollisionSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	if (bCollected || !OtherActor)
 	{
@@ -41,7 +41,7 @@ void ACPCoin::OnCollisionSphereBeginOverlap(UPrimitiveComponent* OverlappedCompo
 	}
 }
 
-void ACPCoin::Interact(AActor* Interactor)
+void ACPCoinItem::Interact(AActor* Interactor)
 {
 	if (bCollected)
 	{
@@ -61,7 +61,7 @@ void ACPCoin::Interact(AActor* Interactor)
 	Destroy();
 }
 
-FText ACPCoin::GetInteractableDisplayName() const
+FText ACPCoinItem::GetInteractableDisplayName() const
 {
 	return FText::FromString(TEXT("Coin"));
 }
