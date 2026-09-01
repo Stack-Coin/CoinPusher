@@ -14,17 +14,17 @@ EBTNodeResult::Type UCPBTTaskNode_Attack::ExecuteTask(UBehaviorTreeComponent& Ow
 	EBTNodeResult::Type Result = Super::ExecuteTask(OwnerComp, NodeMemory);
 
 	APawn* ControllingPawn = Cast<APawn>(OwnerComp.GetAIOwner()->GetPawn());
-	if (nullptr == ControllingPawn)
+	if (ControllingPawn == nullptr)
 	{
 		return EBTNodeResult::Failed;
 	}
 
 	ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(ControllingPawn);
-	if (nullptr == AIPawn)
+	if (AIPawn == nullptr)
 	{
 		return EBTNodeResult::Failed;
 	}
-
+	
 	FAICharacterAttackFinished OnAttackFinished;
 	OnAttackFinished.BindLambda(
 		[&]()
@@ -33,9 +33,8 @@ EBTNodeResult::Type UCPBTTaskNode_Attack::ExecuteTask(UBehaviorTreeComponent& Ow
 		}
 	);
 
-	// todo. 타이밍 기반으로 Notify로 전달할지.
-	/*AIPawn->SetAIAttackDelegate(OnAttackFinished);
-	AIPawn->AttackByAI();*/
+	AIPawn->SetAIAttackDelegate(OnAttackFinished);
+	AIPawn->AttackByAI();
 
 	return EBTNodeResult::InProgress;
 }

@@ -8,6 +8,15 @@
 #include "Monster/CPMonsterAIInterface.h"
 #include "CPMonsterBase.generated.h"
 
+/*
+// todo. 공격 피격 테스트
+// todo. 사망 시 item drop
+// todo. spawner
+// todo. mesh 겹침
+// todo. 애니메이션
+// todo. 모듈화
+*/
+
 UCLASS()
 class CP_API ACPMonsterBase : public ACharacter, public ICPMonsterAttackInterface, public ICPMonsterAIInterface
 {
@@ -24,13 +33,10 @@ protected:
 public:
 	// 공격 판정 함수
 	virtual void AttackHitCheck() override;
-
-	// todo. 공격 피격 협업 필요
-	//virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;	
-
 	virtual void Dead();
 
 public:
+	// todo. Stat Component에서 구하기
 	virtual float GetAIPatrolRadius() override;
 	virtual float GetAIDetectRange() override;
 	virtual float GetAIAttackRange() override;
@@ -41,7 +47,8 @@ public:
 
 	FAICharacterAttackFinished OnAttackFinished;
 
-	//virtual void NotifyComboActionEnd() override;
+protected:
+	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
 
 protected:
 	// todo. Data Asset 형태로
@@ -51,6 +58,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterMesh")
 	TObjectPtr<USkeletalMeshComponent> MonsterMesh;
 
-	/*UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterMesh")
-	TSoftObjectPtr<UAnimationAsset> Animation;*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+	TObjectPtr<UAnimMontage> AttackMontage;
 };

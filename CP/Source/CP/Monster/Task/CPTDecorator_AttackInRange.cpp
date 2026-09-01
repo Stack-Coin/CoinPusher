@@ -37,8 +37,6 @@ bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeCompon
 	float DistanceToTarget = ControllingPawn->GetDistanceTo(Target);
 	float AttackRangeWithRadius = AIPawn->GetAIAttackRange();
 
-	int a = 0;
-
 	bResult = (DistanceToTarget <= AttackRangeWithRadius);
 	return bResult;
 }

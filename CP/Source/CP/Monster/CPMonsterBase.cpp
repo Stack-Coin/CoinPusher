@@ -34,7 +34,7 @@ void ACPMonsterBase::AttackHitCheck()
 		GetActorLocation(),
 		GetActorLocation() + GetActorForwardVector() * GetAIAttackRange(),
 		FQuat::Identity,
-		ECollisionChannel::ECC_GameTraceChannel2, // todo. 코인 푸셔 채널 파기
+		ECollisionChannel::ECC_GameTraceChannel2, // todo. 코인 푸셔 및 캐릭터 채널 파기
 		FCollisionShape::MakeSphere(10.f),
 		Params
 	);
@@ -64,8 +64,6 @@ float ACPMonsterBase::GetAIDetectRange()
 
 float ACPMonsterBase::GetAIAttackRange()
 {
-	// todo. Stat Component에서 구하기
-
 	return 100.0f;
 }
 
@@ -81,5 +79,20 @@ void ACPMonsterBase::SetAIAttackDelegate(const FAICharacterAttackFinished& InOnA
 
 void ACPMonsterBase::AttackByAI()
 {
-	// todo. 공격
+	TObjectPtr<UAnimInstance> AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && AttackMontage)
+	{
+		AnimInstance->StopAllMontages(0.0f);
+		AnimInstance->Montage_Play(AttackMontage, 1.0f);
+
+		FOnMontageEnded MontageEndDelegate;
+		MontageEndDelegate.BindUObject(this, &ACPMonsterBase::NotifyAttackActionEnd);
+
+		AnimInstance->Montage_SetEndDelegate(MontageEndDelegate, AttackMontage);
+	}
+}
+
+void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
+{
+	OnAttackFinished.ExecuteIfBound();
 }
