@@ -49,6 +49,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MouseLookAction;
 
+	/** Interact Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* InteractAction;
+
+	/** Max distance that interactable objects can be triggered from */
+	UPROPERTY(EditAnywhere, Category="Input")
+	float InteractionDistance = 200.0f;
+
 public:
 
 	/** Constructor */
@@ -84,6 +92,10 @@ public:
 	/** Handles jump pressed inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
+
+	/** Handles interact inputs from either controls or UI interfaces */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoInteract();
 
 public:
 

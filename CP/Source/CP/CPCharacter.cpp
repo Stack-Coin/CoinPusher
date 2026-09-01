@@ -11,6 +11,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "CP.h"
+#include "CPInteractable.h"
+#include "Engine/World.h"
 
 ACPCharacter::ACPCharacter()
 {
@@ -65,6 +67,9 @@ void ACPCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ACPCharacter::Look);
+
+		// Interacting
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &ACPCharacter::DoInteract);
 	}
 	else
 	{
@@ -130,4 +135,33 @@ void ACPCharacter::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
+}
+
+void ACPCharacter::DoInteract()
+{
+	// sweep ahead of the character for interactable objects
+	FHitResult OutHit;
+
+	const FVector Start = GetActorLocation();
+	const FVector End = Start + GetActorForwardVector() * InteractionDistance;
+
+	FCollisionShape ColSphere;
+	ColSphere.SetSphere(InteractionDistance * 0.5f);
+
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	if (GetWorld()->SweepSingleByObjectType(OutHit, Start, End, FQuat::Identity, ObjectParams, ColSphere, QueryParams))
+	{
+		// have we hit an interactable?
+		if (ICPInteractable* Interactable = Cast<ICPInteractable>(OutHit.GetActor()))
+		{
+			// interact
+			Interactable->Interact(this);
+		}
+	}
 }
