@@ -10,11 +10,11 @@
 
 /*
 // todo. 공격 피격 테스트
-// todo. 사망 시 item drop
+// todo. 사망 구현 및 사망 시 item drop
 // todo. spawner
 // todo. mesh 겹침
 // todo. 애니메이션
-// todo. 모듈화
+// todo. 모듈화 (Stat Component 등...)
 */
 
 UCLASS()
@@ -42,22 +42,30 @@ public:
 	virtual float GetAIAttackRange() override;
 	virtual float GetAITurnSpeed() override;
 
+	// 공격 함수 // BTTask에서 수행
 	virtual void SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished) override;
 	virtual void AttackByAI() override;
 
 	FAICharacterAttackFinished OnAttackFinished;
 
+	// 피격 함수 // 협업용
+	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
 
 protected:
-	// todo. Data Asset 형태로
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
 	TObjectPtr<UCapsuleComponent> Collider;
 	
+	// todo. Data Asset 형태로
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterMesh")
 	TObjectPtr<USkeletalMeshComponent> MonsterMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<UAnimMontage> AttackMontage;
+
+	// todo. Data Table 형태로
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+	float CurrentHealth = 100.0f;
 };

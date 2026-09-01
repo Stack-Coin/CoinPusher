@@ -50,6 +50,7 @@ void ACPMonsterBase::AttackHitCheck()
 
 void ACPMonsterBase::Dead()
 {
+	// todo. 임시로 드랍
 }
 
 float ACPMonsterBase::GetAIPatrolRadius()
@@ -90,6 +91,13 @@ void ACPMonsterBase::AttackByAI()
 
 		AnimInstance->Montage_SetEndDelegate(MontageEndDelegate, AttackMontage);
 	}
+}
+
+float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	return DamageAmount;
 }
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
