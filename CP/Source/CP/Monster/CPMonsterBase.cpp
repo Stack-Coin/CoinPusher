@@ -6,6 +6,9 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Engine/StaticMeshActor.h"
+#include "Components/StaticMeshComponent.h"
 
 // Sets default values
 ACPMonsterBase::ACPMonsterBase()
@@ -21,7 +24,6 @@ ACPMonsterBase::ACPMonsterBase()
 void ACPMonsterBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 void ACPMonsterBase::AttackHitCheck()
@@ -50,7 +52,52 @@ void ACPMonsterBase::AttackHitCheck()
 
 void ACPMonsterBase::Dead()
 {
-	// todo. 임시로 드랍
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
+
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && DeadMontage)
+	{
+		AnimInstance->StopAllMontages(0.0f);
+		AnimInstance->Montage_Play(DeadMontage, 1.0f);
+	}
+
+	SetActorEnableCollision(false);
+
+	// todo. 임시로 아이템 드랍
+	{
+		FVector SpawnLocation = GetActorLocation();
+		SpawnLocation.Z += 50.0f;
+
+		AStaticMeshActor* Item = GetWorld()->SpawnActor<AStaticMeshActor>(
+			AStaticMeshActor::StaticClass(),
+			SpawnLocation,
+			FRotator::ZeroRotator
+		);
+
+		if (Item)
+		{
+			UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(
+				nullptr,
+				TEXT("/Engine/BasicShapes/Sphere.Sphere")
+			);
+
+			Item->GetStaticMeshComponent()->SetStaticMesh(SphereMesh);
+			Item->SetActorScale3D(FVector(0.25f));
+		}
+	}
+
+	// todo. 몬스터가 죽고 나서 이후에 델리게이트로 송신 후 시간 딜레이를 주고 Item Spawner를 사용해서 코인을 Spawn하는 걸로
+	FTimerHandle DeadTimerHandle;
+	GetWorld()->GetTimerManager().SetTimer(
+		DeadTimerHandle,
+		FTimerDelegate::CreateLambda([&]()
+			{
+				Destroy();
+			}
+		),
+		DeadMontage->GetPlayLength(),
+		false
+	);
 }
 
 float ACPMonsterBase::GetAIPatrolRadius()
@@ -96,6 +143,13 @@ void ACPMonsterBase::AttackByAI()
 float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	CurrentHealth -= DamageAmount;
+
+	if (CurrentHealth <= 0) 
+	{
+		Dead();
+	}
 
 	return DamageAmount;
 }

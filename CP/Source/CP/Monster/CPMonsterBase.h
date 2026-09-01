@@ -18,6 +18,7 @@
 
 // todo. mesh 겹침
 // todo. 애니메이션
+// todo. 오브젝트 풀링
 
 // todo. 모듈화 (Stat Component 등...)
 */
@@ -69,6 +70,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<UAnimMontage> AttackMontage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+	TObjectPtr<UAnimMontage> DeadMontage;
 
 	// todo. Data Table 형태로
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
