@@ -70,7 +70,7 @@ float ACPMonsterBase::GetAIAttackRange()
 
 float ACPMonsterBase::GetAITurnSpeed()
 {
-	return 0.0f;
+	return 2.0f;
 }
 
 void ACPMonsterBase::SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished)

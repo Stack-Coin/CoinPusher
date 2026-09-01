@@ -9,11 +9,16 @@
 #include "CPMonsterBase.generated.h"
 
 /*
-// todo. 공격 피격 테스트
+// todo. 공격 피격 테스트 + TakeDamage 구현됐는지 + Trace Channel 및 Collision Preset 설정
 // todo. 사망 구현 및 사망 시 item drop
 // todo. spawner
+
+// todo. Knock Back
+// todo. 체력바
+
 // todo. mesh 겹침
 // todo. 애니메이션
+
 // todo. 모듈화 (Stat Component 등...)
 */
 
