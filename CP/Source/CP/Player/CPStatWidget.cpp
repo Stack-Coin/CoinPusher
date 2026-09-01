@@ -83,6 +83,34 @@ void UCPStatWidget::RefreshStats()
 	{
 		LevelText->SetText(FText::FromString(FString::Printf(TEXT("Level : %.0f"), Interface->GetStat(ECPStatType::Level))));
 	}
+
+	UObject* SourceObject = StatSource.GetObject();
+
+	if (CoinText)
+	{
+		if (ICPCoinWallet* Wallet = Cast<ICPCoinWallet>(SourceObject))
+		{
+			CoinText->SetText(FText::FromString(FString::Printf(TEXT("Coin : %d"), Wallet->GetCoinAmount())));
+		}
+	}
+
+	if (OwnedItemsText)
+	{
+		if (ICPItemInventory* Inventory = Cast<ICPItemInventory>(SourceObject))
+		{
+			const TArray<FCPItemData>& Items = Inventory->GetOwnedItems();
+
+			TArray<FString> ItemNames;
+			ItemNames.Reserve(Items.Num());
+			for (const FCPItemData& Item : Items)
+			{
+				ItemNames.Add(Item.ItemName.ToString());
+			}
+
+			const FString JoinedNames = Items.Num() > 0 ? FString::Join(ItemNames, TEXT(", ")) : TEXT("(none)");
+			OwnedItemsText->SetText(FText::FromString(FString::Printf(TEXT("Items : %s"), *JoinedNames)));
+		}
+	}
 }
 
 void UCPStatWidget::HandleAddExperienceClicked()

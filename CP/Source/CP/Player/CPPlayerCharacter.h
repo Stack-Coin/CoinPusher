@@ -8,6 +8,11 @@
 #include "Engine/TimerHandle.h"
 #include "Player/CPStatInterface.h"
 #include "Player/CPStatTypes.h"
+#include "Player/CPInteractable.h"
+#include "Player/CPInteractor.h"
+#include "Player/CPCoinWallet.h"
+#include "Player/CPItemInventory.h"
+#include "Player/CPItemTypes.h"
 #include "CPPlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -21,6 +26,10 @@ DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
  *  react to this event instead of polling the Level stat. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPLevelUp, int32, NewLevel);
 
+/** Broadcast right after an item is added to the player's inventory. UI (e.g. the item toast)
+ *  should react to this event instead of the item actor touching any UI directly. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPItemAcquired, FCPItemData, AcquiredItem);
+
 /**
  *  Top-down / quarter view action prototype character.
  *  - 8-directional WASD movement relative to the fixed camera
@@ -28,7 +37,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPLevelUp, int32, NewLevel);
  *  - Directional dash with temporary invincibility
  */
 UCLASS(abstract)
-class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface
+class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPCoinWallet, public ICPItemInventory
 {
 	GENERATED_BODY()
 
@@ -53,6 +62,10 @@ protected:
 	/** Dash Input Action (Left Shift) */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* DashAction;
+
+	/** Interact Input Action (E key) */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* InteractAction;
 
 protected:
 
@@ -157,6 +170,24 @@ protected:
 	/** Timer used to end the dash state after DashDuration */
 	FTimerHandle DashDurationTimerHandle;
 
+	/** Current coin balance */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Coin", meta = (ClampMin = 0))
+	int32 CoinAmount = 0;
+
+	/** Items the player has picked up. Never modify directly - go through AddOwnedItem/ICPItemInventory */
+	UPROPERTY(BlueprintReadOnly, Category="Item")
+	TArray<FCPItemData> OwnedItems;
+
+	/** Broadcast right after an item is added to OwnedItems */
+	UPROPERTY(BlueprintAssignable, Category="Item")
+	FOnCPItemAcquired OnItemAcquired;
+
+	/** Every ICPInteractable currently in range of at least one registered interactable's collision */
+	TArray<TWeakObjectPtr<AActor>> NearbyInteractables;
+
+	/** Closest currently-registered interactable, i.e. what pressing Interact will activate */
+	TWeakObjectPtr<AActor> CurrentInteractable;
+
 public:
 
 	/** Constructor */
@@ -179,6 +210,9 @@ protected:
 	/** Called for dash input */
 	void StartDash(const FInputActionValue& Value);
 
+	/** Called for interact input */
+	void Interact(const FInputActionValue& Value);
+
 public:
 
 	/** Handles move inputs from either controls or UI interfaces */
@@ -192,6 +226,10 @@ public:
 	/** Handles dash inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Dash")
 	virtual void DoDash();
+
+	/** Interacts with the current registered interactable, if any and if it allows it */
+	UFUNCTION(BlueprintCallable, Category="Interaction")
+	virtual void DoInteract();
 
 protected:
 
@@ -209,6 +247,9 @@ protected:
 
 	/** Pushes current stat values onto the systems that use them (e.g. MoveSpeed -> MaxWalkSpeed) */
 	void ApplyStatsToGameplay();
+
+	/** Recomputes CurrentInteractable as the closest valid entry in NearbyInteractables */
+	void RefreshCurrentInteractable();
 
 public:
 
@@ -239,6 +280,49 @@ public:
 	virtual float GetStat(ECPStatType StatType) const override;
 
 	// ~end ICPStatInterface
+
+	// ~begin ICPInteractor
+
+	/** Registers Interactable as being in range. It becomes CurrentInteractable if it's the closest */
+	virtual void RegisterInteractable(AActor* Interactable) override;
+
+	/** Removes Interactable from range. Clears CurrentInteractable if it was the active one */
+	virtual void UnregisterInteractable(AActor* Interactable) override;
+
+	// ~end ICPInteractor
+
+	// ~begin ICPCoinWallet
+
+	/** Adds Amount to the current coin balance */
+	virtual void AddCoin(int32 Amount) override;
+
+	/** Returns the current coin balance */
+	virtual int32 GetCoinAmount() const override;
+
+	/** Returns true if the current coin balance is at least Amount */
+	virtual bool HasEnoughCoin(int32 Amount) const override;
+
+	/** Attempts to spend Amount coins. Deducts and returns true on success, leaves the balance unchanged and returns false otherwise */
+	virtual bool TrySpendCoin(int32 Amount) override;
+
+	// ~end ICPCoinWallet
+
+	// ~begin ICPItemInventory
+
+	/** Adds an item to OwnedItems, applies its effect (if any), and broadcasts OnItemAcquired */
+	virtual void AddOwnedItem(const FCPItemData& ItemData) override;
+
+	/** Returns true if at least one item with the given code is owned */
+	virtual bool HasItem(FName ItemCode) const override;
+
+	/** Returns how many items with the given code are owned */
+	virtual int32 GetItemCount(FName ItemCode) const override;
+
+	/** Returns every currently owned item, in acquisition order */
+	UFUNCTION(BlueprintPure, Category="Item")
+	virtual const TArray<FCPItemData>& GetOwnedItems() const override { return OwnedItems; }
+
+	// ~end ICPItemInventory
 
 	/** Returns true while the dash movement is in progress */
 	UFUNCTION(BlueprintPure, Category="Dash")

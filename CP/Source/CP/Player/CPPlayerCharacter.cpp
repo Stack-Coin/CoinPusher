@@ -12,6 +12,8 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
+#include "Player/CPInteractable.h"
+#include "Player/CPItemEffect.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -67,6 +69,7 @@ void ACPPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ACPPlayerCharacter::Move);
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::Attack);
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::StartDash);
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::Interact);
 	}
 	else
 	{
@@ -94,6 +97,11 @@ void ACPPlayerCharacter::Attack(const FInputActionValue& Value)
 void ACPPlayerCharacter::StartDash(const FInputActionValue& Value)
 {
 	DoDash();
+}
+
+void ACPPlayerCharacter::Interact(const FInputActionValue& Value)
+{
+	DoInteract();
 }
 
 void ACPPlayerCharacter::DoMove(float Right, float Forward)
@@ -153,6 +161,26 @@ void ACPPlayerCharacter::DoDash()
 	LaunchCharacter(DashDirection * DashSpeed, true, true);
 
 	GetWorldTimerManager().SetTimer(DashDurationTimerHandle, this, &ACPPlayerCharacter::EndDash, DashDuration, false);
+}
+
+void ACPPlayerCharacter::DoInteract()
+{
+	AActor* Target = CurrentInteractable.Get();
+	if (!Target)
+	{
+		return;
+	}
+
+	ICPInteractable* Interactable = Cast<ICPInteractable>(Target);
+	if (!Interactable)
+	{
+		return;
+	}
+
+	if (Interactable->CanInteract(this))
+	{
+		Interactable->Interact(this);
+	}
 }
 
 FVector ACPPlayerCharacter::GetWorldDirectionFromInput(const FVector2D& InputVector) const
@@ -338,4 +366,132 @@ float ACPPlayerCharacter::GetStat(ECPStatType StatType) const
 	}
 
 	return 0.0f;
+}
+
+void ACPPlayerCharacter::RegisterInteractable(AActor* Interactable)
+{
+	if (!Interactable)
+	{
+		return;
+	}
+
+	NearbyInteractables.AddUnique(TWeakObjectPtr<AActor>(Interactable));
+	RefreshCurrentInteractable();
+}
+
+void ACPPlayerCharacter::UnregisterInteractable(AActor* Interactable)
+{
+	NearbyInteractables.RemoveAll([Interactable](const TWeakObjectPtr<AActor>& Weak)
+	{
+		return !Weak.IsValid() || Weak.Get() == Interactable;
+	});
+
+	if (CurrentInteractable.Get() == Interactable)
+	{
+		CurrentInteractable.Reset();
+	}
+
+	RefreshCurrentInteractable();
+}
+
+void ACPPlayerCharacter::RefreshCurrentInteractable()
+{
+	NearbyInteractables.RemoveAll([](const TWeakObjectPtr<AActor>& Weak)
+	{
+		return !Weak.IsValid();
+	});
+
+	AActor* Closest = nullptr;
+	float ClosestDistSq = TNumericLimits<float>::Max();
+
+	for (const TWeakObjectPtr<AActor>& Weak : NearbyInteractables)
+	{
+		AActor* Candidate = Weak.Get();
+		if (!Candidate)
+		{
+			continue;
+		}
+
+		const float DistSq = FVector::DistSquared(GetActorLocation(), Candidate->GetActorLocation());
+		if (DistSq < ClosestDistSq)
+		{
+			ClosestDistSq = DistSq;
+			Closest = Candidate;
+		}
+	}
+
+	CurrentInteractable = Closest;
+}
+
+void ACPPlayerCharacter::AddCoin(int32 Amount)
+{
+	if (Amount <= 0)
+	{
+		return;
+	}
+
+	CoinAmount += Amount;
+}
+
+int32 ACPPlayerCharacter::GetCoinAmount() const
+{
+	return CoinAmount;
+}
+
+bool ACPPlayerCharacter::HasEnoughCoin(int32 Amount) const
+{
+	return CoinAmount >= Amount;
+}
+
+bool ACPPlayerCharacter::TrySpendCoin(int32 Amount)
+{
+	if (!HasEnoughCoin(Amount))
+	{
+		return false;
+	}
+
+	CoinAmount -= Amount;
+	return true;
+}
+
+void ACPPlayerCharacter::AddOwnedItem(const FCPItemData& ItemData)
+{
+	OwnedItems.Add(ItemData);
+
+	if (ItemData.EffectClass)
+	{
+		if (UCPItemEffect* Effect = NewObject<UCPItemEffect>(this, ItemData.EffectClass))
+		{
+			TScriptInterface<ICPStatInterface> StatInterface;
+			StatInterface.SetObject(this);
+			StatInterface.SetInterface(Cast<ICPStatInterface>(this));
+
+			Effect->ApplyEffect(StatInterface);
+		}
+	}
+
+	OnItemAcquired.Broadcast(ItemData);
+}
+
+bool ACPPlayerCharacter::HasItem(FName ItemCode) const
+{
+	return OwnedItems.ContainsByPredicate([ItemCode](const FCPItemData& Item)
+	{
+		return Item.ItemCode == ItemCode;
+	});
+}
+
+int32 ACPPlayerCharacter::GetItemCount(FName ItemCode) const
+{
+	int32 Count = 0;
+
+	for (const FCPItemData& Item : OwnedItems)
+	{
+		if (Item.ItemCode == ItemCode)
+		{
+			++Count;
+		}
+	}
+
+	return Count;
 }

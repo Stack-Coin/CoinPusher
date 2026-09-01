@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Player/CPStatInterface.h"
+#include "Player/CPCoinWallet.h"
+#include "Player/CPItemInventory.h"
 #include "CPStatWidget.generated.h"
 
 class UTextBlock;
@@ -43,6 +45,14 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UTextBlock* LevelText;
+
+	/** Displays the current coin balance */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UTextBlock* CoinText;
+
+	/** Displays the names of every currently owned item */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UTextBlock* OwnedItemsText;
 
 	/** Test button that grants TestExperienceAmount experience to StatSource when clicked */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
