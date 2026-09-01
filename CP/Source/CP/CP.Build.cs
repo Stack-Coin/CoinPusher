@@ -25,6 +25,7 @@ public class CP : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] {
 			"CP",
+			"CP/CoinPusher",
 			"CP/Variant_Platforming",
 			"CP/Variant_Platforming/Animation",
 			"CP/Variant_Combat",
