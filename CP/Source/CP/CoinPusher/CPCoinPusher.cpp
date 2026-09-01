@@ -48,6 +48,16 @@ ACPCoinPusher::ACPCoinPusher()
 	DispenserComponentB = CreateDefaultSubobject<UChildActorComponent>(TEXT("DispenserComponentB"));
 	DispenserComponentB->SetupAttachment(RootComponent);
 
+	// 천장에서 물건을 뿌리는 Dispenser 5개. 위치/발사 설정과 Item Class는 BP에서 조정
+	CeilingDispenserComponents.SetNum(5);
+	for (int32 Index = 0; Index < CeilingDispenserComponents.Num(); ++Index)
+	{
+		const FName ComponentName(*FString::Printf(TEXT("CeilingDispenserComponent%d"), Index));
+		UChildActorComponent* CeilingDispenserComponent = CreateDefaultSubobject<UChildActorComponent>(ComponentName);
+		CeilingDispenserComponent->SetupAttachment(RootComponent);
+		CeilingDispenserComponents[Index] = CeilingDispenserComponent;
+	}
+
 	DropZoneComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("DropZoneComponent"));
 	DropZoneComponent->SetupAttachment(RootComponent);
 
@@ -79,6 +89,20 @@ void ACPCoinPusher::BeginPlay()
 	Super::BeginPlay();
 
 	CurrentHealth = MaxHealth;
+
+	// 게임 시작 시 천장 Dispenser들이 각각 InitialCoinDropCount개씩 코인을 드롭
+	for (const TObjectPtr<UChildActorComponent>& CeilingComponent : CeilingDispenserComponents)
+	{
+		if (!CeilingComponent)
+		{
+			continue;
+		}
+
+		if (ACPDispenser* CeilingDispenser = Cast<ACPDispenser>(CeilingComponent->GetChildActor()))
+		{
+			CeilingDispenser->DispenseItems(InitialCoinDropCount);
+		}
+	}
 }
 
 void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
@@ -129,6 +153,16 @@ ACPDispenser* ACPCoinPusher::GetDispenserA() const
 ACPDispenser* ACPCoinPusher::GetDispenserB() const
 {
 	return DispenserComponentB ? Cast<ACPDispenser>(DispenserComponentB->GetChildActor()) : nullptr;
+}
+
+ACPDispenser* ACPCoinPusher::GetCeilingDispenser(int32 Index) const
+{
+	if (!CeilingDispenserComponents.IsValidIndex(Index) || !CeilingDispenserComponents[Index])
+	{
+		return nullptr;
+	}
+
+	return Cast<ACPDispenser>(CeilingDispenserComponents[Index]->GetChildActor());
 }
 
 ACPDropZone* ACPCoinPusher::GetDropZone() const

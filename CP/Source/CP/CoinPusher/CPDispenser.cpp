@@ -2,10 +2,11 @@
 
 
 #include "CPDispenser.h"
-#include "CPCoin.h"
+#include "CPCoinPusherItem.h"
 #include "CPInput.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SceneComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 
 ACPDispenser::ACPDispenser()
@@ -28,9 +29,15 @@ void ACPDispenser::BeginPlay()
 	BindToLinkedInput();
 }
 
-void ACPDispenser::DispenseCoin()
+void ACPDispenser::DispenseItem()
 {
-	if (!CoinClass || !GetWorld())
+	if (!ItemClass || !GetWorld())
+	{
+		return;
+	}
+
+	//ICPCoinPusherItem을 구현하지 않는 클래스는 DropZone이 처리할 수 없으므로 스폰하지 않는다
+	if (!ItemClass->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
 	{
 		return;
 	}
@@ -39,16 +46,22 @@ void ACPDispenser::DispenseCoin()
 	SpawnParams.Owner = this;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	if (ACPCoin* Coin = GetWorld()->SpawnActor<ACPCoin>(CoinClass, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation(), SpawnParams))
+	if (AActor* SpawnedItem = GetWorld()->SpawnActor<AActor>(ItemClass, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation(), SpawnParams))
 	{
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT("SpawnPoint ForwardVector: %s"),
-			*SpawnPoint->GetForwardVector().ToString()
-		);
-		const FVector LaunchVelocity = SpawnPoint->GetForwardVector() * LaunchForwardSpeed + FVector::UpVector * LaunchUpwardSpeed;
-		Coin->Launch(LaunchVelocity);
+		//RootComponent가 물리 시뮬레이션 중인 프리미티브라면 발사 속도를 부여 (ACPCoin, ACPItem 공통)
+		if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(SpawnedItem->GetRootComponent()))
+		{
+			const FVector LaunchVelocity = SpawnPoint->GetForwardVector() * LaunchForwardSpeed + FVector::UpVector * LaunchUpwardSpeed;
+			RootPrimitive->SetPhysicsLinearVelocity(LaunchVelocity);
+		}
+	}
+}
+
+void ACPDispenser::DispenseItems(int32 Count)
+{
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		DispenseItem();
 	}
 }
 
@@ -72,7 +85,7 @@ void ACPDispenser::SetLinkedInput(ACPInput* NewLinkedInput)
 
 void ACPDispenser::HandleInputInteracted(AActor* Interactor)
 {
-	DispenseCoin();
+	DispenseItem();
 }
 
 void ACPDispenser::BindToLinkedInput()

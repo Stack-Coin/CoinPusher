@@ -8,7 +8,6 @@
 
 class UStaticMeshComponent;
 class USceneComponent;
-class ACPCoin;
 class ACPInput;
 
 UCLASS(abstract)
@@ -28,20 +27,21 @@ public:
 
 protected:
 
-	//Spawn할 CoinClass
+	//Spawn할 오브젝트 클래스. ICPCoinPusherItem을 구현하는 Actor여야 함 (ACPCoin, ACPItem 등)
 	UPROPERTY(EditAnywhere, Category="Dispenser")
-	TSubclassOf<ACPCoin> CoinClass;
+	TSubclassOf<AActor> ItemClass;
 
-	//Coin 앞 방향 발사 속도 cm/s
+	//앞 방향 발사 속도 cm/s
 	UPROPERTY(EditAnywhere, Category="Dispenser", meta = (ClampMin = 0, Units = "cm/s"))
 	float LaunchForwardSpeed = 500.0f;
 
-	//Coin 위 방향 발사 속도 cm/s
+	//위 방향 발사 속도 cm/s
 	UPROPERTY(EditAnywhere, Category="Dispenser", meta = (ClampMin = 0, Units = "cm/s"))
 	float LaunchUpwardSpeed = 150.0f;
 
 	//디스펜서를 작동 시키는 입력 엑터. ChildActorComponent로 스폰되므로 직접 편집하지 않고
-	//소유자인 ACPCoinPusher가 SetLinkedInput()을 통해 설정한다
+	//소유자인 ACPCoinPusher가 SetLinkedInput()을 통해 설정한다. 천장 디스펜서처럼 Input 없이
+	//코드로만 작동하는 경우에는 비워둘 수 있다
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Dispenser")
 	TObjectPtr<ACPInput> LinkedInput;
 
@@ -49,9 +49,13 @@ public:
 
 	virtual void BeginPlay() override;
 
-	//코인을 Spawn하고 발사
+	//ItemClass를 SpawnPoint에서 하나 생성하고 발사
 	UFUNCTION(BlueprintCallable, Category="Dispenser")
-	virtual void DispenseCoin();
+	virtual void DispenseItem();
+
+	//ItemClass를 Count개 연속으로 생성하고 발사
+	UFUNCTION(BlueprintCallable, Category="Dispenser")
+	void DispenseItems(int32 Count);
 
 	//소유자(ACPCoinPusher)가 LinkedInput을 설정할 때 사용. 기존에 연결되어 있던 Input의 델리게이트는 해제하고 새 Input에 다시 바인딩한다
 	UFUNCTION(BlueprintCallable, Category="Dispenser")

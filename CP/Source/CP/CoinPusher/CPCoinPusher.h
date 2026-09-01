@@ -24,8 +24,7 @@ class CP_API ACPCoinPusher : public AActor
 {
 	GENERATED_BODY()
 
-	//코인이 놓이는 바닥 (RootComponent, 실제 충돌 담당). BoxExtent는 항상 (1,1,1)로 고정하고
-	//실제 크기는 Scale로 표현한다
+	//코인이 놓이는 바닥 (RootComponent, 실제 충돌 담당)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* Floor;
 
@@ -33,15 +32,15 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* Body;
 
-	//왼쪽 벽 (BoxExtent (1,1,1) 고정, Scale로 실제 크기 표현)
+	//왼쪽 벽
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* LeftWall;
 
-	//오른쪽 벽 (BoxExtent (1,1,1) 고정, Scale로 실제 크기 표현)
+	//오른쪽 벽
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* RightWall;
 
-	//뒷 벽 (BoxExtent (1,1,1) 고정, Scale로 실제 크기 표현)
+	//뒷 벽
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* BackWall;
 
@@ -49,12 +48,16 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* PusherComponent;
 
-	//Dispenser ActorComponent (컴포넌트를 통한 Has-a) - 2개
+	//Dispenser ActorComponent (컴포넌트를 통한 Has-a) - 앞으로 코인을 발사하는 Input 연동 Dispenser 2개
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* DispenserComponentA;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* DispenserComponentB;
+
+	//천장에서 물건을 뿌리는 Dispenser (컴포넌트를 통한 Has-a) - 5개
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TArray<TObjectPtr<UChildActorComponent>> CeilingDispenserComponents;
 
 	//DropZone ActorComponent (컴포넌트를 통한 Has-a)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -72,6 +75,10 @@ protected:
 
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
 	TObjectPtr<ACPInput> InputB;
+
+	//게임 시작 시 천장 Dispenser 하나당 드롭할 코인 개수
+	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
+	int32 InitialCoinDropCount = 10;
 
 protected:
 
@@ -112,6 +119,7 @@ public:
 	//DispenserComponentA/B가 스폰된 직후 InputA/InputB를 각 Dispenser에 연결
 	virtual void PostInitializeComponents() override;
 
+	//천장 Dispenser들이 게임 시작 시 코인을 드롭
 	virtual void BeginPlay() override;
 
 	//데미지 입는 함수
@@ -151,6 +159,7 @@ public:
 	FORCEINLINE UChildActorComponent* GetDispenserComponentA() const { return DispenserComponentA; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }
 	FORCEINLINE UChildActorComponent* GetDropZoneComponent() const { return DropZoneComponent; }
+	FORCEINLINE const TArray<TObjectPtr<UChildActorComponent>>& GetCeilingDispenserComponents() const { return CeilingDispenserComponents; }
 
 	//ChildActorComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
@@ -158,6 +167,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDispenser* GetDispenserB() const;
+
+	//Index번째 천장 Dispenser가 실제로 스폰한 액터 인스턴스 반환
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPDispenser* GetCeilingDispenser(int32 Index) const;
 
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDropZone* GetDropZone() const;

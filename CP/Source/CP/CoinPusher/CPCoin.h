@@ -4,12 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "CPCoinPusherItem.h"
 #include "CPCoin.generated.h"
 
 class UStaticMeshComponent;
 
 UCLASS(abstract)
-class CP_API ACPCoin : public AActor
+class CP_API ACPCoin : public AActor, public ICPCoinPusherItem
 {
 	GENERATED_BODY()
 
@@ -41,6 +42,11 @@ public:
 	//DropZone에 떨어졌을 때 호출
 	UFUNCTION(BlueprintCallable, Category="Coin")
 	void Collect();
+
+	// ~begin ICPCoinPusherItem
+	//DropZone의 코인 개수를 올린 뒤 Collect() 호출
+	virtual void OnDroppedInZone(ACPDropZone* DropZone) override;
+	// ~end ICPCoinPusherItem
 
 protected:
 	UFUNCTION(BlueprintImplementableEvent, Category="Coin", meta = (DisplayName = "On Collected"))

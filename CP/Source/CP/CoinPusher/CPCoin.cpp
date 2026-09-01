@@ -2,6 +2,7 @@
 
 
 #include "CPCoin.h"
+#include "CPDropZone.h"
 #include "Components/StaticMeshComponent.h"
 
 ACPCoin::ACPCoin()
@@ -29,4 +30,14 @@ void ACPCoin::Collect()
 
 		Destroy();
 	}
+}
+
+void ACPCoin::OnDroppedInZone(ACPDropZone* DropZone)
+{
+	if (DropZone)
+	{
+		DropZone->AddCollectedCoins(1);
+	}
+
+	Collect();
 }
