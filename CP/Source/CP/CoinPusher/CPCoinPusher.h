@@ -7,6 +7,7 @@
 #include "CPCoinPusher.generated.h"
 
 class UStaticMeshComponent;
+class UBoxComponent;
 class UChildActorComponent;
 class ACPDispenser;
 class ACPDropZone;
@@ -23,9 +24,26 @@ class CP_API ACPCoinPusher : public AActor
 {
 	GENERATED_BODY()
 
-	//Body Mesh
+	//코인이 놓이는 바닥 (RootComponent, 실제 충돌 담당). BoxExtent는 항상 (1,1,1)로 고정하고
+	//실제 크기는 Scale로 표현한다
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* Floor;
+
+	//Body Mesh (콜리전 없음 - 순수 비주얼, Floor에 부착)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* Body;
+
+	//왼쪽 벽 (BoxExtent (1,1,1) 고정, Scale로 실제 크기 표현)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* LeftWall;
+
+	//오른쪽 벽 (BoxExtent (1,1,1) 고정, Scale로 실제 크기 표현)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* RightWall;
+
+	//뒷 벽 (BoxExtent (1,1,1) 고정, Scale로 실제 크기 표현)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* BackWall;
 
 	//Pusher ActorComponent (컴포넌트를 통한 Has-a)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -124,7 +142,11 @@ protected:
 public:
 
 	//CoinPusher 구성체 반환
+	FORCEINLINE UBoxComponent* GetFloor() const { return Floor; }
 	FORCEINLINE UStaticMeshComponent* GetBody() const { return Body; }
+	FORCEINLINE UBoxComponent* GetLeftWall() const { return LeftWall; }
+	FORCEINLINE UBoxComponent* GetRightWall() const { return RightWall; }
+	FORCEINLINE UBoxComponent* GetBackWall() const { return BackWall; }
 	FORCEINLINE UChildActorComponent* GetPusherComponent() const { return PusherComponent; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentA() const { return DispenserComponentA; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }

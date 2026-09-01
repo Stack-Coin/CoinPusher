@@ -8,7 +8,9 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 ## Class 구조
 
 - `ACPCoinPusher`
-    - `Body` : 몸체 StaticMeshComponent (RootComponent)
+    - `Floor` (`UBoxComponent`, RootComponent) : 코인이 놓이는 바닥이자 실제 충돌의 기준이 되는 루트
+    - `Body` : 몸체 StaticMeshComponent (`Floor`에 부착, 콜리전 없음 — 순수 비주얼)
+    - `LeftWall` / `RightWall` / `BackWall` (`UBoxComponent`) : `Floor`와 함께 실제 충돌을 담당하는 박스 콜리전. 코인을 기계 안에 물리적으로 가둠
     - `PusherComponent` (`UChildActorComponent`) : **컴포넌트를 통한 Has-a** — `ACPPusher`를 소유
     - `DispenserComponentA` / `DispenserComponentB` (`UChildActorComponent`, 2개) : **컴포넌트를 통한 Has-a** — `ACPDispenser`를 소유
     - `DropZoneComponent` (`UChildActorComponent`) : **컴포넌트를 통한 Has-a** — `ACPDropZone`을 소유
@@ -50,13 +52,18 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - Input이 상호작용되면 `HandleInputInteracted` → `DispenseCoin()`이 호출되어 "Input과 상호작용 시 연결된 Dispenser가 코인을 발사" 요구사항을 만족
 
 ### ACPCoinPusher
-- `Body`(StaticMeshComponent, Root)
+- `Floor`(`UBoxComponent`, RootComponent) : 액터의 루트. `BlockAllDynamic` 프로파일로 실제 충돌 기준이 됨
+- `Body`(StaticMeshComponent, `Floor`에 부착) : `SetCollisionEnabled(NoCollision)`으로 콜리전을 꺼서 순수 비주얼 메시로만 사용
+- `LeftWall` / `RightWall` / `BackWall`(`UBoxComponent`, `Floor`에 부착) : `Floor`와 함께 전부 `BlockAllDynamic` 프로파일 — 코인(WorldDynamic, 물리 시뮬레이션)을 막아 기계 안에 가두고, Pawn도 막아 실제 벽처럼 동작
+- **박스 크기 표현 방식**: `Floor`/`LeftWall`/`RightWall`/`BackWall` 전부 `BoxExtent`는 항상 `(1,1,1)` 유닛 박스로 고정하고, 실제 크기는 컴포넌트의 `Scale`로 표현한다 (예: `Floor`의 Scale `(150,150,10)` → 실질 half-extent `(150,150,10)`과 동일)
+  - `Floor`(루트)가 비균등 스케일을 가지면 자식 컴포넌트들이 그 스케일을 그대로 물려받으므로(부모 스케일이 자식의 상대위치/스케일에 곱해짐), `Body`/`LeftWall`/`RightWall`/`BackWall`/4개의 `ChildActorComponent`는 전부 생성자에서 `원하는 값 / FloorScale`로 상쇄해 원래와 동일한 월드 배치를 유지한다. 그래서 소스상 상대위치·스케일 값이 나눗셈 식으로 적혀있고, 실제 에디터에 표시되는 숫자는 소수점 값(예: `0.0667`, `0.1`)으로 보일 수 있음 — 정상 동작이다
 - `PusherComponent` / `DispenserComponentA` / `DispenserComponentB` / `DropZoneComponent` 모두 `UChildActorComponent`로 각각 `ACPPusher`, `ACPDispenser` x2, `ACPDropZone`을 소유 — 네 종류 모두 Actor이지만 **컴포넌트로 감싸서 Has-a 관계**를 구현 (실제 사용할 BP 서브클래스는 각 컴포넌트의 `Child Actor Class`에 지정)
 - `InputA` / `InputB`(`TObjectPtr<ACPInput>`, EditInstanceOnly) : 레벨에 배치한 `ACPInput`을 CoinPusher에서 직접 연결
 - `PostInitializeComponents()` : Dispenser 자식 액터가 스폰된 직후(=`BeginPlay` 이전) `GetDispenserA()->SetLinkedInput(InputA)`, `GetDispenserB()->SetLinkedInput(InputB)`를 호출해 Dispenser의 `LinkedInput`을 CoinPusher가 대신 설정. Dispenser는 ChildActorComponent로 스폰되는 인스턴스라 에디터에서 직접 편집한 값이 안정적으로 유지되지 않기 때문
 - `GetDispenserA()` / `GetDispenserB()` / `GetDropZone()` : 해당 ChildActorComponent가 실제로 스폰한 액터 인스턴스를 캐스팅해 반환 (`Child Actor Class`가 지정되어야 유효)
 - 체력 시스템: `MaxHealth` / `CurrentHealth`, `ApplyDamage(Damage, DamageCauser)`로 감소
 - `OnActorBeginOverlap`에서 겹친 Actor가 `EnemyActorTag`(기본값 `"Enemy"`) 태그를 가지고 있으면 `EnemyContactDamage`만큼 자동으로 피해 적용
+  - ⚠️ `Body`가 콜리전이 없어지면서 이 오버랩 감지는 현재 어떤 컴포넌트에서도 발생하지 않음 (Floor/LeftWall/RightWall/BackWall은 `BlockAllDynamic`이라 Pawn을 Block하지 Overlap하지 않음). 코드에 남아있는 "적이 IDamage 인터페이스를 사용해 Damage를 호출하도록 수정" TODO대로, 피격 판정 방식을 다시 설계해야 함
 - 체력이 0 이하가 되면 `HandleDestroyed()` → `OnCoinPusherDestroyed` 브로드캐스트 + `BP_OnDestroyed` BP 이벤트 호출
 
 ## 플레이어 상호작용 (ACPCharacter 수정)

@@ -6,19 +6,39 @@
 #include "CPDropZone.h"
 #include "CPInput.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
 
 ACPCoinPusher::ACPCoinPusher()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the body mesh
-	RootComponent = Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
-	Body->SetCollisionProfileName(FName("BlockAllDynamic"));
-	Body->SetGenerateOverlapEvents(true);
+	// 코인이 놓이는 바닥. RootComponent로 지정해 실제 충돌의 기준이 되도록 함.
+	RootComponent = Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
+	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
+	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
 
-	// Pusher, Dispenser 2개, DropZone 모두 ChildActorComponent로 소유 (컴포넌트를 통한 Has-a)
-	// 실제 사용할 클래스는 BP 서브클래스에서 각 컴포넌트의 Child Actor Class로 지정
+	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
+	Body->SetupAttachment(RootComponent);
+	Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+
+	LeftWall = CreateDefaultSubobject<UBoxComponent>(TEXT("LeftWall"));
+	LeftWall->SetupAttachment(RootComponent);
+	LeftWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
+	LeftWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+	RightWall = CreateDefaultSubobject<UBoxComponent>(TEXT("RightWall"));
+	RightWall->SetupAttachment(RootComponent);
+	RightWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
+	RightWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+	BackWall = CreateDefaultSubobject<UBoxComponent>(TEXT("BackWall"));
+	BackWall->SetupAttachment(RootComponent);
+	BackWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
+	BackWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+
 	PusherComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PusherComponent"));
 	PusherComponent->SetupAttachment(RootComponent);
 
