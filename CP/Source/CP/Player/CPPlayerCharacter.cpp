@@ -14,6 +14,8 @@
 #include "TimerManager.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPItemEffect.h"
+#include "Weapon/CPWeaponManagerComponent.h"
+#include "Weapon/CPWeaponBase.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -51,6 +53,8 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+
+	WeaponManager = CreateDefaultSubobject<UCPWeaponManagerComponent>(TEXT("WeaponManager"));
 }
 
 void ACPPlayerCharacter::BeginPlay()
@@ -122,6 +126,14 @@ void ACPPlayerCharacter::DoMove(float Right, float Forward)
 
 void ACPPlayerCharacter::DoAttack()
 {
+	// Armed: the weapon owns its own CanAttack/AttackInterval timing, so just forward the request to it
+	if (WeaponManager && WeaponManager->GetCurrentWeapon())
+	{
+		WeaponManager->Attack();
+		return;
+	}
+
+	// Unarmed fallback: legacy bare-hand box-trace attack, preserved for backward compatibility
 	const float EffectiveAttackCooldown = Stats.AttackSpeed > 0.0f ? (AttackCooldown / Stats.AttackSpeed) : AttackCooldown;
 
 	const float CurrentTime = GetWorld()->GetTimeSeconds();
@@ -132,6 +144,21 @@ void ACPPlayerCharacter::DoAttack()
 	LastAttackTime = CurrentTime;
 
 	PerformAttack();
+}
+
+ACPWeaponBase* ACPPlayerCharacter::EquipWeapon(TSubclassOf<ACPWeaponBase> WeaponClass)
+{
+	return WeaponManager ? WeaponManager->EquipWeapon(WeaponClass) : nullptr;
+}
+
+ACPWeaponBase* ACPPlayerCharacter::SwapWeapon(TSubclassOf<ACPWeaponBase> NewWeaponClass)
+{
+	return WeaponManager ? WeaponManager->SwapWeapon(NewWeaponClass) : nullptr;
+}
+
+ACPWeaponBase* ACPPlayerCharacter::GetCurrentWeapon() const
+{
+	return WeaponManager ? WeaponManager->GetCurrentWeapon() : nullptr;
 }
 
 void ACPPlayerCharacter::DoDash()

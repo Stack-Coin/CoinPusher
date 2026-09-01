@@ -19,6 +19,8 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 struct FInputActionValue;
+class UCPWeaponManagerComponent;
+class ACPWeaponBase;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -48,6 +50,10 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
+
+	/** Owns weapon equip/swap/unequip and the currently held weapon. See Weapon/CPWeaponManagerComponent */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UCPWeaponManagerComponent* WeaponManager;
 
 protected:
 
@@ -219,9 +225,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoMove(float Right, float Forward);
 
-	/** Handles attack inputs from either controls or UI interfaces */
+	/** Handles attack inputs from either controls or UI interfaces. Forwards to the current weapon if one is equipped, otherwise falls back to the legacy unarmed box-trace attack */
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	virtual void DoAttack();
+
+	/** Unequips the current weapon (if any) and equips WeaponClass. WeaponClass = None just unequips */
+	UFUNCTION(BlueprintCallable, Category="Weapon")
+	virtual ACPWeaponBase* EquipWeapon(TSubclassOf<ACPWeaponBase> WeaponClass);
+
+	/** Unequips the current weapon and equips NewWeaponClass in its place */
+	UFUNCTION(BlueprintCallable, Category="Weapon")
+	virtual ACPWeaponBase* SwapWeapon(TSubclassOf<ACPWeaponBase> NewWeaponClass);
+
+	/** Returns the currently equipped weapon, or null if unarmed */
+	UFUNCTION(BlueprintPure, Category="Weapon")
+	virtual ACPWeaponBase* GetCurrentWeapon() const;
 
 	/** Handles dash inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Dash")
@@ -337,4 +355,7 @@ public:
 
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	/** Returns WeaponManager subobject **/
+	FORCEINLINE class UCPWeaponManagerComponent* GetWeaponManager() const { return WeaponManager; }
 };
