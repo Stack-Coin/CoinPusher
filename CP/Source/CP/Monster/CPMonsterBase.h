@@ -23,6 +23,8 @@
 // todo. 모듈화 (Stat Component 등...)
 */
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMonsterDied);
+
 UCLASS()
 class CP_API ACPMonsterBase : public ACharacter, public ICPMonsterAttackInterface, public ICPMonsterAIInterface
 {
@@ -52,13 +54,17 @@ public:
 	virtual void SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished) override;
 	virtual void AttackByAI() override;
 
-	FAICharacterAttackFinished OnAttackFinished;
-
 	// 피격 함수 // 협업용
 	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
+
+public:
+	FAICharacterAttackFinished OnAttackFinished;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnMonsterDied OnMonsterDied;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")

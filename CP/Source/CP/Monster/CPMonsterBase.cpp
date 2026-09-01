@@ -86,6 +86,8 @@ void ACPMonsterBase::Dead()
 		}
 	}
 
+	OnMonsterDied.Broadcast();
+
 	// todo. 몬스터가 죽고 나서 이후에 델리게이트로 송신 후 시간 딜레이를 주고 Item Spawner를 사용해서 코인을 Spawn하는 걸로
 	FTimerHandle DeadTimerHandle;
 	GetWorld()->GetTimerManager().SetTimer(
