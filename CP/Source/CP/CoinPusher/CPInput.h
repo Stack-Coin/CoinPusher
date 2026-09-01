@@ -51,6 +51,6 @@ protected:
 
 public:
 
-	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ï¿½È¯
+	//ÄÄÆ÷³ÍÆ® ¹ÝÈ¯
 	FORCEINLINE UStaticMeshComponent* GetMesh() const { return Mesh; }
 };

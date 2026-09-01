@@ -44,6 +44,10 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* BackWall;
 
+	//앞 벽
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* FrontWall;
+
 	//Pusher ActorComponent (컴포넌트를 통한 Has-a)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* PusherComponent;
@@ -79,6 +83,13 @@ protected:
 	//게임 시작 시 천장 Dispenser 하나당 드롭할 코인 개수
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	int32 InitialCoinDropCount = 10;
+
+	//게임 시작 후 FrontWall을 제거하기까지 대기하는 시간(초)
+	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
+	float FrontWallRemovalDelay = 3.0f;
+
+	//FrontWall 제거 타이머 핸들
+	FTimerHandle FrontWallRemovalTimerHandle;
 
 protected:
 
@@ -143,6 +154,9 @@ protected:
 	// 체력이 0이 되었을 때 호출
 	virtual void HandleDestroyed();
 
+	//FrontWallRemovalDelay 경과 후 호출되어 FrontWall을 비활성화
+	void RemoveFrontWall();
+
 	/** Passes control to BP to play effects when the machine is destroyed */
 	UFUNCTION(BlueprintImplementableEvent, Category="Health", meta = (DisplayName = "On Destroyed"))
 	void BP_OnDestroyed();
@@ -155,6 +169,7 @@ public:
 	FORCEINLINE UBoxComponent* GetLeftWall() const { return LeftWall; }
 	FORCEINLINE UBoxComponent* GetRightWall() const { return RightWall; }
 	FORCEINLINE UBoxComponent* GetBackWall() const { return BackWall; }
+	FORCEINLINE UBoxComponent* GetFrontWall() const { return FrontWall; }
 	FORCEINLINE UChildActorComponent* GetPusherComponent() const { return PusherComponent; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentA() const { return DispenserComponentA; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }

@@ -8,6 +8,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
+#include "TimerManager.h"
 
 ACPCoinPusher::ACPCoinPusher()
 {
@@ -37,6 +38,11 @@ ACPCoinPusher::ACPCoinPusher()
 	BackWall->SetupAttachment(RootComponent);
 	BackWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
 	BackWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+	FrontWall = CreateDefaultSubobject<UBoxComponent>(TEXT("FrontWall"));
+	FrontWall->SetupAttachment(RootComponent);
+	FrontWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
+	FrontWall->SetCollisionProfileName(FName("BlockAllDynamic"));
 
 
 	PusherComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PusherComponent"));
@@ -103,6 +109,9 @@ void ACPCoinPusher::BeginPlay()
 			CeilingDispenser->DispenseItems(InitialCoinDropCount);
 		}
 	}
+
+	// 게임 시작 FrontWallRemovalDelay초 후 FrontWall을 비활성화해 코인이 앞으로 빠질 수 있도록 함
+	GetWorldTimerManager().SetTimer(FrontWallRemovalTimerHandle, this, &ACPCoinPusher::RemoveFrontWall, FrontWallRemovalDelay, false);
 }
 
 void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
@@ -168,4 +177,13 @@ ACPDispenser* ACPCoinPusher::GetCeilingDispenser(int32 Index) const
 ACPDropZone* ACPCoinPusher::GetDropZone() const
 {
 	return DropZoneComponent ? Cast<ACPDropZone>(DropZoneComponent->GetChildActor()) : nullptr;
+}
+
+void ACPCoinPusher::RemoveFrontWall()
+{
+	if (FrontWall)
+	{
+		FrontWall->SetVisibility(false);
+		FrontWall->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 }
