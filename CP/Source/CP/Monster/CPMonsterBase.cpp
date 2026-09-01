@@ -150,6 +150,14 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	{
 		Dead();
 	}
+	else if (IsValid(DamageCauser)) 
+	{
+		FVector KnockbackDirection = GetActorLocation() - DamageCauser->GetActorLocation();
+		KnockbackDirection.Z = 0.f;
+		KnockbackDirection.Normalize();
+
+		LaunchCharacter(KnockbackDirection * 200.0f + FVector::UpVector * 150.0f, true, true);
+	}
 
 	return DamageAmount;
 }
