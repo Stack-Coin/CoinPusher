@@ -1,7 +1,7 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Monster/Tasks/CPTDecorator_AttackInRange.h"
+#include "Monster/Task/CPTDecorator_AttackInRange.h"
 #include "CPAI.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"

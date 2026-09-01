@@ -1,7 +1,7 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Monster/Tasks/CPBTTaskNode_FindPatrolPos.h"
+#include "Monster/Task/CPBTTaskNode_FindPatrolPos.h"
 #include "CPAI.h"
 #include "../CPMonsterAIController.h"
 #include "NavigationSystem.h"

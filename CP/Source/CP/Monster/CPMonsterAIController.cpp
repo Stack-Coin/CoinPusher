@@ -7,7 +7,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
-#include "Tasks/CPAI.h"
+#include "Task/CPAI.h"
 
 ACPMonsterAIController::ACPMonsterAIController()
 {
