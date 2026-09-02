@@ -56,7 +56,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 
 ### ACPDropZone
 - `CollectionVolume`(UBoxComponent)에 `ICPCoinPusherItem`을 구현하는 오브젝트가 겹치면(OnComponentBeginOverlap) 감지해 `Item->OnDroppedInZone(this)` 호출 — Coin/Item 등 구체 타입은 전혀 모름
-- `AddCollectedCoins(int32 Amount = 1)` : `CollectedCoinCount` 증가 + `OnCoinCollected` 브로드캐스트 (`ACPCoin`이 호출)
+- `AddCollectedCoins(int32 Amount = 1)` : `CollectedCoinCount` 증가 + `OnCoinCollected` 브로드캐스트 (`ACPCoin`이 호출). `CollectedCoinCount`가 10의 배수가 될 때마다 `GetAuthGameMode()`로 `ACPGameMode`를 찾아 떨어진 코인 수량(`CollectedCoinCount`)을 그대로 넘겨줄 준비를 함 — 티켓 환산 로직은 GameMode 쪽 책임. 실제 `GameMode->UpdateTicketCount(CollectedCoinCount)` 호출은 `ACPGameMode`에 아직 그 함수가 없어서 주석 처리된 상태 (TODO)
 - `RecordCollectedItem(FName ItemCode)` : `CollectedItemCodes` 배열에 추가 + `OnItemCollected` 브로드캐스트 (`ACPItem`이 호출). 이어서 `ItemRespawnDispenser`가 설정되어 있으면 `DispenseItemByID(ItemCode, 1)`을 호출해 같은 아이템을 다시 생성 요청 — "아이템이 Drop되면 해당 ItemID를 연결된 Dispenser에 넘겨 Spawn" 요구사항을 만족
 - `ItemRespawnDispenser`(`TObjectPtr<ACPDispenser>`, VisibleInstanceOnly) : 위 재생성을 맡을 Dispenser. **DropZone은 `ACPCoinPusher`의 ChildActorComponent로 스폰되는 인스턴스라 레벨에서 직접 편집할 수 없으므로**, 에디터에서 직접 설정하지 않고 `SetItemRespawnDispenser()`를 통해서만 설정됨 (소유자인 `ACPCoinPusher`가 `PostInitializeComponents`에서 호출)
 

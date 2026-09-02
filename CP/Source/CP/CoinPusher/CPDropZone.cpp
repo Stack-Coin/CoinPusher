@@ -5,6 +5,8 @@
 #include "CPCoinPusherItem.h"
 #include "CPDispenser.h"
 #include "Components/BoxComponent.h"
+#include "Engine/World.h"
+#include "Player/CPGameMode.h"
 
 ACPDropZone::ACPDropZone()
 {
@@ -33,6 +35,18 @@ void ACPDropZone::AddCollectedCoins(int32 Amount)
 	CollectedCoinCount += Amount;
 
 	OnCoinCollected.Broadcast(CollectedCoinCount);
+
+	//코인이 10개 모일 때마다(예: 10, 20, 30...) GameMode를 찾아 떨어진 코인 수량을 넘겨줌
+	if (CollectedCoinCount % 10 == 0)
+	{
+		/*
+		if (ACPGameMode* GameMode = GetWorld() ? Cast<ACPGameMode>(GetWorld()->GetAuthGameMode()) : nullptr)
+		{
+			//TODO: ACPGameMode에 UpdateTicketCount가 추가되면 연결
+			//GameMode->UpdateTicketCount(CollectedCoinCount);
+		}
+		*/
+	}
 }
 
 void ACPDropZone::RecordCollectedItem(FName ItemCode)
