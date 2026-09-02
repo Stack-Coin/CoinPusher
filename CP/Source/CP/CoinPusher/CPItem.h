@@ -7,6 +7,7 @@
 #include "CPCoinPusherItem.h"
 #include "CPItem.generated.h"
 
+class USphereComponent;
 class UStaticMeshComponent;
 
 /**
@@ -18,7 +19,11 @@ class CP_API ACPItem : public AActor, public ICPCoinPusherItem
 {
 	GENERATED_BODY()
 
-	/** Item mesh, simulates physics */
+	/** Physics collision shape and RootComponent. A sphere so the item rolls naturally */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	USphereComponent* CollisionSphere;
+
+	/** Visual sphere mesh, no collision - purely cosmetic */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* Mesh;
 
@@ -56,6 +61,9 @@ protected:
 	void BP_OnCollected();
 
 public:
+
+	/** Returns the CollisionSphere subobject */
+	FORCEINLINE USphereComponent* GetCollisionSphere() const { return CollisionSphere; }
 
 	/** Returns the Mesh subobject */
 	FORCEINLINE UStaticMeshComponent* GetMesh() const { return Mesh; }

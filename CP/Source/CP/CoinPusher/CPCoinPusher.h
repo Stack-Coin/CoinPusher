@@ -80,8 +80,8 @@ protected:
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
 	TObjectPtr<ACPInput> InputB;
 
-	//DropZone에 아이템이 떨어졌을 때 같은 아이템의 재생성을 맡을 Dispenser. 보통 천장 Dispenser 중
-	//하나를 지정한다 (레벨에서 이 CoinPusher 인스턴스의 자식 액터로 스폰된 Dispenser를 피커로 선택).
+	//DropZone에 아이템이 떨어졌을 때 같은 아이템의 재생성을 맡을 Dispenser. 
+	// 외부에 Dispenser를선택
 	//PostInitializeComponents에서 자동으로 DropZone에 전달된다
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
 	TObjectPtr<ACPDispenser> ItemRespawnDispenser;
