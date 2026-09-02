@@ -14,6 +14,8 @@
 #include "TimerManager.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPItemEffect.h"
+#include "Weapon/CPWeaponManagerComponent.h"
+#include "Weapon/CPWeaponBase.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -51,6 +53,11 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+
+	WeaponManager = CreateDefaultSubobject<UCPWeaponManagerComponent>(TEXT("WeaponManager"));
+	// Bound in the constructor (not BeginPlay) so it's already in place before WeaponManager's own BeginPlay
+	// equips DefaultWeaponClass and broadcasts this for the very first weapon
+	WeaponManager->OnWeaponChanged.AddDynamic(this, &ACPPlayerCharacter::HandleWeaponChanged);
 }
 
 void ACPPlayerCharacter::BeginPlay()
@@ -106,7 +113,7 @@ void ACPPlayerCharacter::Interact(const FInputActionValue& Value)
 
 void ACPPlayerCharacter::DoMove(float Right, float Forward)
 {
-	if (Controller == nullptr)
+	if (Controller == nullptr || bIsAttackLocked)
 	{
 		return;
 	}
@@ -122,6 +129,22 @@ void ACPPlayerCharacter::DoMove(float Right, float Forward)
 
 void ACPPlayerCharacter::DoAttack()
 {
+	if (bIsAttackLocked)
+	{
+		return;
+	}
+
+	// Armed: the weapon owns its own CanAttack/AttackInterval timing, so just forward the request to it
+	if (WeaponManager && WeaponManager->GetCurrentWeapon())
+	{
+		if (WeaponManager->Attack())
+		{
+			OrientAndLungeForAttack();
+		}
+		return;
+	}
+
+	// Unarmed fallback: legacy bare-hand box-trace attack, preserved for backward compatibility
 	const float EffectiveAttackCooldown = Stats.AttackSpeed > 0.0f ? (AttackCooldown / Stats.AttackSpeed) : AttackCooldown;
 
 	const float CurrentTime = GetWorld()->GetTimeSeconds();
@@ -132,6 +155,21 @@ void ACPPlayerCharacter::DoAttack()
 	LastAttackTime = CurrentTime;
 
 	PerformAttack();
+}
+
+ACPWeaponBase* ACPPlayerCharacter::EquipWeapon(TSubclassOf<ACPWeaponBase> WeaponClass)
+{
+	return WeaponManager ? WeaponManager->EquipWeapon(WeaponClass) : nullptr;
+}
+
+ACPWeaponBase* ACPPlayerCharacter::SwapWeapon(TSubclassOf<ACPWeaponBase> NewWeaponClass)
+{
+	return WeaponManager ? WeaponManager->SwapWeapon(NewWeaponClass) : nullptr;
+}
+
+ACPWeaponBase* ACPPlayerCharacter::GetCurrentWeapon() const
+{
+	return WeaponManager ? WeaponManager->GetCurrentWeapon() : nullptr;
 }
 
 void ACPPlayerCharacter::DoDash()
@@ -148,6 +186,16 @@ void ACPPlayerCharacter::DoDash()
 	}
 	LastDashTime = CurrentTime;
 
+	// Dash interrupts an in-progress attack: cancel the weapon's swing (which releases the attack lock via
+	// HandleAttackStateChanged) so the dash below isn't blocked and doesn't fight the attack's facing/lunge
+	if (bIsAttackLocked)
+	{
+		if (ACPWeaponBase* CurrentWeapon = WeaponManager ? WeaponManager->GetCurrentWeapon() : nullptr)
+		{
+			CurrentWeapon->CancelAttack();
+		}
+	}
+
 	DashDirection = GetWorldDirectionFromInput(LastMoveInputVector);
 	if (DashDirection.IsNearlyZero())
 	{
@@ -161,6 +209,23 @@ void ACPPlayerCharacter::DoDash()
 	LaunchCharacter(DashDirection * DashSpeed, true, true);
 
 	GetWorldTimerManager().SetTimer(DashDurationTimerHandle, this, &ACPPlayerCharacter::EndDash, DashDuration, false);
+}
+
+void ACPPlayerCharacter::HandleWeaponChanged(ACPWeaponBase* NewWeapon)
+{
+	if (NewWeapon)
+	{
+		NewWeapon->OnAttackStateChanged.AddDynamic(this, &ACPPlayerCharacter::HandleAttackStateChanged);
+	}
+}
+
+void ACPPlayerCharacter::HandleAttackStateChanged(bool bIsAttacking)
+{
+	bIsAttackLocked = bIsAttacking;
+
+	// Movement input is already blocked outright while locked (see DoMove) - this additionally stops the
+	// movement component from turning the character to face residual velocity while the lock is engaged
+	GetCharacterMovement()->bOrientRotationToMovement = !bIsAttacking;
 }
 
 void ACPPlayerCharacter::DoInteract()
@@ -212,6 +277,23 @@ FVector ACPPlayerCharacter::GetAttackDirection() const
 	}
 
 	return Direction;
+}
+
+void ACPPlayerCharacter::OrientAndLungeForAttack()
+{
+	const FVector AimDirection = GetAttackDirection();
+	SetActorRotation(FRotator(0.0f, AimDirection.Rotation().Yaw, 0.0f));
+
+	const FVector CurrentVelocity = GetVelocity();
+	const float CurrentSpeed = CurrentVelocity.Size2D();
+	if (CurrentSpeed < AttackLungeMinSpeed)
+	{
+		return;
+	}
+
+	const FVector LungeDirection = CurrentVelocity.GetSafeNormal2D();
+	const float LungeSpeed = AttackLungeDuration > 0.0f ? (AttackLungeDistance / AttackLungeDuration) : AttackLungeDistance;
+	LaunchCharacter(LungeDirection * LungeSpeed, true, true);
 }
 
 void ACPPlayerCharacter::PerformAttack()
@@ -267,6 +349,8 @@ float ACPPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	{
 		return 0.0f;
 	}
+
+	SetStat(ECPStatType::Health, GetStat(ECPStatType::Health) - DamageAmount);
 
 	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
