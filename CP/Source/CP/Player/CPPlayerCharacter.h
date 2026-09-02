@@ -23,6 +23,7 @@ class UInputAction;
 struct FInputActionValue;
 class UCPWeaponManagerComponent;
 class ACPWeaponBase;
+class ACPRoulette;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -74,6 +75,10 @@ protected:
 	/** Interact Input Action (E key) */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* InteractAction;
+
+	/** Interact Input Action (R key) */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* RollRouletteAction;
 
 protected:
 
@@ -211,6 +216,9 @@ protected:
 	/** Closest currently-registered interactable, i.e. what pressing Interact will activate */
 	TWeakObjectPtr<AActor> CurrentInteractable;
 
+	//·ê·¿
+	TObjectPtr<ACPRoulette> Roulette;
+
 public:
 
 	/** Constructor */
@@ -235,6 +243,9 @@ protected:
 
 	/** Called for interact input */
 	void Interact(const FInputActionValue& Value);
+
+	/** Called for RollRoulette input */
+	void RollRoulette(const FInputActionValue& Value);
 
 	/** Bound to WeaponManager->OnWeaponChanged. Subscribes to the newly equipped weapon's OnAttackStateChanged */
 	UFUNCTION()

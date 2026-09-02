@@ -16,6 +16,7 @@
 #include "Player/CPItemEffect.h"
 #include "Weapon/CPWeaponManagerComponent.h"
 #include "Weapon/CPWeaponBase.h"
+#include "Roulette/CPRoulette.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -77,11 +78,27 @@ void ACPPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::Attack);
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::StartDash);
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::Interact);
+		EnhancedInputComponent->BindAction(RollRouletteAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::RollRoulette);
 	}
 	else
 	{
 		UE_LOG(LogCPPlayerCharacter, Error, TEXT("'%s' Failed to find an Enhanced Input component! This character requires the Enhanced Input system."), *GetNameSafe(this));
 	}
+}
+
+void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
+{
+	if (!Roulette)
+	{
+		ACPRoulette* LevelRoulette = Cast<ACPRoulette>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPRoulette::StaticClass()));
+		if (!LevelRoulette)
+		{
+			return;
+		}
+		Roulette = LevelRoulette;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Rollin"));
+	Roulette->Roll();
 }
 
 void ACPPlayerCharacter::Move(const FInputActionValue& Value)

@@ -29,29 +29,30 @@ ACPCoinPusher::ACPCoinPusher()
 	Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
 	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
 	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
+	Floor->SetupAttachment(ExtraBox);
 
 	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
-	Body->SetupAttachment(RootComponent);
+	Body->SetupAttachment(Floor);
 	Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 
 	LeftWall = CreateDefaultSubobject<UBoxComponent>(TEXT("LeftWall"));
-	LeftWall->SetupAttachment(RootComponent);
+	LeftWall->SetupAttachment(Floor);
 	LeftWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
 	LeftWall->SetCollisionProfileName(FName("BlockAllDynamic"));
 
 	RightWall = CreateDefaultSubobject<UBoxComponent>(TEXT("RightWall"));
-	RightWall->SetupAttachment(RootComponent);
+	RightWall->SetupAttachment(Floor);
 	RightWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
 	RightWall->SetCollisionProfileName(FName("BlockAllDynamic"));
 
 	BackWall = CreateDefaultSubobject<UBoxComponent>(TEXT("BackWall"));
-	BackWall->SetupAttachment(RootComponent);
+	BackWall->SetupAttachment(Floor);
 	BackWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
 	BackWall->SetCollisionProfileName(FName("BlockAllDynamic"));
 
 	FrontWall = CreateDefaultSubobject<UBoxComponent>(TEXT("FrontWall"));
-	FrontWall->SetupAttachment(RootComponent);
+	FrontWall->SetupAttachment(Floor);
 	FrontWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
 	FrontWall->SetCollisionProfileName(FName("BlockAllDynamic"));
 
@@ -59,13 +60,13 @@ ACPCoinPusher::ACPCoinPusher()
 
 
 	PusherComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PusherComponent"));
-	PusherComponent->SetupAttachment(RootComponent);
+	PusherComponent->SetupAttachment(Floor);
 
 	DispenserComponentA = CreateDefaultSubobject<UChildActorComponent>(TEXT("DispenserComponentA"));
-	DispenserComponentA->SetupAttachment(RootComponent);
+	DispenserComponentA->SetupAttachment(Floor);
 
 	DispenserComponentB = CreateDefaultSubobject<UChildActorComponent>(TEXT("DispenserComponentB"));
-	DispenserComponentB->SetupAttachment(RootComponent);
+	DispenserComponentB->SetupAttachment(Floor);
 
 	// 천장에서 물건을 뿌리는 Dispenser 5개. 위치/발사 설정과 Item Class는 BP에서 조정
 	CeilingDispenserComponents.SetNum(5);
@@ -73,12 +74,12 @@ ACPCoinPusher::ACPCoinPusher()
 	{
 		const FName ComponentName(*FString::Printf(TEXT("CeilingDispenserComponent%d"), Index));
 		UChildActorComponent* CeilingDispenserComponent = CreateDefaultSubobject<UChildActorComponent>(ComponentName);
-		CeilingDispenserComponent->SetupAttachment(RootComponent);
+		CeilingDispenserComponent->SetupAttachment(Floor);
 		CeilingDispenserComponents[Index] = CeilingDispenserComponent;
 	}
 
 	DropZoneComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("DropZoneComponent"));
-	DropZoneComponent->SetupAttachment(RootComponent);
+	DropZoneComponent->SetupAttachment(Floor);
 }
 
 void ACPCoinPusher::PostInitializeComponents()

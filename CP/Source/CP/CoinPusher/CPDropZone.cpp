@@ -49,7 +49,7 @@ void ACPDropZone::RecordCollectedItem(FName ItemCode)
 	//레벨(CoinPusher)에서 지정해 둔 Dispenser가 있으면 그쪽에 같은 ItemID의 재생성을 요청
 	if (ItemRespawnDispenser)
 	{
-		ItemRespawnDispenser->DispenseItemByID(ItemCode, 1);
+		ItemRespawnDispenser->DispenseItemByID(ItemCode, 1, ECPDispenserSpawnType::WorldItem);
 	}
 }
 
