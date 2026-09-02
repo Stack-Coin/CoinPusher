@@ -350,6 +350,8 @@ float ACPPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 		return 0.0f;
 	}
 
+	SetStat(ECPStatType::Health, GetStat(ECPStatType::Health) - DamageAmount);
+
 	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
 

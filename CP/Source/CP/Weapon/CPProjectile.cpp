@@ -91,14 +91,14 @@ void ACPProjectile::SetHomingTarget(AActor* Target)
 
 void ACPProjectile::OnProjectileOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	//ProcessHit(OtherActor, bFromSweep ? FVector(SweepResult.Location) : GetActorLocation());
+	ProcessHit(OtherActor, bFromSweep ? FVector(SweepResult.Location) : GetActorLocation());
 }
 
 void ACPProjectile::OnProjectileHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	// A blocking hit only ever happens against world geometry (Pawns are set to overlap above), so it always stops the projectile
-	//ProcessHit(OtherActor, Hit.Location);
-	//Destroy();
+	ProcessHit(OtherActor, Hit.Location);
+	Destroy();
 }
 
 void ACPProjectile::ProcessHit(AActor* OtherActor, const FVector& HitLocation)
