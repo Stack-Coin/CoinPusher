@@ -2,11 +2,9 @@
 
 #include "CPRoulette.h"
 #include "CPRouletteWidget.h"
-#include "../CoinPusher/CPCoinPusherItem.h"
+#include "../CoinPusher/CPCoinPusher.h"
 #include "Components/SceneComponent.h"
-#include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
-#include "Kismet/GameplayStatics.h"
 
 ACPRoulette::ACPRoulette()
 {
@@ -19,16 +17,27 @@ ACPRoulette::ACPRoulette()
 
 void ACPRoulette::Roll()
 {
-	if (Slots.Num() == 0)
+	// 이미 스핀 중이면(다른 플레이어가 먼저 돌린 경우 포함) 무시 - 하나의 룰렛을 두 플레이어가 공유
+	if (bIsRolling || Slots.Num() == 0)
 	{
 		return;
 	}
 
+	bIsRolling = true;
+
 	const int32 ResultIndex = FMath::RandRange(0, Slots.Num() - 1);
 
-	if (UCPRouletteWidget* Widget = GetOrCreateRouletteWidget())
+	const TArray<UCPRouletteWidget*> Widgets = GetOrCreateRouletteWidgets();
+	if (Widgets.Num() > 0)
 	{
-		Widget->PlaySpin(ResultIndex, Slots.Num());
+		// 로컬 스플릿 스크린의 모든 플레이어 화면에 동일한 룰렛 UI를 동시에 재생
+		for (UCPRouletteWidget* Widget : Widgets)
+		{
+			if (Widget)
+			{
+				Widget->PlaySpin(ResultIndex, Slots.Num());
+			}
+		}
 	}
 	else
 	{
@@ -37,36 +46,66 @@ void ACPRoulette::Roll()
 	}
 }
 
-UCPRouletteWidget* ACPRoulette::GetOrCreateRouletteWidget()
+TArray<UCPRouletteWidget*> ACPRoulette::GetOrCreateRouletteWidgets()
 {
-	if (RouletteWidgetInstance)
-	{
-		return RouletteWidgetInstance;
-	}
-
 	if (!RouletteWidgetClass)
 	{
-		return nullptr;
+		return TArray<UCPRouletteWidget*>();
 	}
 
-	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-	if (!PC)
+	if (UWorld* World = GetWorld())
 	{
-		return nullptr;
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			APlayerController* PC = It->Get();
+			if (!PC || !PC->IsLocalController())
+			{
+				continue;
+			}
+
+			const bool bAlreadyHasWidget = RouletteWidgetInstances.ContainsByPredicate([PC](const UCPRouletteWidget* Widget)
+			{
+				return Widget && Widget->GetOwningPlayer() == PC;
+			});
+
+			if (bAlreadyHasWidget)
+			{
+				continue;
+			}
+
+			if (UCPRouletteWidget* NewWidget = CreateWidget<UCPRouletteWidget>(PC, RouletteWidgetClass))
+			{
+				NewWidget->AddToViewport();
+				NewWidget->OnResultDetermined.AddUniqueDynamic(this, &ACPRoulette::HandleRouletteResultDetermined);
+				RouletteWidgetInstances.Add(NewWidget);
+			}
+		}
 	}
 
-	RouletteWidgetInstance = CreateWidget<UCPRouletteWidget>(PC, RouletteWidgetClass);
-	if (RouletteWidgetInstance)
+	TArray<UCPRouletteWidget*> Widgets;
+	Widgets.Reserve(RouletteWidgetInstances.Num());
+	for (const TObjectPtr<UCPRouletteWidget>& Widget : RouletteWidgetInstances)
 	{
-		RouletteWidgetInstance->AddToViewport();
-		RouletteWidgetInstance->OnResultDetermined.AddUniqueDynamic(this, &ACPRoulette::HandleRouletteResultDetermined);
+		if (Widget)
+		{
+			Widgets.Add(Widget);
+		}
 	}
 
-	return RouletteWidgetInstance;
+	return Widgets;
 }
 
 void ACPRoulette::HandleRouletteResultDetermined(int32 ResultIndex)
 {
+	// 스플릿 스크린 위젯마다 각자 OnResultDetermined를 브로드캐스트하므로,
+	// 같은 스핀 결과에 대해 아이템이 중복 스폰되지 않도록 최초 1회만 처리
+	if (!bIsRolling)
+	{
+		return;
+	}
+
+	bIsRolling = false;
+
 	if (!Slots.IsValidIndex(ResultIndex))
 	{
 		return;
@@ -77,31 +116,10 @@ void ACPRoulette::HandleRouletteResultDetermined(int32 ResultIndex)
 
 void ACPRoulette::SpawnSlotItems(const FCPRouletteSlotData& SlotData)
 {
-	if (!SlotData.ItemClass || !GetWorld())
+	if (!CoinPusher)
 	{
 		return;
 	}
 
-	// ICPCoinPusherItem을 구현하지 않는 클래스는 DropZone이 처리할 수 없으므로 스폰하지 않는다
-	if (!SlotData.ItemClass->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
-	{
-		return;
-	}
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = this;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-	for (int32 Index = 0; Index < SlotData.SpawnCount; ++Index)
-	{
-		if (AActor* SpawnedItem = GetWorld()->SpawnActor<AActor>(SlotData.ItemClass, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation(), SpawnParams))
-		{
-			// RootComponent가 물리 시뮬레이션 중인 프리미티브라면 발사 속도를 부여 (ACPCoin, ACPItem 등)
-			if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(SpawnedItem->GetRootComponent()))
-			{
-				const FVector LaunchVelocity = SpawnPoint->GetForwardVector() * LaunchForwardSpeed + FVector::UpVector * LaunchUpwardSpeed;
-				RootPrimitive->SetPhysicsLinearVelocity(LaunchVelocity);
-			}
-		}
-	}
+	CoinPusher->ItemSpawn(SlotData.ItemID, SlotData.SpawnCount);
 }
