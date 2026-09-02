@@ -6,10 +6,11 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "../CPMonsterAIInterface.h"
+#include "../../Player/CPPlayerCharacter.h"
 
 UCPTDecorator_AttackInRange::UCPTDecorator_AttackInRange()
 {
-	NodeName = TEXT("CanAttack");
+	NodeName = TEXT("CanAttackPlayer");
 }
 
 bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
@@ -28,7 +29,7 @@ bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeCompon
 		return false;
 	}
 
-	APawn* Target = Cast<APawn>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
+	ACPPlayerCharacter* Target = Cast<ACPPlayerCharacter>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
 	if (Target == nullptr)
 	{
 		return false;

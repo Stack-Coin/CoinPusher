@@ -6,10 +6,11 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "../CPMonsterAIInterface.h"
+#include "../../Player/CPPlayerCharacter.h"
 
 UCPBTTaskNode_TurnToTarget::UCPBTTaskNode_TurnToTarget()
 {
-	NodeName = TEXT("Turn");
+	NodeName = TEXT("TurnToTarget");
 }
 
 EBTNodeResult::Type UCPBTTaskNode_TurnToTarget::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
@@ -28,7 +29,7 @@ EBTNodeResult::Type UCPBTTaskNode_TurnToTarget::ExecuteTask(UBehaviorTreeCompone
 		return EBTNodeResult::Failed;
 	}
 
-	APawn* TargetPawn = Cast<APawn>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
+	ACPPlayerCharacter* TargetPawn = Cast<ACPPlayerCharacter>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
 	if (TargetPawn == nullptr) 
 	{
 		return EBTNodeResult::Failed;

@@ -10,7 +10,8 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - `ACPCoinPusher`
     - `Floor` (`UBoxComponent`, RootComponent) : 코인이 놓이는 바닥이자 실제 충돌의 기준이 되는 루트
     - `Body` : 몸체 StaticMeshComponent (`Floor`에 부착, 콜리전 없음 — 순수 비주얼)
-    - `LeftWall` / `RightWall` / `BackWall` (`UBoxComponent`) : `Floor`와 함께 실제 충돌을 담당하는 박스 콜리전. 코인을 기계 안에 물리적으로 가둠
+    - `LeftWall` / `RightWall` / `BackWall` / `FrontWall` (`UBoxComponent`) : `Floor`와 함께 실제 충돌을 담당하는 박스 콜리전. 코인을 기계 안에 물리적으로 가둠 (`FrontWall`은 게임 시작 후 `FrontWallRemovalDelay`초 뒤 자동으로 콜리전/비주얼이 꺼짐)
+    - `ExtraBox` (`UBoxComponent`, `Floor`에 부착) + `ExtraBoxMesh` (`UStaticMeshComponent`, `ExtraBox`에 부착, 콜리전 없음) : 추가 박스 콜리전과 그 자식으로 붙는 비주얼 메시. 구체적인 용도는 아직 정해지지 않음 — BP에서 자유롭게 확장
     - `PusherComponent` (`UChildActorComponent`) : **컴포넌트를 통한 Has-a** — `ACPPusher`를 소유
     - `DispenserComponentA` / `DispenserComponentB` (`UChildActorComponent`, 2개) : **컴포넌트를 통한 Has-a** — Input과 연동되어 앞으로 코인을 던지는 `ACPDispenser`를 소유
     - `CeilingDispenserComponents` (`UChildActorComponent`, 5개) : **컴포넌트를 통한 Has-a** — 천장에서 물건을 뿌리는 `ACPDispenser`를 소유. 게임 시작 시 각각 코인을 드롭
@@ -55,7 +56,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 
 ### ACPDropZone
 - `CollectionVolume`(UBoxComponent)에 `ICPCoinPusherItem`을 구현하는 오브젝트가 겹치면(OnComponentBeginOverlap) 감지해 `Item->OnDroppedInZone(this)` 호출 — Coin/Item 등 구체 타입은 전혀 모름
-- `AddCollectedCoins(int32 Amount = 1)` : `CollectedCoinCount` 증가 + `OnCoinCollected` 브로드캐스트 (`ACPCoin`이 호출)
+- `AddCollectedCoins(int32 Amount = 1)` : `CollectedCoinCount` 증가 + `OnCoinCollected` 브로드캐스트 (`ACPCoin`이 호출). `CollectedCoinCount`가 10의 배수가 될 때마다 `GetAuthGameMode()`로 `ACPGameMode`를 찾아 떨어진 코인 수량(`CollectedCoinCount`)을 그대로 넘겨줄 준비를 함 — 티켓 환산 로직은 GameMode 쪽 책임. 실제 `GameMode->UpdateTicketCount(CollectedCoinCount)` 호출은 `ACPGameMode`에 아직 그 함수가 없어서 주석 처리된 상태 (TODO)
 - `RecordCollectedItem(FName ItemCode)` : `CollectedItemCodes` 배열에 추가 + `OnItemCollected` 브로드캐스트 (`ACPItem`이 호출). 이어서 `ItemRespawnDispenser`가 설정되어 있으면 `DispenseItemByID(ItemCode, 1)`을 호출해 같은 아이템을 다시 생성 요청 — "아이템이 Drop되면 해당 ItemID를 연결된 Dispenser에 넘겨 Spawn" 요구사항을 만족
 - `ItemRespawnDispenser`(`TObjectPtr<ACPDispenser>`, VisibleInstanceOnly) : 위 재생성을 맡을 Dispenser. **DropZone은 `ACPCoinPusher`의 ChildActorComponent로 스폰되는 인스턴스라 레벨에서 직접 편집할 수 없으므로**, 에디터에서 직접 설정하지 않고 `SetItemRespawnDispenser()`를 통해서만 설정됨 (소유자인 `ACPCoinPusher`가 `PostInitializeComponents`에서 호출)
 
@@ -85,7 +86,8 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 ### ACPCoinPusher
 - `Floor`(`UBoxComponent`, RootComponent) : 액터의 루트. `BlockAllDynamic` 프로파일로 실제 충돌 기준이 됨. `BoxExtent`로 직접 크기 지정 (예: `150,150,10`)
 - `Body`(StaticMeshComponent, `Floor`에 부착) : `SetCollisionEnabled(NoCollision)`으로 콜리전을 꺼서 순수 비주얼 메시로만 사용
-- `LeftWall` / `RightWall` / `BackWall`(`UBoxComponent`, `Floor`에 부착) : `Floor`와 함께 전부 `BlockAllDynamic` 프로파일 — 코인(WorldDynamic, 물리 시뮬레이션)을 막아 기계 안에 가두고, Pawn도 막아 실제 벽처럼 동작. 상대 위치/크기는 BP에서 실제 메시에 맞게 조정
+- `LeftWall` / `RightWall` / `BackWall` / `FrontWall`(`UBoxComponent`, `Floor`에 부착) : `Floor`와 함께 전부 `BlockAllDynamic` 프로파일 — 코인(WorldDynamic, 물리 시뮬레이션)을 막아 기계 안에 가두고, Pawn도 막아 실제 벽처럼 동작. 상대 위치/크기는 BP에서 실제 메시에 맞게 조정. `FrontWall`은 `BeginPlay`에서 타이머를 걸어 `FrontWallRemovalDelay`초 후 `RemoveFrontWall()`로 콜리전/비주얼을 꺼서 코인이 앞으로 빠질 수 있게 함
+- `ExtraBox`(`UBoxComponent`, `Floor`에 부착) / `ExtraBoxMesh`(`UStaticMeshComponent`, `ExtraBox`에 부착, 콜리전 없음) : 추가 박스 콜리전 + 그 자식으로 붙는 비주얼 메시. 아직 특정 용도는 없고 확장을 위한 자리
 - `PusherComponent` / `DispenserComponentA` / `DispenserComponentB` / `CeilingDispenserComponents`(5개) / `DropZoneComponent` 모두 `UChildActorComponent`로 각각 `ACPPusher`, `ACPDispenser`, `ACPDropZone`을 소유 — 전부 Actor이지만 **컴포넌트로 감싸서 Has-a 관계**를 구현 (실제 사용할 BP 서브클래스는 각 컴포넌트의 `Child Actor Class`에 지정)
 - `InputA` / `InputB`(`TObjectPtr<ACPInput>`, EditInstanceOnly) : 레벨에 배치한 `ACPInput`을 CoinPusher에서 직접 연결 (앞으로 던지는 `DispenserComponentA`/`B`용)
 - `ItemRespawnDispenser`(`TObjectPtr<ACPDispenser>`, EditInstanceOnly) : DropZone에 아이템이 떨어졌을 때 재생성을 맡을 Dispenser. 레벨에서 이 CoinPusher 인스턴스의 자식 액터로 스폰된 Dispenser 중 하나를(보통 천장 Dispenser) 피커로 선택해서 지정

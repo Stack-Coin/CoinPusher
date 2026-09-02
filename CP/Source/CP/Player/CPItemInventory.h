@@ -38,4 +38,10 @@ public:
 
 	/** Returns every currently owned item, in acquisition order */
 	virtual const TArray<FCPItemData>& GetOwnedItems() const = 0;
+
+	/** Broadcasts that ItemData was acquired (e.g. to show a toast), without adding it to the owned-items
+	 *  list - AddOwnedItem calls this too, so use this directly for a pickup (e.g. a weapon) that should be
+	 *  announced but kept out of the generic owned-items list/UI */
+	UFUNCTION(BlueprintCallable, Category="Item")
+	virtual void NotifyItemAcquired(const FCPItemData& ItemData) = 0;
 };

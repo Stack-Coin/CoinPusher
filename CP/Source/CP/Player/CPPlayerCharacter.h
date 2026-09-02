@@ -14,6 +14,7 @@
 #include "Player/CPItemInventory.h"
 #include "Player/CPItemTypes.h"
 #include "Weapon/CPAimDirectionInterface.h"
+#include "Player/CPWeaponEquipper.h"
 #include "CPPlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -22,6 +23,7 @@ class UInputAction;
 struct FInputActionValue;
 class UCPWeaponManagerComponent;
 class ACPWeaponBase;
+class ACPRoulette;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -40,7 +42,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPItemAcquired, FCPItemData, Acqu
  *  - Directional dash with temporary invincibility
  */
 UCLASS(abstract)
-class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPCoinWallet, public ICPItemInventory, public ICPAimDirectionProvider
+class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPCoinWallet, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper
 {
 	GENERATED_BODY()
 
@@ -73,6 +75,10 @@ protected:
 	/** Interact Input Action (E key) */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* InteractAction;
+
+	/** Interact Input Action (R key) */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* RollRouletteAction;
 
 protected:
 
@@ -210,6 +216,9 @@ protected:
 	/** Closest currently-registered interactable, i.e. what pressing Interact will activate */
 	TWeakObjectPtr<AActor> CurrentInteractable;
 
+	//·ê·¿
+	TObjectPtr<ACPRoulette> Roulette;
+
 public:
 
 	/** Constructor */
@@ -235,6 +244,9 @@ protected:
 	/** Called for interact input */
 	void Interact(const FInputActionValue& Value);
 
+	/** Called for RollRoulette input */
+	void RollRoulette(const FInputActionValue& Value);
+
 	/** Bound to WeaponManager->OnWeaponChanged. Subscribes to the newly equipped weapon's OnAttackStateChanged */
 	UFUNCTION()
 	void HandleWeaponChanged(ACPWeaponBase* NewWeapon);
@@ -253,17 +265,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	virtual void DoAttack();
 
+	// ~begin ICPWeaponEquipper
+
 	/** Unequips the current weapon (if any) and equips WeaponClass. WeaponClass = None just unequips */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
-	virtual ACPWeaponBase* EquipWeapon(TSubclassOf<ACPWeaponBase> WeaponClass);
+	virtual ACPWeaponBase* EquipWeapon(TSubclassOf<ACPWeaponBase> WeaponClass) override;
+
+	/** Returns the currently equipped weapon, or null if unarmed */
+	UFUNCTION(BlueprintPure, Category="Weapon")
+	virtual ACPWeaponBase* GetCurrentWeapon() const override;
+
+	// ~end ICPWeaponEquipper
 
 	/** Unequips the current weapon and equips NewWeaponClass in its place */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual ACPWeaponBase* SwapWeapon(TSubclassOf<ACPWeaponBase> NewWeaponClass);
-
-	/** Returns the currently equipped weapon, or null if unarmed */
-	UFUNCTION(BlueprintPure, Category="Weapon")
-	virtual ACPWeaponBase* GetCurrentWeapon() const;
 
 	/** Handles dash inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Dash")
@@ -364,6 +380,9 @@ public:
 
 	/** Returns how many items with the given code are owned */
 	virtual int32 GetItemCount(FName ItemCode) const override;
+
+	/** Broadcasts OnItemAcquired without touching OwnedItems - see ICPItemInventory */
+	virtual void NotifyItemAcquired(const FCPItemData& ItemData) override;
 
 	/** Returns every currently owned item, in acquisition order */
 	UFUNCTION(BlueprintPure, Category="Item")
