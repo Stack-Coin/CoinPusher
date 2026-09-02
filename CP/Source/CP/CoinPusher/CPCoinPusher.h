@@ -80,6 +80,12 @@ protected:
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
 	TObjectPtr<ACPInput> InputB;
 
+	//DropZone에 아이템이 떨어졌을 때 같은 아이템의 재생성을 맡을 Dispenser. 보통 천장 Dispenser 중
+	//하나를 지정한다 (레벨에서 이 CoinPusher 인스턴스의 자식 액터로 스폰된 Dispenser를 피커로 선택).
+	//PostInitializeComponents에서 자동으로 DropZone에 전달된다
+	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
+	TObjectPtr<ACPDispenser> ItemRespawnDispenser;
+
 	//게임 시작 시 천장 Dispenser 하나당 드롭할 코인 개수
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	int32 InitialCoinDropCount = 10;
@@ -127,7 +133,8 @@ public:
 
 public:
 
-	//DispenserComponentA/B가 스폰된 직후 InputA/InputB를 각 Dispenser에 연결
+	//DispenserComponentA/B가 스폰된 직후 InputA/InputB를 각 Dispenser에 연결하고,
+	//DropZone에 ItemRespawnDispenser를 전달
 	virtual void PostInitializeComponents() override;
 
 	//천장 Dispenser들이 게임 시작 시 코인을 드롭
@@ -189,4 +196,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDropZone* GetDropZone() const;
+
+	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출.
+	//천장 Dispenser(CeilingDispenserComponents) 중 하나를 랜덤하게 골라 그 Dispenser의
+	//DispenseItemByID()로 위임한다
+	UFUNCTION(BlueprintCallable, Category="CoinPusher")
+	void ItemSpawn(FName ItemID, int32 SpawnCount);
 };

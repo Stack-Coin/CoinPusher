@@ -88,6 +88,13 @@ void ACPCoinPusher::PostInitializeComponents()
 	{
 		DispenserB->SetLinkedInput(InputB);
 	}
+
+	//DropZone도 마찬가지로 ChildActorComponent로 스폰되는 인스턴스라 레벨에서 직접 편집할 수
+	//없으므로, 레벨(이 CoinPusher 인스턴스)에서 지정한 ItemRespawnDispenser를 대신 전달해 준다
+	if (ACPDropZone* DropZone = GetDropZone())
+	{
+		DropZone->SetItemRespawnDispenser(ItemRespawnDispenser);
+	}
 }
 
 void ACPCoinPusher::BeginPlay()
@@ -186,4 +193,32 @@ void ACPCoinPusher::RemoveFrontWall()
 		FrontWall->SetVisibility(false);
 		FrontWall->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
+}
+
+void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
+{
+	TArray<ACPDispenser*> ValidCeilingDispensers;
+	ValidCeilingDispensers.Reserve(CeilingDispenserComponents.Num());
+
+	for (const TObjectPtr<UChildActorComponent>& CeilingComponent : CeilingDispenserComponents)
+	{
+		if (!CeilingComponent)
+		{
+			continue;
+		}
+
+		if (ACPDispenser* CeilingDispenser = Cast<ACPDispenser>(CeilingComponent->GetChildActor()))
+		{
+			ValidCeilingDispensers.Add(CeilingDispenser);
+		}
+	}
+
+	if (ValidCeilingDispensers.Num() == 0)
+	{
+		return;
+	}
+
+	//천장 Dispenser 중 하나를 랜덤하게 골라 그쪽에서 Spawn되도록 위임
+	const int32 RandomIndex = FMath::RandRange(0, ValidCeilingDispensers.Num() - 1);
+	ValidCeilingDispensers[RandomIndex]->DispenseItemByID(ItemID, SpawnCount);
 }
