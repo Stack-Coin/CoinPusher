@@ -83,4 +83,7 @@ protected:
 	// todo. Data Table 형태로
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float CurrentHealth = 100.0f;
+
+protected:
+	int8 bIsDead : 1 = false;
 };

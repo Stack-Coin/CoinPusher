@@ -39,6 +39,9 @@ void ACPMonsterAIController::RunAI()
 
 void ACPMonsterAIController::StopAI()
 {
+	StopMovement();
+	SetActorEnableCollision(false);
+
 	UBehaviorTreeComponent* BTComp = Cast<UBehaviorTreeComponent>(BrainComponent);
 	if (BTComp)
 	{

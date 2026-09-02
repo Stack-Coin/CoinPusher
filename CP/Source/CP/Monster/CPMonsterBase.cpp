@@ -9,6 +9,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
+#include "BrainComponent.h"
 
 // Sets default values
 ACPMonsterBase::ACPMonsterBase()
@@ -52,16 +53,19 @@ void ACPMonsterBase::AttackHitCheck()
 
 void ACPMonsterBase::Dead()
 {
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
-
-	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance && DeadMontage)
+	if (bIsDead)
 	{
-		AnimInstance->StopAllMontages(0.0f);
-		AnimInstance->Montage_Play(DeadMontage, 1.0f);
+		OnAttackFinished.ExecuteIfBound();
+		return;
 	}
 
-	SetActorEnableCollision(false);
+	bIsDead = true;
+
+	// 사망 후 BT가 공격 몽타주를 다시 재생하지 못하게 정지
+	if (ACPMonsterAIController* AIController = GetController<ACPMonsterAIController>())
+	{
+		AIController->StopAI();
+	}
 
 	// todo. 임시로 아이템 드랍
 	{
@@ -73,33 +77,32 @@ void ACPMonsterBase::Dead()
 			SpawnLocation,
 			FRotator::ZeroRotator
 		);
-
-		if (Item)
-		{
-			UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(
-				nullptr,
-				TEXT("/Engine/BasicShapes/Sphere.Sphere")
-			);
-
-			Item->GetStaticMeshComponent()->SetStaticMesh(SphereMesh);
-			Item->SetActorScale3D(FVector(0.25f));
-		}
 	}
 
 	OnMonsterDied.Broadcast();
 
-	// todo. 몬스터가 죽고 나서 이후에 델리게이트로 송신 후 시간 딜레이를 주고 Item Spawner를 사용해서 코인을 Spawn하는 걸로
-	FTimerHandle DeadTimerHandle;
-	GetWorld()->GetTimerManager().SetTimer(
-		DeadTimerHandle,
-		FTimerDelegate::CreateLambda([&]()
-			{
-				Destroy();
-			}
-		),
-		DeadMontage->GetPlayLength(),
-		false
-	);
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (IsValid(AnimInstance) && IsValid(DeadMontage))
+	{
+		AnimInstance->StopAllMontages(0.0f);
+
+		const float Duration = AnimInstance->Montage_Play(DeadMontage);
+		if (Duration > 0.0f)
+		{
+			FOnMontageEnded EndDelegate;
+			EndDelegate.BindLambda(
+				[this](UAnimMontage*, bool)
+				{
+					SetLifeSpan(2.0f);
+				});
+
+			AnimInstance->Montage_SetEndDelegate(EndDelegate, DeadMontage);
+
+			return;
+		}
+	}
+
+	SetLifeSpan(2.0f);
 }
 
 float ACPMonsterBase::GetAIPatrolRadius()
@@ -158,7 +161,7 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 		KnockbackDirection.Z = 0.f;
 		KnockbackDirection.Normalize();
 
-		LaunchCharacter(KnockbackDirection * 200.0f + FVector::UpVector * 150.0f, true, true);
+		LaunchCharacter(KnockbackDirection * 300.0f + FVector::UpVector * 300.0f, true, true);
 	}
 
 	return DamageAmount;
