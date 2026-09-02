@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Engine/TimerHandle.h"
 #include "CPProjectile.generated.h"
 
 class USphereComponent;
@@ -66,6 +67,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
 	TObjectPtr<UNiagaraSystem> HitEffect;
 
+	/** If true, redraws CollisionComp's sphere at its current location on a short repeating timer for debugging.
+	 *  Uses a timer rather than Tick, since CollisionComp itself moves every frame via ProjectileMovementComponent */
+	UPROPERTY(EditAnywhere, Category="Projectile|Debug")
+	bool bDrawDebugCollision = false;
+
+	/** Redraws CollisionComp's sphere at its current location. Bound to DebugDrawTimerHandle when bDrawDebugCollision is true */
+	FTimerHandle DebugDrawTimerHandle;
+
 	/** Damage dealt on hit. Set by the firing weapon via InitializeProjectile - not designer-editable per instance */
 	float DamageAmount = 0.0f;
 
@@ -100,4 +109,7 @@ protected:
 
 	/** Shared hit handling: applies damage/knockback/hit effect once per actor, then destroys unless CanPierce */
 	void ProcessHit(AActor* OtherActor, const FVector& HitLocation);
+
+	/** Draws CollisionComp's sphere at its current location. Called on DebugDrawTimerHandle while bDrawDebugCollision is true */
+	void DrawDebugCollisionShape() const;
 };

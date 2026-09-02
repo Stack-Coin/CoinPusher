@@ -13,6 +13,7 @@
 #include "Player/CPCoinWallet.h"
 #include "Player/CPItemInventory.h"
 #include "Player/CPItemTypes.h"
+#include "Weapon/CPAimDirectionInterface.h"
 #include "CPPlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -39,7 +40,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPItemAcquired, FCPItemData, Acqu
  *  - Directional dash with temporary invincibility
  */
 UCLASS(abstract)
-class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPCoinWallet, public ICPItemInventory
+class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPCoinWallet, public ICPItemInventory, public ICPAimDirectionProvider
 {
 	GENERATED_BODY()
 
@@ -143,6 +144,21 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Stats|Attack")
 	bool bDrawDebugAttackBox = false;
 
+	/** Distance moved by the forward lunge triggered when attacking while moving */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
+	float AttackLungeDistance = 150.0f;
+
+	/** Duration of the attack lunge movement */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "s"))
+	float AttackLungeDuration = 0.15f;
+
+	/** Minimum current speed required for an attack to trigger the forward lunge, instead of attacking in place */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm/s"))
+	float AttackLungeMinSpeed = 10.0f;
+
+	/** True while a weapon combo string is in progress. Blocks DoMove/movement-driven rotation until the weapon reports it finished/was cancelled */
+	bool bIsAttackLocked = false;
+
 	/** Distance covered by a single dash */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Dash", meta = (ClampMin = 0, Units = "cm"))
 	float DashDistance = 600.0f;
@@ -219,6 +235,14 @@ protected:
 	/** Called for interact input */
 	void Interact(const FInputActionValue& Value);
 
+	/** Bound to WeaponManager->OnWeaponChanged. Subscribes to the newly equipped weapon's OnAttackStateChanged */
+	UFUNCTION()
+	void HandleWeaponChanged(ACPWeaponBase* NewWeapon);
+
+	/** Bound to the current weapon's OnAttackStateChanged. Engages/releases the attack movement/rotation lock */
+	UFUNCTION()
+	void HandleAttackStateChanged(bool bIsAttacking);
+
 public:
 
 	/** Handles move inputs from either controls or UI interfaces */
@@ -259,6 +283,11 @@ protected:
 
 	/** Runs the rectangular box trace attack and applies damage to anything hit */
 	void PerformAttack();
+
+	/** Faces the character toward the mouse cursor, then lunges it forward by AttackLungeDistance if it was
+	 *  moving fast enough (in its current movement direction) when the attack started. Called right after a
+	 *  weapon attack successfully begins */
+	void OrientAndLungeForAttack();
 
 	/** Ends the dash movement and invincibility window */
 	void EndDash();
@@ -342,9 +371,20 @@ public:
 
 	// ~end ICPItemInventory
 
+	// ~begin ICPAimDirectionProvider
+
+	/** Returns the current mouse-cursor attack direction - see GetAttackDirection() */
+	virtual FVector GetAimDirection() const override { return GetAttackDirection(); }
+
+	// ~end ICPAimDirectionProvider
+
 	/** Returns true while the dash movement is in progress */
 	UFUNCTION(BlueprintPure, Category="Dash")
 	bool IsDashing() const { return bIsDashing; }
+
+	/** Returns true while a weapon combo string is in progress (movement/rotation input is locked out) */
+	UFUNCTION(BlueprintPure, Category="Combat")
+	bool IsAttackLocked() const { return bIsAttackLocked; }
 
 	/** Returns true while the character is invincible */
 	UFUNCTION(BlueprintPure, Category="Dash")

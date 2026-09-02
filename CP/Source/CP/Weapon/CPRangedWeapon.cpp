@@ -22,9 +22,20 @@ void ACPRangedWeapon::ExecuteAttack(int32 ComboIndex)
 	const FVector MuzzleLocation = GetMuzzleLocation();
 	const FVector BaseDirection = GetBaseFireDirection();
 
-	for (const FVector& Direction : ComputeFireDirections(BaseDirection))
+	if (FirePattern == ECPProjectileFirePattern::Parallel)
 	{
-		SpawnProjectile(MuzzleLocation, Direction);
+		for (const FVector& SpawnLocation : ComputeParallelSpawnLocations(MuzzleLocation, BaseDirection))
+		{
+			SpawnProjectile(SpawnLocation, BaseDirection);
+		}
+	}
+	else
+	{
+		for (const FVector& Direction : ComputeFireDirections(BaseDirection))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("SHOTED"));
+			SpawnProjectile(MuzzleLocation, Direction);
+		}
 	}
 
 	PlayAttackEffect(MuzzleLocation);
@@ -42,12 +53,9 @@ FVector ACPRangedWeapon::GetMuzzleLocation() const
 
 FVector ACPRangedWeapon::GetBaseFireDirection() const
 {
-	if (ACharacter* OwnerCharacter = GetOwningCharacter())
-	{
-		return OwnerCharacter->GetActorForwardVector();
-	}
-
-	return GetActorForwardVector();
+	// Captured once in ACPWeaponBase::StartAttack (e.g. mouse-cursor direction at click time) - a moving
+	// cursor during ComboAttackInterval delays can't change where an already-started volley fires
+	return CapturedAttackDirection;
 }
 
 TArray<FVector> ACPRangedWeapon::ComputeFireDirections(const FVector& BaseDirection) const
@@ -85,9 +93,42 @@ TArray<FVector> ACPRangedWeapon::ComputeFireDirections(const FVector& BaseDirect
 		}
 		break;
 	}
+
+	case ECPProjectileFirePattern::Cone:
+	{
+		const float HalfAngleRad = FMath::DegreesToRadians(ConeAngle * 0.5f);
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			Directions.Add(FMath::VRandCone(BaseDirection, HalfAngleRad));
+		}
+		break;
+	}
 	}
 
 	return Directions;
+}
+
+TArray<FVector> ACPRangedWeapon::ComputeParallelSpawnLocations(const FVector& BaseLocation, const FVector& BaseDirection) const
+{
+	TArray<FVector> Locations;
+	const int32 Count = FMath::Max(ProjectileCount, 1);
+
+	if (Count == 1)
+	{
+		Locations.Add(BaseLocation);
+		return Locations;
+	}
+
+	const FVector RightDirection = FVector::CrossProduct(FVector::UpVector, BaseDirection).GetSafeNormal();
+	const float HalfWidth = ParallelSpacing * static_cast<float>(Count - 1) * 0.5f;
+
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const float Offset = -HalfWidth + ParallelSpacing * Index;
+		Locations.Add(BaseLocation + RightDirection * Offset);
+	}
+
+	return Locations;
 }
 
 void ACPRangedWeapon::SpawnProjectile(const FVector& Location, const FVector& Direction)

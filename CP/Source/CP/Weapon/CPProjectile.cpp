@@ -8,6 +8,14 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
+#include "DrawDebugHelpers.h"
+#include "TimerManager.h"
+
+namespace
+{
+	// Refresh rate for ACPProjectile's debug collision draw - a moving shape redrawn this often reads as continuous
+	constexpr float DebugDrawInterval = 0.05f;
+}
 
 ACPProjectile::ACPProjectile()
 {
@@ -47,6 +55,12 @@ void ACPProjectile::BeginPlay()
 	{
 		SetLifeSpan(Range / ProjectileSpeed);
 	}
+
+	if (bDrawDebugCollision)
+	{
+		DrawDebugCollisionShape();
+		GetWorldTimerManager().SetTimer(DebugDrawTimerHandle, this, &ACPProjectile::DrawDebugCollisionShape, DebugDrawInterval, true);
+	}
 }
 
 void ACPProjectile::InitializeProjectile(float InDamageAmount, AController* InInstigatorController, AActor* InDamageCauser)
@@ -77,14 +91,14 @@ void ACPProjectile::SetHomingTarget(AActor* Target)
 
 void ACPProjectile::OnProjectileOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	ProcessHit(OtherActor, bFromSweep ? FVector(SweepResult.Location) : GetActorLocation());
+	//ProcessHit(OtherActor, bFromSweep ? FVector(SweepResult.Location) : GetActorLocation());
 }
 
 void ACPProjectile::OnProjectileHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	// A blocking hit only ever happens against world geometry (Pawns are set to overlap above), so it always stops the projectile
-	ProcessHit(OtherActor, Hit.Location);
-	Destroy();
+	//ProcessHit(OtherActor, Hit.Location);
+	//Destroy();
 }
 
 void ACPProjectile::ProcessHit(AActor* OtherActor, const FVector& HitLocation)
@@ -117,4 +131,14 @@ void ACPProjectile::ProcessHit(AActor* OtherActor, const FVector& HitLocation)
 	{
 		Destroy();
 	}
+}
+
+void ACPProjectile::DrawDebugCollisionShape() const
+{
+	if (!CollisionComp)
+	{
+		return;
+	}
+
+	DrawDebugSphere(GetWorld(), CollisionComp->GetComponentLocation(), CollisionComp->GetScaledSphereRadius(), 16, FColor::Cyan, false, DebugDrawInterval * 1.5f, 0, 1.0f);
 }

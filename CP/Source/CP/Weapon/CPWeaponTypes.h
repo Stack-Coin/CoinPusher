@@ -21,7 +21,9 @@ enum class ECPMeleeAttackShape : uint8
 {
 	Sphere,
 	Box,
-	Capsule
+	Capsule,
+	/** Sphere trace additionally filtered to hits within a given angle of the attack direction - a fan/cone-shaped swing */
+	Arc
 };
 
 /** How a ranged weapon's projectiles are spread out when fired */
@@ -31,7 +33,11 @@ enum class ECPProjectileFirePattern : uint8
 	/** Fired forward from the owner, fanned out with an angular spread if ProjectileCount > 1 */
 	Straight,
 	/** Fired outward in a full circle around the owner, evenly spaced by ProjectileCount */
-	Radial
+	Radial,
+	/** All fired in the same direction, spawned side by side (spread across spawn location, not angle) */
+	Parallel,
+	/** Randomly scattered within a 3D cone around the aim direction (horizontal AND vertical spread) - a shotgun-style spread */
+	Cone
 };
 
 /** Data every weapon shares, regardless of Melee/Ranged type. Tweakable per weapon Blueprint */

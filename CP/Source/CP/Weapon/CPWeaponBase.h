@@ -13,6 +13,13 @@ class UStaticMeshComponent;
 class UCPWeaponAnimationData;
 class ICPStatInterface;
 
+/** Broadcast right when a combo string starts (true), and right when the attack motion is actually over (false):
+ *  when the attack montage finishes/blends out if one is assigned, otherwise as soon as the last swing is
+ *  dispatched. Never waits for the post-combo AttackInterval cooldown, since that only rate-limits the next
+ *  Attack() call and isn't part of the motion itself. Lets external systems (e.g. the wielder's movement lock)
+ *  react to attack motion timing without polling CanAttack() every frame. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPAttackStateChanged, bool, bIsAttacking);
+
 /**
  *  ACPWeaponBase
  *  Common parent for every weapon. Owns the shared attack flow (CanAttack/Attack/StartAttack/
@@ -32,10 +39,6 @@ public:
 
 protected:
 
-	/** Actor root, snapped exactly onto the hand socket on Equip. Kept separate from WeaponMesh so each
-	 *  weapon Blueprint can freely offset/rotate WeaponMesh (e.g. to fix a mesh authored facing the wrong
-	 *  way) without that offset being wiped out by the socket snap - only the root's relative transform
-	 *  gets reset by AttachToComponent, a child's does not */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<USceneComponent> WeaponRoot;
 
@@ -71,6 +74,20 @@ protected:
 	/** Ticks down the AttackInterval cooldown after the combo string finishes */
 	FTimerHandle AttackIntervalTimerHandle;
 
+	/** Aim direction resolved once when Attack() started this combo string (e.g. the mouse-cursor direction at
+	 *  click time via ICPAimDirectionProvider) and reused by every swing in the string, so a moving cursor
+	 *  during AttackTiming/ComboAttackInterval delays can't change where an already-started attack lands */
+	FVector CapturedAttackDirection = FVector::ForwardVector;
+
+	/** True while StartAttack is waiting for the attack montage to actually finish (bound via
+	 *  Montage_SetEndDelegate) before broadcasting OnAttackStateChanged(false), instead of PerformComboStep
+	 *  releasing it as soon as the last swing is dispatched. False when no montage is assigned to wait for */
+	bool bWaitingForMontageEnd = false;
+
+	/** Incremented each StartAttack. Captured by the montage-end callback so a late end/interrupt notification
+	 *  from an attack that was since cancelled and restarted can't release the lock for the newer attack */
+	int32 AttackSessionId = 0;
+
 public:
 
 	/** Attaches this weapon to NewOwner's SocketName and marks NewOwner as its wielder. Called by the weapon manager */
@@ -94,6 +111,15 @@ public:
 	/** Entry point for attack input. No-ops if CanAttack() is false */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual void Attack();
+
+	/** Stops the in-progress combo string immediately (clears its timers, stops the attack montage) and restores
+	 *  CanAttack() to true. No-ops if not currently attacking. Lets an external action (e.g. a dash) interrupt a swing */
+	UFUNCTION(BlueprintCallable, Category="Weapon")
+	virtual void CancelAttack();
+
+	/** Broadcast right when a combo string starts and right when it ends or is cancelled */
+	UPROPERTY(BlueprintAssignable, Category="Weapon")
+	FOnCPAttackStateChanged OnAttackStateChanged;
 
 	/** Wielder's AttackPower stat (if any) + this weapon's AttackPower */
 	UFUNCTION(BlueprintPure, Category="Weapon")
@@ -129,6 +155,11 @@ protected:
 
 	/** Returns the ACharacter that owns/wields this weapon, or nullptr */
 	ACharacter* GetOwningCharacter() const;
+
+	/** Resolves the wielder's current aim direction - ICPAimDirectionProvider if the owner implements it
+	 *  (e.g. mouse cursor direction), otherwise the owning character's forward vector. Only called once per
+	 *  combo string, from StartAttack - see CapturedAttackDirection */
+	FVector ResolveAimDirection() const;
 
 	/** Spawns WeaponData.AttackEffect at Location, if one is assigned */
 	void PlayAttackEffect(const FVector& Location) const;
