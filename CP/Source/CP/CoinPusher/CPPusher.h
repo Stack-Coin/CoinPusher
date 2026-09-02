@@ -35,6 +35,9 @@ protected:
 	//왕복 운동 구현용 누적 시간
 	float ElapsedTime = 0.0f;
 
+	//직전 프레임에 적용한 밀림 거리. AddLocalOffset으로 이동할 델타 계산에 사용
+	float LastPushOffset = 0.0f;
+
 public:
 
 	virtual void BeginPlay() override;

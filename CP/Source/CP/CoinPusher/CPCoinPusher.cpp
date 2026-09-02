@@ -6,19 +6,45 @@
 #include "CPDropZone.h"
 #include "CPInput.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
+#include "TimerManager.h"
 
 ACPCoinPusher::ACPCoinPusher()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// create the body mesh
-	RootComponent = Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
-	Body->SetCollisionProfileName(FName("BlockAllDynamic"));
-	Body->SetGenerateOverlapEvents(true);
+	// 코인이 놓이는 바닥. RootComponent로 지정해 실제 충돌의 기준이 되도록 함.
+	RootComponent = Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
+	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
+	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
 
-	// Pusher, Dispenser 2개, DropZone 모두 ChildActorComponent로 소유 (컴포넌트를 통한 Has-a)
-	// 실제 사용할 클래스는 BP 서브클래스에서 각 컴포넌트의 Child Actor Class로 지정
+	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
+	Body->SetupAttachment(RootComponent);
+	Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+
+	LeftWall = CreateDefaultSubobject<UBoxComponent>(TEXT("LeftWall"));
+	LeftWall->SetupAttachment(RootComponent);
+	LeftWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
+	LeftWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+	RightWall = CreateDefaultSubobject<UBoxComponent>(TEXT("RightWall"));
+	RightWall->SetupAttachment(RootComponent);
+	RightWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
+	RightWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+	BackWall = CreateDefaultSubobject<UBoxComponent>(TEXT("BackWall"));
+	BackWall->SetupAttachment(RootComponent);
+	BackWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
+	BackWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+	FrontWall = CreateDefaultSubobject<UBoxComponent>(TEXT("FrontWall"));
+	FrontWall->SetupAttachment(RootComponent);
+	FrontWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
+	FrontWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+
 	PusherComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PusherComponent"));
 	PusherComponent->SetupAttachment(RootComponent);
 
@@ -28,12 +54,18 @@ ACPCoinPusher::ACPCoinPusher()
 	DispenserComponentB = CreateDefaultSubobject<UChildActorComponent>(TEXT("DispenserComponentB"));
 	DispenserComponentB->SetupAttachment(RootComponent);
 
+	// 천장에서 물건을 뿌리는 Dispenser 5개. 위치/발사 설정과 Item Class는 BP에서 조정
+	CeilingDispenserComponents.SetNum(5);
+	for (int32 Index = 0; Index < CeilingDispenserComponents.Num(); ++Index)
+	{
+		const FName ComponentName(*FString::Printf(TEXT("CeilingDispenserComponent%d"), Index));
+		UChildActorComponent* CeilingDispenserComponent = CreateDefaultSubobject<UChildActorComponent>(ComponentName);
+		CeilingDispenserComponent->SetupAttachment(RootComponent);
+		CeilingDispenserComponents[Index] = CeilingDispenserComponent;
+	}
+
 	DropZoneComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("DropZoneComponent"));
 	DropZoneComponent->SetupAttachment(RootComponent);
-
-	//Overlap 방식은 추후 변경
-	// react to enemies making contact with the machine
-	OnActorBeginOverlap.AddDynamic(this, &ACPCoinPusher::OnActorOverlapBegin);
 }
 
 void ACPCoinPusher::PostInitializeComponents()
@@ -52,6 +84,13 @@ void ACPCoinPusher::PostInitializeComponents()
 	{
 		DispenserB->SetLinkedInput(InputB);
 	}
+
+	//DropZone도 마찬가지로 ChildActorComponent로 스폰되는 인스턴스라 레벨에서 직접 편집할 수
+	//없으므로, 레벨(이 CoinPusher 인스턴스)에서 지정한 ItemRespawnDispenser를 대신 전달해 준다
+	if (ACPDropZone* DropZone = GetDropZone())
+	{
+		DropZone->SetItemRespawnDispenser(ItemRespawnDispenser);
+	}
 }
 
 void ACPCoinPusher::BeginPlay()
@@ -59,6 +98,32 @@ void ACPCoinPusher::BeginPlay()
 	Super::BeginPlay();
 
 	CurrentHealth = MaxHealth;
+
+	// 게임 시작 시 천장 Dispenser들이 각각 InitialCoinDropCount개씩 코인을 드롭
+	for (const TObjectPtr<UChildActorComponent>& CeilingComponent : CeilingDispenserComponents)
+	{
+		if (!CeilingComponent)
+		{
+			continue;
+		}
+
+		if (ACPDispenser* CeilingDispenser = Cast<ACPDispenser>(CeilingComponent->GetChildActor()))
+		{
+			CeilingDispenser->DispenseItems(InitialCoinDropCount);
+		}
+	}
+
+	// 게임 시작 FrontWallRemovalDelay초 후 FrontWall을 비활성화해 코인이 앞으로 빠질 수 있도록 함
+	GetWorldTimerManager().SetTimer(FrontWallRemovalTimerHandle, this, &ACPCoinPusher::RemoveFrontWall, FrontWallRemovalDelay, false);
+}
+
+float ACPCoinPusher::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	ApplyDamage(ActualDamage, DamageCauser);
+
+	return ActualDamage;
 }
 
 void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
@@ -75,16 +140,6 @@ void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
 	if (CurrentHealth <= 0.0f)
 	{
 		HandleDestroyed();
-	}
-}
-
-//Overlap방식은 변경
-void ACPCoinPusher::OnActorOverlapBegin(AActor* OverlappedActor, AActor* OtherActor)
-{
-	// does the overlapping actor count as an enemy?
-	if (OtherActor && OtherActor->ActorHasTag(EnemyActorTag))
-	{
-		ApplyDamage(EnemyContactDamage, OtherActor);
 	}
 }
 
@@ -111,7 +166,54 @@ ACPDispenser* ACPCoinPusher::GetDispenserB() const
 	return DispenserComponentB ? Cast<ACPDispenser>(DispenserComponentB->GetChildActor()) : nullptr;
 }
 
+ACPDispenser* ACPCoinPusher::GetCeilingDispenser(int32 Index) const
+{
+	if (!CeilingDispenserComponents.IsValidIndex(Index) || !CeilingDispenserComponents[Index])
+	{
+		return nullptr;
+	}
+
+	return Cast<ACPDispenser>(CeilingDispenserComponents[Index]->GetChildActor());
+}
+
 ACPDropZone* ACPCoinPusher::GetDropZone() const
 {
 	return DropZoneComponent ? Cast<ACPDropZone>(DropZoneComponent->GetChildActor()) : nullptr;
+}
+
+void ACPCoinPusher::RemoveFrontWall()
+{
+	if (FrontWall)
+	{
+		FrontWall->SetVisibility(false);
+		FrontWall->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+}
+
+void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
+{
+	TArray<ACPDispenser*> ValidCeilingDispensers;
+	ValidCeilingDispensers.Reserve(CeilingDispenserComponents.Num());
+
+	for (const TObjectPtr<UChildActorComponent>& CeilingComponent : CeilingDispenserComponents)
+	{
+		if (!CeilingComponent)
+		{
+			continue;
+		}
+
+		if (ACPDispenser* CeilingDispenser = Cast<ACPDispenser>(CeilingComponent->GetChildActor()))
+		{
+			ValidCeilingDispensers.Add(CeilingDispenser);
+		}
+	}
+
+	if (ValidCeilingDispensers.Num() == 0)
+	{
+		return;
+	}
+
+	//천장 Dispenser 중 하나를 랜덤하게 골라 그쪽에서 Spawn되도록 위임
+	const int32 RandomIndex = FMath::RandRange(0, ValidCeilingDispensers.Num() - 1);
+	ValidCeilingDispensers[RandomIndex]->DispenseItemByID(ItemID, SpawnCount);
 }

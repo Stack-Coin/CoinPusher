@@ -2,7 +2,8 @@
 
 
 #include "CPDropZone.h"
-#include "CPCoin.h"
+#include "CPCoinPusherItem.h"
+#include "CPDispenser.h"
 #include "Components/BoxComponent.h"
 
 ACPDropZone::ACPDropZone()
@@ -22,15 +23,46 @@ ACPDropZone::ACPDropZone()
 	CollectionVolume->OnComponentBeginOverlap.AddDynamic(this, &ACPDropZone::OnVolumeBeginOverlap);
 }
 
+void ACPDropZone::AddCollectedCoins(int32 Amount)
+{
+	if (Amount <= 0)
+	{
+		return;
+	}
+
+	CollectedCoinCount += Amount;
+
+	OnCoinCollected.Broadcast(CollectedCoinCount);
+}
+
+void ACPDropZone::RecordCollectedItem(FName ItemCode)
+{
+	if (ItemCode.IsNone())
+	{
+		return;
+	}
+
+	CollectedItemCodes.Add(ItemCode);
+
+	OnItemCollected.Broadcast(ItemCode);
+
+	//레벨(CoinPusher)에서 지정해 둔 Dispenser가 있으면 그쪽에 같은 ItemID의 재생성을 요청
+	if (ItemRespawnDispenser)
+	{
+		ItemRespawnDispenser->DispenseItemByID(ItemCode, 1);
+	}
+}
+
+void ACPDropZone::SetItemRespawnDispenser(ACPDispenser* NewItemRespawnDispenser)
+{
+	ItemRespawnDispenser = NewItemRespawnDispenser;
+}
+
 void ACPDropZone::OnVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	//Coin이 떨어졌는가?
-	if (ACPCoin* Coin = Cast<ACPCoin>(OtherActor))
+	//ICPCoinPusherItem을 구현하는 오브젝트(Coin, Item ...)가 떨어졌는가?
+	if (ICPCoinPusherItem* Item = Cast<ICPCoinPusherItem>(OtherActor))
 	{
-		CollectedCoinCount++;
-
-		OnCoinCollected.Broadcast(Coin, CollectedCoinCount);
-
-		Coin->Collect();
+		Item->OnDroppedInZone(this);
 	}
 }
