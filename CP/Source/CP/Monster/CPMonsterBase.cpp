@@ -114,7 +114,7 @@ float ACPMonsterBase::GetAIDetectRange()
 
 float ACPMonsterBase::GetAIAttackRange()
 {
-	return 100.0f;
+	return 200.0f;
 }
 
 float ACPMonsterBase::GetAITurnSpeed()

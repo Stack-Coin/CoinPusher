@@ -17,19 +17,19 @@ bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeCompon
 	bool bResult = Super::CalculateRawConditionValue(OwnerComp, NodeMemory);
 
 	APawn* ControllingPawn = OwnerComp.GetAIOwner()->GetPawn();
-	if (nullptr == ControllingPawn)
+	if (ControllingPawn == nullptr)
 	{
 		return false;
 	}
 
 	ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(ControllingPawn);
-	if (nullptr == AIPawn)
+	if (AIPawn == nullptr)
 	{
 		return false;
 	}
 
 	APawn* Target = Cast<APawn>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
-	if (nullptr == Target)
+	if (Target == nullptr)
 	{
 		return false;
 	}
