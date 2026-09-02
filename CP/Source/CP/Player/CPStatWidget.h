@@ -54,6 +54,10 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UTextBlock* OwnedItemsText;
 
+	/** Displays the currently equipped weapon's display name, or "Unarmed" */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UTextBlock* CurrentWeaponText;
+
 	/** Test button that grants TestExperienceAmount experience to StatSource when clicked */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* AddExperienceButton;

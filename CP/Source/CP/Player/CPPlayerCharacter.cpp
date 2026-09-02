@@ -554,6 +554,11 @@ void ACPPlayerCharacter::AddOwnedItem(const FCPItemData& ItemData)
 		}
 	}
 
+	NotifyItemAcquired(ItemData);
+}
+
+void ACPPlayerCharacter::NotifyItemAcquired(const FCPItemData& ItemData)
+{
 	OnItemAcquired.Broadcast(ItemData);
 }
 
