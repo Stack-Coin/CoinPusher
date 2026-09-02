@@ -12,7 +12,7 @@
  *  a heal, etc.) are added as new subclasses that override ApplyEffect - the item pickup and
  *  inventory code never has to change to support a new effect.
  */
-UCLASS(Abstract)
+UCLASS(Abstract, Blueprintable)
 class CP_API UCPItemEffect : public UObject
 {
 	GENERATED_BODY()

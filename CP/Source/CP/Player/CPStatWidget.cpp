@@ -4,6 +4,8 @@
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "Kismet/GameplayStatics.h"
+#include "Player/CPWeaponEquipper.h"
+#include "Weapon/CPWeaponBase.h"
 
 void UCPStatWidget::SetStatSource(TScriptInterface<ICPStatInterface> InStatSource)
 {
@@ -109,6 +111,16 @@ void UCPStatWidget::RefreshStats()
 
 			const FString JoinedNames = Items.Num() > 0 ? FString::Join(ItemNames, TEXT(", ")) : TEXT("(none)");
 			OwnedItemsText->SetText(FText::FromString(FString::Printf(TEXT("Items : %s"), *JoinedNames)));
+		}
+	}
+
+	if (CurrentWeaponText)
+	{
+		if (ICPWeaponEquipper* WeaponEquipper = Cast<ICPWeaponEquipper>(SourceObject))
+		{
+			const ACPWeaponBase* CurrentWeapon = WeaponEquipper->GetCurrentWeapon();
+			const FText WeaponName = CurrentWeapon ? CurrentWeapon->GetWeaponDisplayName() : FText::FromString(TEXT("Unarmed"));
+			CurrentWeaponText->SetText(FText::FromString(FString::Printf(TEXT("Weapon : %s"), *WeaponName.ToString())));
 		}
 	}
 }

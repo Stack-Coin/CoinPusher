@@ -50,6 +50,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
 	ECPWeaponType WeaponType = ECPWeaponType::Melee;
 
+	/** Display name shown by UI (e.g. the currently-equipped-weapon readout). Set per weapon Blueprint */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
+	FText WeaponDisplayName;
+
 	/** Common attack data (power/speed/combo/interval/effect). Tweakable per weapon Blueprint */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
 	FCPWeaponData WeaponData;
@@ -103,6 +107,10 @@ public:
 	/** Returns this weapon's animation set, or nullptr if none was assigned */
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	UCPWeaponAnimationData* GetWeaponAnimationData() const { return AnimationData; }
+
+	/** Returns this weapon's display name, for UI */
+	UFUNCTION(BlueprintPure, Category="Weapon")
+	FText GetWeaponDisplayName() const { return WeaponDisplayName; }
 
 	/** Returns true if a new Attack() call is currently allowed */
 	UFUNCTION(BlueprintPure, Category="Weapon")
