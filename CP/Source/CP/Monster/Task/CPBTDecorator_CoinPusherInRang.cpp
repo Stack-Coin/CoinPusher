@@ -1,19 +1,18 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Monster/Task/CPTDecorator_AttackInRange.h"
+#include "Monster/Task/CPBTDecorator_CoinPusherInRang.h"
 #include "CPAI.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "../CPMonsterAIInterface.h"
-#include "../../Player/CPPlayerCharacter.h"
 
-UCPTDecorator_AttackInRange::UCPTDecorator_AttackInRange()
+UCPBTDecorator_CoinPusherInRang::UCPBTDecorator_CoinPusherInRang()
 {
-	NodeName = TEXT("CanAttackPlayer");
+	NodeName = TEXT("CanAttackCoinPusher");
 }
 
-bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
+bool UCPBTDecorator_CoinPusherInRang::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
 {
 	bool bResult = Super::CalculateRawConditionValue(OwnerComp, NodeMemory);
 
@@ -29,14 +28,10 @@ bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeCompon
 		return false;
 	}
 
-	ACPPlayerCharacter* Target = Cast<ACPPlayerCharacter>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
-	if (Target == nullptr)
-	{
-		return false;
-	}
-
-	float DistanceToTarget = ControllingPawn->GetDistanceTo(Target);
-	float AttackRangeWithRadius = AIPawn->GetAIAttackRange();
+	const FVector PatrolPos = OwnerComp.GetBlackboardComponent()->GetValueAsVector(BBKEY_PATROLPOS);
+	
+	const float DistanceToTarget = FVector::Dist2D(ControllingPawn->GetActorLocation(), PatrolPos);
+	float AttackRangeWithRadius = 7000.f;
 
 	bResult = (DistanceToTarget <= AttackRangeWithRadius);
 	return bResult;

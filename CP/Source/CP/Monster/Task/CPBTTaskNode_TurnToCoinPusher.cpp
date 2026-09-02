@@ -29,7 +29,7 @@ EBTNodeResult::Type UCPBTTaskNode_TurnToCoinPusher::ExecuteTask(UBehaviorTreeCom
 		return EBTNodeResult::Failed;
 	}
 
-	ACPCoinPusher* TargetPawn = Cast<ACPCoinPusher>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
+	ACPCoinPusher* TargetPawn = Cast<ACPCoinPusher>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_COINPUSHER));
 	if (TargetPawn == nullptr)
 	{
 		return EBTNodeResult::Failed;
