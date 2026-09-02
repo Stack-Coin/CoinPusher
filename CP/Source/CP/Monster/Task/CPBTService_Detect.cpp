@@ -57,6 +57,7 @@ void UCPBTService_Detect::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* Nod
 		for (auto const& OverlapResult : OverlapResults) 
 		{
 			APawn* Pawn = Cast<APawn>(OverlapResult.GetActor());
+
 			if (Pawn && Pawn->GetController() && Pawn->GetController()->IsPlayerController()) 
 			{
 				OwnerComp.GetBlackboardComponent()->SetValueAsObject(BBKEY_TARGET, Pawn);
