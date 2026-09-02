@@ -27,6 +27,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Coin")
 	float CoinValue = 1.0f;
 
+	//Coin의 Item ID. ItemRegistry / Dispenser의 ItemID와 동일한 개념의 식별자
+	UPROPERTY(EditAnywhere, Category="Coin")
+	FName ItemID;
+
 	bool bCollected = false;
 
 public:
@@ -34,6 +38,10 @@ public:
 	//Coin 가치 반환
 	UFUNCTION(BlueprintPure, Category="Coin")
 	float GetCoinValue() const { return CoinValue; }
+
+	//Coin의 Item ID 반환
+	UFUNCTION(BlueprintPure, Category="Coin")
+	FName GetItemID() const { return ItemID; }
 
 	//코인 발사
 	UFUNCTION(BlueprintCallable, Category="Coin")

@@ -34,6 +34,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 
 ### ACPCoin
 - `Mesh`(StaticMeshComponent, RootComponent)에서 물리 시뮬레이션(SimulatePhysics)을 켜서 중력/충돌의 영향을 받음
+- `ItemID`(FName, EditAnywhere) : `UCPItemRegistry`/Dispenser가 쓰는 ItemID와 동일한 개념의 식별자. 다만 아직 `OnDroppedInZone`에서 사용하지 않음 — `AddCollectedCoins(1)`만 호출하고 `ItemID`는 참조하지 않는 상태 (필요하면 `ACPItem`처럼 `RecordCollectedItem`/재생성 로직과 연결 가능)
 - `ICPCoinPusherItem` 구현
 - `Launch(LaunchVelocity)` : Dispenser가 던질 때 속도를 부여
 - `Collect()` : `BP_OnCollected` 이벤트 후 자신을 Destroy
