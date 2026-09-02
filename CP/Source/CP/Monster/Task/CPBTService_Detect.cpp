@@ -47,7 +47,7 @@ void UCPBTService_Detect::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* Nod
 		OverlapResults,
 		Center,
 		FQuat::Identity,
-		ECC_GameTraceChannel1, // todo. CCHANEL_CPACTION, Player에서는 Overlap, Monster에서는 Ignore
+		ECC_GameTraceChannel1,
 		FCollisionShape::MakeSphere(DetectRadius),
 		CollisionQueryParams
 	);

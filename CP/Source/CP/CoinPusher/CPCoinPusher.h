@@ -48,6 +48,14 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* FrontWall;
 
+	//추가 박스 콜리전 (Floor에 부착). 용도는 BP에서 자유롭게 확장
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* ExtraBox;
+
+	//ExtraBox에 부착되는 비주얼 메시 (콜리전 없음 - 순수 비주얼)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UStaticMeshComponent* ExtraBoxMesh;
+
 	//Pusher ActorComponent (컴포넌트를 통한 Has-a)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* PusherComponent;
@@ -80,7 +88,7 @@ protected:
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
 	TObjectPtr<ACPInput> InputB;
 
-	//DropZone에 아이템이 떨어졌을 때 같은 아이템의 재생성을 맡을 Dispenser. 
+	//DropZone에 아이템이 떨어졌을 때 같은 아이템의 재생성을 맡을 Dispenser.
 	// 외부에 Dispenser를선택
 	//PostInitializeComponents에서 자동으로 DropZone에 전달된다
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
@@ -165,6 +173,8 @@ public:
 	FORCEINLINE UBoxComponent* GetRightWall() const { return RightWall; }
 	FORCEINLINE UBoxComponent* GetBackWall() const { return BackWall; }
 	FORCEINLINE UBoxComponent* GetFrontWall() const { return FrontWall; }
+	FORCEINLINE UBoxComponent* GetExtraBox() const { return ExtraBox; }
+	FORCEINLINE UStaticMeshComponent* GetExtraBoxMesh() const { return ExtraBoxMesh; }
 	FORCEINLINE UChildActorComponent* GetPusherComponent() const { return PusherComponent; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentA() const { return DispenserComponentA; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }

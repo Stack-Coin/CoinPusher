@@ -14,8 +14,19 @@ ACPCoinPusher::ACPCoinPusher()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
+	// 추가 박스 콜리전 + 그 자식으로 붙는 비주얼 메시. 용도는 BP에서 확장
+	ExtraBox = CreateDefaultSubobject<UBoxComponent>(TEXT("ExtraBox"));
+	RootComponent = ExtraBox;
+
+	ExtraBox->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f));
+	ExtraBox->SetCollisionProfileName(FName("Custom"));
+
+	ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
+	ExtraBoxMesh->SetupAttachment(ExtraBox);
+	ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	// 코인이 놓이는 바닥. RootComponent로 지정해 실제 충돌의 기준이 되도록 함.
-	RootComponent = Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
+	Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
 	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
 	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
 
@@ -43,6 +54,8 @@ ACPCoinPusher::ACPCoinPusher()
 	FrontWall->SetupAttachment(RootComponent);
 	FrontWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
 	FrontWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+	
 
 
 	PusherComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PusherComponent"));
@@ -135,6 +148,7 @@ void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
 
 	CurrentHealth = FMath::Max(0.0f, CurrentHealth - Damage);
 
+	UE_LOG(LogTemp, Warning, TEXT("%f"), CurrentHealth);
 	OnDamaged.Broadcast(Damage, DamageCauser);
 
 	if (CurrentHealth <= 0.0f)
