@@ -107,17 +107,6 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Health")
 	float CurrentHealth = 0.0f;
 
-	// 수정 필요
-	// 적이 IDamage 인터페이스를 사용해 Damage(flaot DamageRate)를 호출 하도록 수정
-	/** Damage applied when an actor tagged as an enemy interacts (overlaps) with this machine */
-	UPROPERTY(EditAnywhere, Category="Health", meta = (ClampMin = 0))
-	float EnemyContactDamage = 10.0f;
-
-	/** Actor tag used to identify enemies that damage this machine on contact */
-	UPROPERTY(EditAnywhere, Category="Health")
-	FName EnemyActorTag = FName("Enemy");
-	//
-
 	/** True once health has reached zero, disables further damage */
 	bool bIsDestroyed = false;
 
@@ -140,6 +129,9 @@ public:
 	//천장 Dispenser들이 게임 시작 시 코인을 드롭
 	virtual void BeginPlay() override;
 
+	//UGameplayStatics::ApplyDamage(및 ApplyPointDamage/ApplyRadialDamage)로 들어오는 데미지 처리
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
 	//데미지 입는 함수
 	UFUNCTION(BlueprintCallable, Category="Health")
 	virtual void ApplyDamage(float Damage, AActor* DamageCauser);
@@ -153,10 +145,6 @@ public:
 	float GetMaxHealth() const { return MaxHealth; }
 
 protected:
-
-	//OvelapDamage 방식은 변경
-	UFUNCTION()
-	void OnActorOverlapBegin(AActor* OverlappedActor, AActor* OtherActor);
 
 	// 체력이 0이 되었을 때 호출
 	virtual void HandleDestroyed();

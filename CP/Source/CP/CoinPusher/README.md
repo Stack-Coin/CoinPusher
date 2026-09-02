@@ -92,8 +92,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - `BeginPlay()` : `CeilingDispenserComponents` 5개를 순회하며 각각 스폰된 `ACPDispenser`의 `DispenseItems(InitialCoinDropCount)`를 호출 — "게임 시작 시 5개의 Dispenser에서 코인을 10개씩 드롭" 요구사항을 만족. 실제로 코인이 나오려면 5개 천장 Dispenser BP 인스턴스의 `ItemClass`를 코인 클래스(`BP_CPCoin`)로 지정해야 함
 - `GetDispenserA()` / `GetDispenserB()` / `GetCeilingDispenser(Index)` / `GetDropZone()` : 해당 ChildActorComponent가 실제로 스폰한 액터 인스턴스를 캐스팅해 반환 (`Child Actor Class`가 지정되어야 유효)
 - 체력 시스템: `MaxHealth` / `CurrentHealth`, `ApplyDamage(Damage, DamageCauser)`로 감소
-- `OnActorBeginOverlap`에서 겹친 Actor가 `EnemyActorTag`(기본값 `"Enemy"`) 태그를 가지고 있으면 `EnemyContactDamage`만큼 자동으로 피해 적용
-  - ⚠️ `Body`가 콜리전이 없어지면서 이 오버랩 감지는 현재 어떤 컴포넌트에서도 발생하지 않음 (Floor/LeftWall/RightWall/BackWall은 `BlockAllDynamic`이라 Pawn을 Block하지 Overlap하지 않음). 코드에 남아있는 "적이 IDamage 인터페이스를 사용해 Damage를 호출하도록 수정" TODO대로, 피격 판정 방식을 다시 설계해야 함
+- `TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser)` 오버라이드 : 표준 엔진 데미지 경로. `Super::TakeDamage(...)`를 호출해 실제 데미지 값을 구한 뒤 `ApplyDamage(ActualDamage, DamageCauser)`로 위임 — 적(또는 다른 무엇이든)이 `UGameplayStatics::ApplyDamage` / `ApplyPointDamage` / `ApplyRadialDamage`를 호출하면 이 경로를 통해 체력이 깎임. 기존에 있던 오버랩 태그 기반 피격 판정(`OnActorOverlapBegin`, `EnemyActorTag`, `EnemyContactDamage`)은 제거하고 이 방식으로 대체함
 - 체력이 0 이하가 되면 `HandleDestroyed()` → `OnCoinPusherDestroyed` 브로드캐스트 + `BP_OnDestroyed` BP 이벤트 호출
 - `ItemSpawn(ItemID, SpawnCount)` : `CeilingDispenserComponents` 5개 중 실제로 스폰된 `ACPDispenser`들 가운데 하나를 랜덤하게 골라 그 Dispenser의 `DispenseItemByID(ItemID, SpawnCount)`를 호출 — Roulette 등 외부 시스템이 "이 ItemID를 이만큼 만들어줘"라고 요청하는 진입점
 
@@ -117,7 +116,7 @@ C++ 클래스들은 모두 abstract이므로 실제 배치를 위해서는 각 �
 3. `BP_CPCoinPusher` 인스턴스를 레벨에 배치하면 Pusher/Dispenser 7개(앞 2 + 천장 5)/DropZone이 자식 액터로 함께 스폰됨. 필요하면 각 컴포넌트의 상대 위치를 조정해 배치 (천장 5개는 천장 근처로, 서로 겹치지 않게)
 4. 각 Dispenser 자식 액터를 선택해 `ItemClass`를 지정: 앞의 2개(`DispenserComponentA`/`B`)와 천장 5개 전부 기본은 `BP_CPCoin`, 아이템을 뿌리고 싶은 Dispenser만 `BP_CPItem`으로 변경
 5. `ACPInput`(`BP_CPInput`) 2개를 레벨에 배치하고, `BP_CPCoinPusher` 인스턴스의 `InputA` / `InputB`에 각각 연결 (Dispenser의 `LinkedInput`은 여기서 직접 건드리지 않아도 `PostInitializeComponents`가 자동으로 설정)
-6. 적(Enemy) 액터에 Actor Tag로 `Enemy`를 추가하면 `ACPCoinPusher`와 겹칠 때 자동으로 피해 발생
+6. 적(또는 데미지를 주는 무엇이든)이 `UGameplayStatics::ApplyDamage(CoinPusher, Damage, Instigator, Causer, DamageType)` 등을 호출하면 `ACPCoinPusher::TakeDamage`를 통해 자동으로 체력이 깎임 (별도의 태그/오버랩 설정 불필요)
 7. `ACPCharacter`를 상속하는 캐릭터 BP에 `InteractAction` Input Action 에셋을 연결
 8. `UCPItemRegistry` 데이터 에셋을 하나 만들고(예: `DA_CPItemRegistry`), `Items`에 ItemID별로 `CoinPusherItemClass`(예: `BP_CPItem`)와 필요시 `WorldItemClass`를 등록
 9. ItemID로 스폰해야 하는 모든 Dispenser(천장 Dispenser 등)의 `ItemRegistry`에 위에서 만든 데이터 에셋을 연결

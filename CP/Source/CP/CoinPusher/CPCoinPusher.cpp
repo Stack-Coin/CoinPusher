@@ -66,10 +66,6 @@ ACPCoinPusher::ACPCoinPusher()
 
 	DropZoneComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("DropZoneComponent"));
 	DropZoneComponent->SetupAttachment(RootComponent);
-
-	//Overlap 방식은 추후 변경
-	// react to enemies making contact with the machine
-	OnActorBeginOverlap.AddDynamic(this, &ACPCoinPusher::OnActorOverlapBegin);
 }
 
 void ACPCoinPusher::PostInitializeComponents()
@@ -121,6 +117,15 @@ void ACPCoinPusher::BeginPlay()
 	GetWorldTimerManager().SetTimer(FrontWallRemovalTimerHandle, this, &ACPCoinPusher::RemoveFrontWall, FrontWallRemovalDelay, false);
 }
 
+float ACPCoinPusher::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	ApplyDamage(ActualDamage, DamageCauser);
+
+	return ActualDamage;
+}
+
 void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
 {
 	if (bIsDestroyed || Damage <= 0.0f)
@@ -135,16 +140,6 @@ void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
 	if (CurrentHealth <= 0.0f)
 	{
 		HandleDestroyed();
-	}
-}
-
-//Overlap방식은 변경
-void ACPCoinPusher::OnActorOverlapBegin(AActor* OverlappedActor, AActor* OtherActor)
-{
-	// does the overlapping actor count as an enemy?
-	if (OtherActor && OtherActor->ActorHasTag(EnemyActorTag))
-	{
-		ApplyDamage(EnemyContactDamage, OtherActor);
 	}
 }
 
