@@ -1,19 +1,18 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Monster/Task/CPBTTaskNode_TurnToCoinPusher.h"
+#include "Monster/Task/CPBTTaskNode_TurnToNexus.h"
 #include "CPAI.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "../CPMonsterAIInterface.h"
-#include "../../CoinPusher/CPCoinPusher.h"
 
-UCPBTTaskNode_TurnToCoinPusher::UCPBTTaskNode_TurnToCoinPusher()
+UCPBTTaskNode_TurnToNexus::UCPBTTaskNode_TurnToNexus()
 {
-	NodeName = TEXT("TurnToCoinPusher");
+	NodeName = TEXT("TurnToNexus");
 }
 
-EBTNodeResult::Type UCPBTTaskNode_TurnToCoinPusher::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+EBTNodeResult::Type UCPBTTaskNode_TurnToNexus::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	EBTNodeResult::Type Result = Super::ExecuteTask(OwnerComp, NodeMemory);
 
@@ -29,13 +28,13 @@ EBTNodeResult::Type UCPBTTaskNode_TurnToCoinPusher::ExecuteTask(UBehaviorTreeCom
 		return EBTNodeResult::Failed;
 	}
 
-	ACPCoinPusher* TargetPawn = Cast<ACPCoinPusher>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_COINPUSHER));
-	if (TargetPawn == nullptr)
+	AActor* TargetActor = Cast<AActor>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_NEXUS));
+	if (TargetActor == nullptr)
 	{
 		return EBTNodeResult::Failed;
 	}
 
-	FVector LookVector = TargetPawn->GetActorLocation() - ControllingPawn->GetActorLocation();
+	FVector LookVector = TargetActor->GetActorLocation() - ControllingPawn->GetActorLocation();
 	LookVector.Z = 0.f;
 
 	float TurnSpeed = AIPawn->GetAITurnSpeed();

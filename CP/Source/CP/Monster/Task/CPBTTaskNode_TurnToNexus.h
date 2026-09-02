@@ -4,19 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "BehaviorTree/BTTaskNode.h"
-#include "CPBTTaskNode_AttackCoinPusher.generated.h"
+#include "CPBTTaskNode_TurnToNexus.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class CP_API UCPBTTaskNode_AttackCoinPusher : public UBTTaskNode
+class CP_API UCPBTTaskNode_TurnToNexus : public UBTTaskNode
 {
 	GENERATED_BODY()
 	
 public:
-	UCPBTTaskNode_AttackCoinPusher();
+	UCPBTTaskNode_TurnToNexus();
 
-protected:
+public:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 };
