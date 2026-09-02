@@ -23,7 +23,7 @@ public class CP : ModuleRules
 			"GameplayTasks"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"CP",
