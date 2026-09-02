@@ -1,41 +1,40 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Monster/Task/CPBTTaskNode_TurnToTarget.h"
+#include "Monster/Task/CPBTTaskNode_TurnToNexus.h"
 #include "CPAI.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "../CPMonsterAIInterface.h"
-#include "../../Player/CPPlayerCharacter.h"
 
-UCPBTTaskNode_TurnToTarget::UCPBTTaskNode_TurnToTarget()
+UCPBTTaskNode_TurnToNexus::UCPBTTaskNode_TurnToNexus()
 {
-	NodeName = TEXT("TurnToTarget");
+	NodeName = TEXT("TurnToNexus");
 }
 
-EBTNodeResult::Type UCPBTTaskNode_TurnToTarget::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+EBTNodeResult::Type UCPBTTaskNode_TurnToNexus::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	EBTNodeResult::Type Result = Super::ExecuteTask(OwnerComp, NodeMemory);
 
 	APawn* ControllingPawn = Cast<APawn>(OwnerComp.GetAIOwner()->GetPawn());
-	if (ControllingPawn == nullptr)  
+	if (ControllingPawn == nullptr)
 	{
 		return EBTNodeResult::Failed;
 	}
 
 	ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(ControllingPawn);
-	if (AIPawn == nullptr) 
+	if (AIPawn == nullptr)
 	{
 		return EBTNodeResult::Failed;
 	}
 
-	ACPPlayerCharacter* TargetPawn = Cast<ACPPlayerCharacter>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
-	if (TargetPawn == nullptr) 
+	AActor* TargetActor = Cast<AActor>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_NEXUS));
+	if (TargetActor == nullptr)
 	{
 		return EBTNodeResult::Failed;
 	}
-	
-	FVector LookVector = TargetPawn->GetActorLocation() - ControllingPawn->GetActorLocation();
+
+	FVector LookVector = TargetActor->GetActorLocation() - ControllingPawn->GetActorLocation();
 	LookVector.Z = 0.f;
 
 	float TurnSpeed = AIPawn->GetAITurnSpeed();

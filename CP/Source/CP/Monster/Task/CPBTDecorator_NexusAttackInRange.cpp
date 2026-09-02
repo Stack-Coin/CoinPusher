@@ -1,19 +1,18 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Monster/Task/CPTDecorator_AttackInRange.h"
+#include "Monster/Task/CPBTDecorator_NexusAttackInRange.h"
 #include "CPAI.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "../CPMonsterAIInterface.h"
-#include "../../Player/CPPlayerCharacter.h"
 
-UCPTDecorator_AttackInRange::UCPTDecorator_AttackInRange()
+UCPBTDecorator_NexusAttackInRange::UCPBTDecorator_NexusAttackInRange()
 {
-	NodeName = TEXT("CanAttackPlayer");
+	NodeName = TEXT("CanAttackNexus");
 }
 
-bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
+bool UCPBTDecorator_NexusAttackInRange::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
 {
 	bool bResult = Super::CalculateRawConditionValue(OwnerComp, NodeMemory);
 
@@ -29,14 +28,14 @@ bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeCompon
 		return false;
 	}
 
-	ACPPlayerCharacter* Target = Cast<ACPPlayerCharacter>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_TARGET));
+	AActor* Target = Cast<AActor>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(BBKEY_NEXUS));
 	if (Target == nullptr)
 	{
 		return false;
 	}
 
 	float DistanceToTarget = ControllingPawn->GetDistanceTo(Target);
-	float AttackRangeWithRadius = AIPawn->GetAIAttackRange();
+	float AttackRangeWithRadius = 300.0f;
 
 	bResult = (DistanceToTarget <= AttackRangeWithRadius);
 	return bResult;
