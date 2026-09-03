@@ -8,6 +8,11 @@
 #include "Nexus/CPUserWidget_NexusHpBar.h"
 #include "Player/CPInteractor.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
+#include "Monster/CPMonsterBase.h"
+#include "Monster/Task/CPAI.h"
+#include "AIController.h"
+#include "BehaviorTree/BlackboardComponent.h"
 
 // Sets default values
 ACPNexus::ACPNexus()
@@ -106,8 +111,36 @@ void ACPNexus::Dead()
 {
 	HpBar->SetHiddenInGame(true);
 
-	// 아주 간단한 버전
-	// 월드 기준 왼쪽(Y < 0)에 있으면 자신 기준 오른쪽에, 오른쪽에 있으면 자신 기준 왼쪽에 새 Nexus를 스폰
+	// 아주 간단한 버전 // 단, 경로 테스트 목적이므로 여기서 여신상의 체력 로직은 수정하지 않ㅇㅡㅁ
+	// BT가 다른 가까운 Nexus를 다시 찾게
+	TArray<AActor*> Monsters;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBase::StaticClass(), Monsters);
+
+	for (AActor* Actor : Monsters)
+	{
+		ACPMonsterBase* Monster = Cast<ACPMonsterBase>(Actor);
+		if (!Monster)
+		{
+			continue;
+		}
+
+		AAIController* AIController = Cast<AAIController>(Monster->GetController());
+		UBlackboardComponent* MonsterBlackboard = AIController ? AIController->GetBlackboardComponent() : nullptr;
+		if (!MonsterBlackboard)
+		{
+			continue;
+		}
+
+		if (MonsterBlackboard->GetValueAsObject(BBKEY_NEXUS) == this)
+		{
+			MonsterBlackboard->SetValueAsObject(BBKEY_NEXUS, nullptr);
+		}
+	}
+
+	// Monster 관련 트레이스
+	CollisionSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_GameTraceChannel1, ECR_Ignore);
+
+	// 월드 기준 왼쪽(Y < 0)에 있으면 자신 기준 오른쪽에, 오른쪽에 있으면 자신 기준 왼쪽에 새 Nexus를 스 // (맵 레이아웃이 Y가 아니라 X가 좌우 축이라면 GetActorLocation().Y를 X로)
 	const bool bIsOnWorldLeft = GetActorLocation().Y < 0.f;
 	const FVector SpawnDirection = bIsOnWorldLeft ? GetActorRightVector() : -GetActorRightVector();
 	const FVector SpawnLocation = GetActorLocation() + SpawnDirection * RespawnOffsetDistance;
@@ -116,6 +149,8 @@ void ACPNexus::Dead()
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 	GetWorld()->SpawnActor<ACPNexus>(GetClass(), FTransform(GetActorRotation(), SpawnLocation), SpawnParams);
+
+	Destroy();
 }
 
 float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
