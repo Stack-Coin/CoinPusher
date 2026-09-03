@@ -16,6 +16,7 @@ ACPNexus::ACPNexus()
 
 void ACPNexus::Dead() 
 {
+	UE_LOG(LogTemp, Warning, TEXT("Nexus: %f"), CurrentHp);
 }
 
 float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
