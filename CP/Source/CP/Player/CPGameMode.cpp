@@ -8,6 +8,9 @@
 #include "Engine/World.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "Nexus/CPGoddess.h"
+#include "Nexus/CPNexus.h"
+#include "Monster/Spawner/CPMonsterSpawner.h"
+#include "Monster/Spawner/CPUserWidget_WaveStatus.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -36,6 +39,18 @@ void ACPGameMode::BeginPlay()
 	if (ACPGoddess* Goddess = Cast<ACPGoddess>(UGameplayStatics::GetActorOfClass(this, ACPGoddess::StaticClass())))
 	{
 		Goddess->OnGoddessDead.AddUniqueDynamic(this, &ACPGameMode::HandleGoddessDead);
+	}
+
+	// KohMS // 웨이브 진행 상황을 화면에 텍스트로 표시 (레벨에 배치된 스포너 중 하나의 상태를 그대로 보여줍니다)
+	WaveStatusSourceSpawner = Cast<ACPMonsterSpawner>(UGameplayStatics::GetActorOfClass(this, ACPMonsterSpawner::StaticClass()));
+	if (WaveStatusSourceSpawner)
+	{
+		WaveStatusWidget = CreateWidget<UCPUserWidget_WaveStatus>(GetWorld(), UCPUserWidget_WaveStatus::StaticClass());
+		if (WaveStatusWidget)
+		{
+			WaveStatusWidget->AddToViewport();
+			GetWorld()->GetTimerManager().SetTimer(WaveStatusUpdateTimer, this, &ACPGameMode::UpdateWaveStatusDisplay, 0.2f, true);
+		}
 	}
 }
 
@@ -91,18 +106,6 @@ void ACPGameMode::TryAssignGamepadToSecondPlayer()
 		DeviceMapper.Internal_ChangeInputDeviceUserMapping(DeviceId, SecondPlayerUserId, OldUserId);
 		break;
 	}
-}
-
-void ACPGameMode::HandleGoddessDead()
-{
-	if (bIsGameOver)
-	{
-		return;
-	}
-
-	bIsGameOver = true;
-
-	UE_LOG(LogTemp, Warning, TEXT("[CPGameMode] Defeat! Goddess has fallen."));
 }
 
 AActor* ACPGameMode::ChoosePlayerStart_Implementation(AController* Player)
@@ -204,4 +207,58 @@ bool ACPGameMode::TrySpendCoin(int32 Amount)
 	TeamCoinCount -= Amount;
 
 	return true;
+}
+
+// KohMS
+void ACPGameMode::UpdateWaveStatusDisplay()
+{
+	if (!WaveStatusSourceSpawner || !WaveStatusWidget)
+	{
+		return;
+	}
+
+	const ECPWavePhase Phase = WaveStatusSourceSpawner->GetCurrentPhase();
+
+	int32 ProgressSeconds = 0;
+	int32 TotalSeconds = 0;
+
+	switch (Phase)
+	{
+	case ECPWavePhase::Spawning:
+		ProgressSeconds = WaveStatusSourceSpawner->GetSpawnElapsedSeconds();
+		TotalSeconds = WaveStatusSourceSpawner->GetSpawnTotalSeconds();
+		break;
+
+	case ECPWavePhase::WaveWait:
+		TotalSeconds = FMath::RoundToInt(WaveStatusSourceSpawner->GetWaveIntervalSeconds());
+		ProgressSeconds = FMath::Clamp(TotalSeconds - FMath::CeilToInt(WaveStatusSourceSpawner->GetWaveWaitSecondsRemaining()), 0, TotalSeconds);
+		break;
+
+	case ECPWavePhase::RoundWait:
+		TotalSeconds = FMath::RoundToInt(WaveStatusSourceSpawner->GetRoundEndWaitSeconds());
+		ProgressSeconds = FMath::Clamp(TotalSeconds - FMath::CeilToInt(WaveStatusSourceSpawner->GetRoundWaitSecondsRemaining()), 0, TotalSeconds);
+		break;
+
+	default:
+		break;
+	}
+
+	WaveStatusWidget->UpdateWaveStatus(
+		WaveStatusSourceSpawner->GetCurrentWaveIndex() + 1,
+		WaveStatusSourceSpawner->GetWaveCount(),
+		Phase,
+		ProgressSeconds,
+		TotalSeconds);
+}
+
+void ACPGameMode::HandleGoddessDead()
+{
+	if (bIsGameOver)
+	{
+		return;
+	}
+
+	bIsGameOver = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("[CPGameMode] Defeat! Goddess has fallen."));
 }
