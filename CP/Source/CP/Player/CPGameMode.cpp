@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CPGameMode.h"
 #include "Kismet/GameplayStatics.h"
@@ -7,6 +7,7 @@
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "Nexus/CPGoddess.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -30,6 +31,12 @@ void ACPGameMode::BeginPlay()
 	// ...but device detection (XInput/RawInput polling) can still lag a frame or more past BeginPlay,
 	// so keep watching for one to show up later too
 	InputDeviceConnectionChangeHandle = IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().AddUObject(this, &ACPGameMode::HandleInputDeviceConnectionChange);
+
+	// KohMs // Goddess가 죽으면 패배
+	if (ACPGoddess* Goddess = Cast<ACPGoddess>(UGameplayStatics::GetActorOfClass(this, ACPGoddess::StaticClass())))
+	{
+		Goddess->OnGoddessDead.AddUniqueDynamic(this, &ACPGameMode::HandleGoddessDead);
+	}
 }
 
 void ACPGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -84,6 +91,18 @@ void ACPGameMode::TryAssignGamepadToSecondPlayer()
 		DeviceMapper.Internal_ChangeInputDeviceUserMapping(DeviceId, SecondPlayerUserId, OldUserId);
 		break;
 	}
+}
+
+void ACPGameMode::HandleGoddessDead()
+{
+	if (bIsGameOver)
+	{
+		return;
+	}
+
+	bIsGameOver = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("[CPGameMode] Defeat! Goddess has fallen."));
 }
 
 AActor* ACPGameMode::ChoosePlayerStart_Implementation(AController* Player)

@@ -11,6 +11,8 @@ class UWidgetComponent;
 class UCPUserWidget_NexusHpBar;
 class ACPNexus;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGoddessDead);
+
 UCLASS()
 class CP_API ACPGoddess : public AActor
 {
@@ -34,6 +36,9 @@ public:
 public:
 	void UpdateHpBar();
 	void Dead();
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat")
+	FOnGoddessDead OnGoddessDead;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collider")

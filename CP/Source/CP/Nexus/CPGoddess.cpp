@@ -90,6 +90,8 @@ void ACPGoddess::Dead()
 {
 	bIsDead = true;
 	HpBar->SetHiddenInGame(true);
+
+	OnGoddessDead.Broadcast();
 }
 
 void ACPGoddess::OnNexusHpChanged(ACPNexus* Nexus, float NewCurrentHp)
@@ -110,8 +112,6 @@ void ACPGoddess::OnNexusHpChanged(ACPNexus* Nexus, float NewCurrentHp)
 
 	CurrentHp = FMath::Clamp(TotalHp, 0.f, MaxHp);
 	UpdateHpBar();
-
-	UE_LOG(LogTemp, Log, TEXT("[Goddess] Recalculated CurrentHp=%.1f/%.1f"), CurrentHp, MaxHp);
 
 	if (CurrentHp <= 0.f)
 	{

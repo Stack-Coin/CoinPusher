@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -87,7 +87,6 @@ protected:
 	void TryAssignGamepadToSecondPlayer();
 
 public:
-
 	/** Broadcast whenever TeamTicketCount changes */
 	UPROPERTY(BlueprintAssignable, Category="Team")
 	FOnCPTeamTicketCountChanged OnTeamTicketCountChanged;
@@ -141,4 +140,15 @@ public:
 	virtual bool TrySpendCoin(int32 Amount) override;
 
 	// ~end ICPCoinWallet
+
+protected:
+	// KohMS
+	UPROPERTY(BlueprintReadOnly, Category = "Game")
+	bool bIsGameOver = false;
+
+	UFUNCTION(BlueprintPure, Category = "Game")
+	bool IsGameOver() const { return bIsGameOver; }
+
+	UFUNCTION()
+	void HandleGoddessDead();
 };
