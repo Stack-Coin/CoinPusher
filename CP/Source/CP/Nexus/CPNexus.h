@@ -75,6 +75,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float HealAmount = 30.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+	float RespawnOffsetDistance = 1000.f;
+
 	float MaxHp = 100.f;
 	float CurrentHp = 100.f;
 };

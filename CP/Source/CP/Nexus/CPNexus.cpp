@@ -7,6 +7,7 @@
 #include "Components/WidgetComponent.h"
 #include "Nexus/CPUserWidget_NexusHpBar.h"
 #include "Player/CPInteractor.h"
+#include "Engine/World.h"
 
 // Sets default values
 ACPNexus::ACPNexus()
@@ -101,9 +102,20 @@ void ACPNexus::OnCollisionSphereEndOverlap(UPrimitiveComponent* OverlappedCompon
 	}
 }
 
-void ACPNexus::Dead() 
+void ACPNexus::Dead()
 {
 	HpBar->SetHiddenInGame(true);
+
+	// 아주 간단한 버전
+	// 월드 기준 왼쪽(Y < 0)에 있으면 자신 기준 오른쪽에, 오른쪽에 있으면 자신 기준 왼쪽에 새 Nexus를 스폰
+	const bool bIsOnWorldLeft = GetActorLocation().Y < 0.f;
+	const FVector SpawnDirection = bIsOnWorldLeft ? GetActorRightVector() : -GetActorRightVector();
+	const FVector SpawnLocation = GetActorLocation() + SpawnDirection * RespawnOffsetDistance;
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	GetWorld()->SpawnActor<ACPNexus>(GetClass(), FTransform(GetActorRotation(), SpawnLocation), SpawnParams);
 }
 
 float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
