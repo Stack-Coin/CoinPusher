@@ -6,6 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Player/CPWeaponEquipper.h"
 #include "Weapon/CPWeaponBase.h"
+#include "Player/CPGameMode.h"
 
 void UCPStatWidget::SetStatSource(TScriptInterface<ICPStatInterface> InStatSource)
 {
@@ -56,11 +57,6 @@ void UCPStatWidget::RefreshStats()
 		HealthText->SetText(FText::FromString(FString::Printf(TEXT("Health : %.0f"), Interface->GetStat(ECPStatType::Health))));
 	}
 
-	if (ExperienceText)
-	{
-		ExperienceText->SetText(FText::FromString(FString::Printf(TEXT("Experience : %.0f"), Interface->GetStat(ECPStatType::Experience))));
-	}
-
 	if (AttackPowerText)
 	{
 		AttackPowerText->SetText(FText::FromString(FString::Printf(TEXT("AttackPower : %.0f"), Interface->GetStat(ECPStatType::AttackPower))));
@@ -81,19 +77,23 @@ void UCPStatWidget::RefreshStats()
 		DefenseText->SetText(FText::FromString(FString::Printf(TEXT("Defense : %.0f"), Interface->GetStat(ECPStatType::Defense))));
 	}
 
-	if (LevelText)
-	{
-		LevelText->SetText(FText::FromString(FString::Printf(TEXT("Level : %.0f"), Interface->GetStat(ECPStatType::Level))));
-	}
-
 	UObject* SourceObject = StatSource.GetObject();
 
-	if (CoinText)
+	const ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr;
+
+	if (ExperienceText && GameMode)
 	{
-		if (ICPCoinWallet* Wallet = Cast<ICPCoinWallet>(SourceObject))
-		{
-			CoinText->SetText(FText::FromString(FString::Printf(TEXT("Coin : %d"), Wallet->GetCoinAmount())));
-		}
+		ExperienceText->SetText(FText::FromString(FString::Printf(TEXT("Experience : %.0f"), GameMode->GetTeamExperience())));
+	}
+
+	if (LevelText && GameMode)
+	{
+		LevelText->SetText(FText::FromString(FString::Printf(TEXT("Level : %d"), GameMode->GetTeamLevel())));
+	}
+
+	if (TicketText && GameMode)
+	{
+		TicketText->SetText(FText::FromString(FString::Printf(TEXT("Ticket : %d"), GameMode->GetTeamTicketCount())));
 	}
 
 	if (OwnedItemsText)
@@ -123,12 +123,13 @@ void UCPStatWidget::RefreshStats()
 			CurrentWeaponText->SetText(FText::FromString(FString::Printf(TEXT("Weapon : %s"), *WeaponName.ToString())));
 		}
 	}
+
 }
 
 void UCPStatWidget::HandleAddExperienceClicked()
 {
-	if (ICPStatInterface* Interface = StatSource.GetInterface())
+	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
 	{
-		Interface->ModifyStat(ECPStatType::Experience, TestExperienceAmount);
+		GameMode->AddTeamExperience(TestExperienceAmount);
 	}
 }

@@ -10,7 +10,6 @@
 #include "Player/CPStatTypes.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPInteractor.h"
-#include "Player/CPCoinWallet.h"
 #include "Player/CPItemInventory.h"
 #include "Player/CPItemTypes.h"
 #include "Weapon/CPAimDirectionInterface.h"
@@ -27,10 +26,6 @@ class ACPRoulette;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
-/** Broadcast right after the character's level increases by 1. Systems (e.g. the augment UI) should
- *  react to this event instead of polling the Level stat. */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPLevelUp, int32, NewLevel);
-
 /** Broadcast right after an item is added to the player's inventory. UI (e.g. the item toast)
  *  should react to this event instead of the item actor touching any UI directly. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPItemAcquired, FCPItemData, AcquiredItem);
@@ -42,7 +37,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPItemAcquired, FCPItemData, Acqu
  *  - Directional dash with temporary invincibility
  */
 UCLASS(abstract)
-class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPCoinWallet, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper
+class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper
 {
 	GENERATED_BODY()
 
@@ -82,17 +77,14 @@ protected:
 
 protected:
 
-	/** Core player stats (health, experience, attack power, move speed, attack speed, defense, level) */
+	/** Core per-player combat stats (health, attack power, move speed, attack speed, defense). Coin/ticket/
+	 *  experience/level are intentionally NOT tracked here - see ACPGameMode, they're shared by the team */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	FCPPlayerStats Stats;
 
 	/** Min/Max bounds for Health. SetStat/ModifyStat clamp to this range */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
 	FCPStatRange HealthRange = FCPStatRange(0.0f, 100.0f);
-
-	/** Min/Max bounds for Experience. SetStat/ModifyStat/AddExperience clamp to this range */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
-	FCPStatRange ExperienceRange = FCPStatRange(0.0f, 999999.0f);
 
 	/** Min/Max bounds for AttackPower. SetStat/ModifyStat clamp to this range */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
@@ -109,18 +101,6 @@ protected:
 	/** Min/Max bounds for Defense. SetStat/ModifyStat clamp to this range */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
 	FCPStatRange DefenseRange = FCPStatRange(0.0f, 999.0f);
-
-	/** Min/Max bounds for Level. SetStat/ModifyStat/AddExperience clamp to this range */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
-	FCPStatRange LevelRange = FCPStatRange(1.0f, 99.0f);
-
-	/** Experience required to level up from Level 1 to Level 2 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Leveling", meta = (ClampMin = 0))
-	float BaseRequiredExperience = 100.0f;
-
-	/** Additional experience required per level above the base requirement. 0 keeps the requirement flat */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Leveling", meta = (ClampMin = 0))
-	float RequiredExperiencePerLevel = 0.0f;
 
 	/** Width (left-right) of the rectangular attack hitbox */
 	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
@@ -162,6 +142,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm/s"))
 	float AttackLungeMinSpeed = 10.0f;
 
+	/** Move input below this magnitude (stick axis value in [0, 1]) is treated as zero, so gamepad stick
+	 *  drift/noise doesn't register as movement (or, for a gamepad player, as an attack direction) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Move", meta = (ClampMin = 0, ClampMax = 1))
+	float MoveInputDeadzone = 0.15f;
+
 	/** True while a weapon combo string is in progress. Blocks DoMove/movement-driven rotation until the weapon reports it finished/was cancelled */
 	bool bIsAttackLocked = false;
 
@@ -189,7 +174,8 @@ protected:
 	/** Game time the last dash was performed */
 	float LastDashTime = -1000.0f;
 
-	/** Last non-zero WASD input, used as the dash direction and as the fallback dash direction */
+	/** Last non-zero WASD/stick input (after the deadzone), used as the dash direction and, for a
+	 *  gamepad player, as the attack direction too (see GetAttackDirection) */
 	FVector2D LastMoveInputVector = FVector2D(0.0f, 1.0f);
 
 	/** World direction resolved for the dash currently in progress */
@@ -197,10 +183,6 @@ protected:
 
 	/** Timer used to end the dash state after DashDuration */
 	FTimerHandle DashDurationTimerHandle;
-
-	/** Current coin balance */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Coin", meta = (ClampMin = 0))
-	int32 CoinAmount = 0;
 
 	/** Items the player has picked up. Never modify directly - go through AddOwnedItem/ICPItemInventory */
 	UPROPERTY(BlueprintReadOnly, Category="Item")
@@ -216,7 +198,7 @@ protected:
 	/** Closest currently-registered interactable, i.e. what pressing Interact will activate */
 	TWeakObjectPtr<AActor> CurrentInteractable;
 
-	//�귿
+	//�귿
 	TObjectPtr<ACPRoulette> Roulette;
 
 public:
@@ -294,8 +276,15 @@ protected:
 	/** Resolves a WASD input vector into a world space direction relative to the fixed camera yaw */
 	FVector GetWorldDirectionFromInput(const FVector2D& InputVector) const;
 
-	/** Resolves the current attack direction from the character to the mouse cursor's world location */
+	/** Resolves the current attack/aim direction: for a gamepad player, the current/last movement
+	 *  direction (see GetLastMovementWorldDirection) - no separate aim stick. For a keyboard/mouse
+	 *  player, the direction from the character to the mouse cursor's world location, as before */
 	FVector GetAttackDirection() const;
+
+	/** Converts LastMoveInputVector to a world-space direction, falling back to the character's current
+	 *  forward vector if there's no movement input yet. Used for both the dash direction and, on a
+	 *  gamepad, the attack direction */
+	FVector GetLastMovementWorldDirection() const;
 
 	/** Runs the rectangular box trace attack and applies damage to anything hit */
 	void PerformAttack();
@@ -319,18 +308,6 @@ public:
 	/** Overrides the default TakeDamage functionality to ignore damage while invincible */
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
-	/** Broadcast right after the character's level increases by 1 (once per level, even on a multi level up) */
-	UPROPERTY(BlueprintAssignable, Category="Stats")
-	FOnCPLevelUp OnLevelUp;
-
-	/** Adds experience, handling one or multiple level ups if enough is accumulated at once */
-	UFUNCTION(BlueprintCallable, Category="Stats")
-	void AddExperience(float Amount);
-
-	/** Returns the experience required to go from the current level to the next */
-	UFUNCTION(BlueprintPure, Category="Stats")
-	float GetRequiredExperience() const;
-
 	// ~begin ICPStatInterface
 
 	/** Adds Delta to the current value of the given stat */
@@ -353,22 +330,6 @@ public:
 	virtual void UnregisterInteractable(AActor* Interactable) override;
 
 	// ~end ICPInteractor
-
-	// ~begin ICPCoinWallet
-
-	/** Adds Amount to the current coin balance */
-	virtual void AddCoin(int32 Amount) override;
-
-	/** Returns the current coin balance */
-	virtual int32 GetCoinAmount() const override;
-
-	/** Returns true if the current coin balance is at least Amount */
-	virtual bool HasEnoughCoin(int32 Amount) const override;
-
-	/** Attempts to spend Amount coins. Deducts and returns true on success, leaves the balance unchanged and returns false otherwise */
-	virtual bool TrySpendCoin(int32 Amount) override;
-
-	// ~end ICPCoinWallet
 
 	// ~begin ICPItemInventory
 

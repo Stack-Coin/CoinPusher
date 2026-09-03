@@ -18,7 +18,7 @@ class CP_API ACPDropZone : public AActor
 {
 	GENERATED_BODY()
 
-	//Trigger Ãæµ¹ º¼·ı
+	// ë“œë ì¡´
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* CollectionVolume;
 
@@ -28,47 +28,55 @@ public:
 
 protected:
 
-	//¼öÁıÇÑ µ¿Àü °³¼ö
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Drop Zone")
 	int32 CollectedCoinCount = 0;
 
-	//¼öÁıÇÑ ¾ÆÀÌÅÛµéÀÇ Item ÄÚµå (¼öÁıÇÑ ¼ø¼­´ë·Î ±â·Ï)
+	/** Team experience (ACPGameMode) granted per coin collected here, multiplied by AddCollectedCoins' Amount */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone", meta = (ClampMin = 0))
+	float ExperiencePerCoin = 1.0f;
+
+	/** Every time this many coins have been collected here in total, the team (ACPGameMode) is granted 1 ticket */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone", meta = (ClampMin = 1))
+	int32 CoinsPerTicket = 10;
+
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ûµï¿½ï¿½ï¿½ Item ï¿½Úµï¿½ (ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Drop Zone")
 	TArray<FName> CollectedItemCodes;
 
-	//¾ÆÀÌÅÛÀÌ ¶³¾îÁ³À» ¶§ Àç»ı¼ºÀ» ¿äÃ»ÇÒ Dispenser. DropZoneÀº ACPCoinPusherÀÇ ChildActorComponent·Î
-	//½ºÆùµÇ¹Ç·Î ·¹º§¿¡¼­ Á÷Á¢ ÆíÁıÇÏÁö ¾Ê°í, ¼ÒÀ¯ÀÚÀÎ ACPCoinPusher°¡ SetItemRespawnDispenser()¸¦
-	//ÅëÇØ ¼³Á¤ÇÑ´Ù
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã»ï¿½ï¿½ Dispenser. DropZoneï¿½ï¿½ ACPCoinPusherï¿½ï¿½ ChildActorComponentï¿½ï¿½
+	//ï¿½ï¿½ï¿½ï¿½ï¿½Ç¹Ç·ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ê°ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ACPCoinPusherï¿½ï¿½ SetItemRespawnDispenser()ï¿½ï¿½
+	//ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Drop Zone")
 	TObjectPtr<ACPDispenser> ItemRespawnDispenser;
 
 public:
 
-	//Coin ¼öÁı ½Ã BroadCast
+	//Coin ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ BroadCast
 	UPROPERTY(BlueprintAssignable, Category="Drop Zone")
 	FOnCoinCollected OnCoinCollected;
 
-	//Item ¼öÁı ½Ã BroadCast
+	//Item ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ BroadCast
 	UPROPERTY(BlueprintAssignable, Category="Drop Zone")
 	FOnItemCollected OnItemCollected;
 
-	//¼öÁıÇÑ µ¿Àü °³¼ö ¹İÈ¯
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È¯
 	UFUNCTION(BlueprintPure, Category="Drop Zone")
 	int32 GetCollectedCoinCount() const { return CollectedCoinCount; }
 
-	//¼öÁıÇÑ ¾ÆÀÌÅÛ ÄÚµå ¸ñ·Ï ¹İÈ¯
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Úµï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½È¯
 	UFUNCTION(BlueprintPure, Category="Drop Zone")
 	const TArray<FName>& GetCollectedItemCodes() const { return CollectedItemCodes; }
 
-	//ICPCoinPusherItem ±¸ÇöÃ¼(Coin)°¡ È£Ãâ - µ¿Àü °³¼ö¸¦ ¿Ã¸®°í BroadCast
+	//ICPCoinPusherItem ï¿½ï¿½ï¿½ï¿½Ã¼(Coin)ï¿½ï¿½ È£ï¿½ï¿½ - ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ã¸ï¿½ï¿½ï¿½ BroadCast
 	UFUNCTION(BlueprintCallable, Category="Drop Zone")
 	void AddCollectedCoins(int32 Amount = 1);
 
-	//ICPCoinPusherItem ±¸ÇöÃ¼(Item)°¡ È£Ãâ - ¾ÆÀÌÅÛ ÄÚµå¸¦ ±â·ÏÇÏ°í BroadCast + ItemRespawnDispenser¿¡ Àç»ı¼º ¿äÃ»
+	//ICPCoinPusherItem ï¿½ï¿½ï¿½ï¿½Ã¼(Item)ï¿½ï¿½ È£ï¿½ï¿½ - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Úµå¸¦ ï¿½ï¿½ï¿½ï¿½Ï°ï¿½ BroadCast + ItemRespawnDispenserï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã»
 	UFUNCTION(BlueprintCallable, Category="Drop Zone")
 	void RecordCollectedItem(FName ItemCode);
 
-	//¼ÒÀ¯ÀÚ(ACPCoinPusher)°¡ È£Ãâ - ¾ÆÀÌÅÛ µå·Ó ½Ã Àç»ı¼ºÀ» ¸ÃÀ» Dispenser¸¦ ¼³Á¤
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(ACPCoinPusher)ï¿½ï¿½ È£ï¿½ï¿½ - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ Dispenserï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 	UFUNCTION(BlueprintCallable, Category="Drop Zone")
 	void SetItemRespawnDispenser(ACPDispenser* NewItemRespawnDispenser);
 

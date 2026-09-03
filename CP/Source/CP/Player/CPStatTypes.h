@@ -35,7 +35,8 @@ struct FCPStatRange
 	float Max = 100.0f;
 };
 
-/** Data for all of the player's core stats */
+/** Data for a player's core per-player combat stats. Coin/ticket/experience/level are deliberately NOT
+ *  here - they're shared by the whole team and owned by ACPGameMode instead, since team play is planned */
 USTRUCT(BlueprintType)
 struct FCPPlayerStats
 {
@@ -44,10 +45,6 @@ struct FCPPlayerStats
 	/** Current health */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	float Health = 100.0f;
-
-	/** Current experience accumulated towards the next level */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
-	float Experience = 0.0f;
 
 	/** Base damage dealt by the basic attack */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
@@ -64,8 +61,4 @@ struct FCPPlayerStats
 	/** Defense value */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	float Defense = 0.0f;
-
-	/** Current level */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
-	int32 Level = 1;
 };
