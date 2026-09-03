@@ -13,6 +13,7 @@ class UWidgetComponent;
 class UCPUserWidget_NexusHpBar;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNexusInteracted, AActor*, Interactor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNexusHpChanged, ACPNexus*, Nexus, float, NewCurrentHp);
 
 UCLASS()
 class CP_API ACPNexus : public AActor, public ICPInteractable
@@ -40,6 +41,8 @@ public:
 public:
 	void Dead();
 	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+	float GetMaxHp() const { return MaxHp; }
+	float GetCurrentHp() const { return CurrentHp; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -51,6 +54,9 @@ protected:
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Input")
 	FOnNexusInteracted OnInteracted;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat")
+	FOnNexusHpChanged OnNexusHpChanged;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collider")

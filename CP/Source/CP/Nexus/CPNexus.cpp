@@ -56,6 +56,7 @@ void ACPNexus::Tick(float DeltaTime)
 	{
 		CurrentHp = FMath::Min(CurrentHp + HealAmount * DeltaTime, MaxHp);
 		UpdateHpBar();
+		OnNexusHpChanged.Broadcast(this, CurrentHp);
 	}
 }
 
@@ -102,26 +103,22 @@ void ACPNexus::OnCollisionSphereEndOverlap(UPrimitiveComponent* OverlappedCompon
 
 void ACPNexus::Dead() 
 {
-	UE_LOG(LogTemp, Warning, TEXT("Nexus: %f"), CurrentHp);
-
 	HpBar->SetHiddenInGame(true);
 }
 
 float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-
-	CurrentHp = FMath::Max(CurrentHp - DamageAmount, 0.f);
+	const float Damage = FMath::Clamp(DamageAmount, 0.f, CurrentHp);
+	CurrentHp -= Damage;
 	UpdateHpBar();
 
-	if (CurrentHp <= 0) 
+	OnNexusHpChanged.Broadcast(this, CurrentHp);
+
+	if (CurrentHp <= 0)
 	{
 		Dead();
 	}
-	else 
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Nexus: %f"), CurrentHp);
-	}
 
-	return DamageAmount;
+	return Damage;
 }
