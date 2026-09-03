@@ -2,8 +2,10 @@
 
 #include "Player/CPCoinItem.h"
 #include "Player/CPCoinWallet.h"
+#include "Player/CPGameMode.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "GameFramework/Pawn.h"
 
 ACPCoinItem::ACPCoinItem()
 {
@@ -30,15 +32,14 @@ void ACPCoinItem::Tick(float DeltaTime)
 
 void ACPCoinItem::OnCollisionSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (bCollected || !OtherActor)
+	// Coins are picked up by pawns (the player) - the wallet itself now lives on ACPGameMode (team-shared),
+	// not on whatever overlapped, so this just gates on "a pawn touched it" instead of an ICPCoinWallet cast
+	if (bCollected || !Cast<APawn>(OtherActor))
 	{
 		return;
 	}
 
-	if (Cast<ICPCoinWallet>(OtherActor))
-	{
-		Interact(OtherActor);
-	}
+	Interact(OtherActor);
 }
 
 void ACPCoinItem::Interact(AActor* Interactor)
@@ -48,7 +49,7 @@ void ACPCoinItem::Interact(AActor* Interactor)
 		return;
 	}
 
-	ICPCoinWallet* Wallet = Cast<ICPCoinWallet>(Interactor);
+	ICPCoinWallet* Wallet = GetWorld() ? Cast<ICPCoinWallet>(GetWorld()->GetAuthGameMode()) : nullptr;
 	if (!Wallet)
 	{
 		return;
