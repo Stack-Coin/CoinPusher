@@ -14,6 +14,9 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 
+// 넥서스가 몇 개든, 게임 전체에서 재스폰 가능한 총 횟수를 공유하는 스태틱 변수 (기본 2회)
+int32 ACPNexus::GlobalRemainingRespawns = 2;
+
 // Sets default values
 ACPNexus::ACPNexus()
 {
@@ -109,12 +112,18 @@ void ACPNexus::OnCollisionSphereEndOverlap(UPrimitiveComponent* OverlappedCompon
 
 void ACPNexus::Dead()
 {
+	// Destroy()하지 않고 메시를 남겨두기 때문에, 죽은 뒤에도 TakeDamage가 계속 들어오면 Dead()가 매번 다시 실행됩니다.
+	// 그러면 아래 재스폰 로직이 맞을 때마다 반복 실행되어 GlobalRemainingRespawns가 의도한 것보다 훨씬 많이 줄고
+	// 넥서스가 여러 개 더 스폰되는 버그로 이어지므로, 한 번만 실행되도록 막습니다.
+	if (bIsDead)
+	{
+		return;
+	}
+	bIsDead = true;
+
 	HpBar->SetHiddenInGame(true);
 
-	// 아주 간단한 버전 // 단, 경로 테스트 목적이므로 여기서 여신상의 체력 로직은 수정하지 않ㅇㅡㅁ
-	//여신상 배치 변경해야 함.TODO.
-	
-	// BT가 다른 가까운 Nexus를 다시 찾게
+	// 이 Nexus를 블랙보드 타겟으로 물고 있던 몬스터들은 Nexus 키를 비워서, BT가 다른 가까운 Nexus를 다시 찾게 합니다.
 	TArray<AActor*> Monsters;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBase::StaticClass(), Monsters);
 
@@ -139,24 +148,38 @@ void ACPNexus::Dead()
 		}
 	}
 
-	// Monster 관련 트레이스
+	// Monster 관련 트레이스(공격 판정, 타겟 탐지 등)가 곧 사라질 이 Nexus를 더 이상 대상으로 보지 않도록 무시 처리
 	CollisionSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_GameTraceChannel1, ECR_Ignore);
 
-	// 월드 기준 왼쪽(Y < 0)에 있으면 자신 기준 오른쪽에, 오른쪽에 있으면 자신 기준 왼쪽에 새 Nexus를 스 // (맵 레이아웃이 Y가 아니라 X가 좌우 축이라면 GetActorLocation().Y를 X로)
-	const bool bIsOnWorldLeft = GetActorLocation().Y < 0.f;
-	const FVector SpawnDirection = bIsOnWorldLeft ? GetActorRightVector() : -GetActorRightVector();
-	const FVector SpawnLocation = GetActorLocation() + SpawnDirection * RespawnOffsetDistance;
+	// 넥서스가 몇 개든, 게임 전체에서 재스폰 가능한 총 횟수는 스태틱 변수(GlobalRemainingRespawns)로 관리합니다.
+	// (개별 넥서스마다 재스폰 횟수를 따로 주면, 넥서스가 여러 개일 때 총합이 의도한 횟수를 넘어가 버립니다)
+	if (GlobalRemainingRespawns > 0)
+	{
+		--GlobalRemainingRespawns;
 
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		// 아주 간단한 버전: 월드 기준 왼쪽(Y < 0)에 있으면 자신 기준 오른쪽에, 오른쪽에 있으면 자신 기준 왼쪽에 새 Nexus를 스폰합니다.
+		// (맵 레이아웃이 Y가 아니라 X가 좌우 축이라면 GetActorLocation().Y를 X로 바꿔주세요)
+		const bool bIsOnWorldLeft = GetActorLocation().Y < 0.f;
+		const FVector SpawnDirection = bIsOnWorldLeft ? GetActorRightVector() : -GetActorRightVector();
+		const FVector SpawnLocation = GetActorLocation() + SpawnDirection * RespawnOffsetDistance;
 
-	GetWorld()->SpawnActor<ACPNexus>(GetClass(), FTransform(GetActorRotation(), SpawnLocation), SpawnParams);
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	Destroy();
+		GetWorld()->SpawnActor<ACPNexus>(GetClass(), FTransform(GetActorRotation(), SpawnLocation), SpawnParams);
+	}
+
+	// KohMS // 요청에 따라 죽어도 Destroy()하지 않습니다 - 메시는 계속 화면에 남아있어야 합니다.
 }
 
 float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+	// 이미 죽은 넥서스는 더 이상 데미지를 받지 않습니다 (메시는 남아있지만 기능적으로는 파괴된 상태).
+	if (bIsDead)
+	{
+		return 0.f;
+	}
+
 	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	const float Damage = FMath::Clamp(DamageAmount, 0.f, CurrentHp);
 	CurrentHp -= Damage;

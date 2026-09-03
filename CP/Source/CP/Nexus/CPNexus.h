@@ -44,6 +44,12 @@ public:
 	float GetMaxHp() const { return MaxHp; }
 	float GetCurrentHp() const { return CurrentHp; }
 
+	/** 이미 죽은(파괴된 척 하는) 넥서스인지. 죽어도 Destroy()하지 않고 메시는 남겨두므로, AI가 다시 이 넥서스를 타겟으로 고르지 않도록 이 값으로 걸러야 합니다. */
+	bool IsDead() const { return bIsDead; }
+
+	/** 게임 전체에서 넥서스가 재스폰될 수 있는 총 횟수를 초기값으로 되돌립니다. 플레이 시작 시 GameMode가 딱 한 번 호출합니다. */
+	static void ResetGlobalRespawnBudget() { GlobalRemainingRespawns = 2; }
+
 protected:
 	virtual void BeginPlay() override;
 	void UpdateHpBar();
@@ -78,6 +84,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float RespawnOffsetDistance = 1000.f;
 
+	// 넥서스가 몇 개든, 게임 전체에서 재스폰 가능한 총 남은 횟수 (모든 넥서스가 공유하는 스태틱 변수)
+	static int32 GlobalRemainingRespawns;
+
 	float MaxHp = 100.f;
 	float CurrentHp = 100.f;
+
+	// 죽은 뒤에도 메시는 화면에 남겨둬야 해서 Destroy()하지 않으므로, Dead()가 중복 실행되지 않도록 막는 플래그
+	bool bIsDead = false;
 };

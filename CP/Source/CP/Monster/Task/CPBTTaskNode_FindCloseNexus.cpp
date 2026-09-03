@@ -39,6 +39,12 @@ EBTNodeResult::Type UCPBTTaskNode_FindCloseNexus::ExecuteTask(UBehaviorTreeCompo
             continue;
         }
 
+        // ㅍㅏㄱㅗㅣㄷㅚㄴ 넥서스는 후보에서 제외
+        if (Nexus->IsDead())
+        {
+            continue;
+        }
+
         const float Distance = FVector::Distance(ControllingPawn->GetActorLocation(), Nexus->GetActorLocation());
 
         if (Distance < MinDistance)
