@@ -112,6 +112,8 @@ void ACPNexus::Dead()
 	HpBar->SetHiddenInGame(true);
 
 	// 아주 간단한 버전 // 단, 경로 테스트 목적이므로 여기서 여신상의 체력 로직은 수정하지 않ㅇㅡㅁ
+	//여신상 배치 변경해야 함.TODO.
+	
 	// BT가 다른 가까운 Nexus를 다시 찾게
 	TArray<AActor*> Monsters;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBase::StaticClass(), Monsters);
