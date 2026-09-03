@@ -3,6 +3,8 @@
 
 #include "Nexus/CPNexus.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SphereComponent.h"
+#include "Player/CPInteractor.h"
 
 // Sets default values
 ACPNexus::ACPNexus()
@@ -10,8 +12,49 @@ ACPNexus::ACPNexus()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
+	RootComponent = CollisionSphere;
+	CollisionSphere->InitSphereRadius(150.0f);
+	CollisionSphere->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+
+	CollisionSphere->OnComponentBeginOverlap.AddDynamic(this, &ACPNexus::OnCollisionSphereBeginOverlap);
+	CollisionSphere->OnComponentEndOverlap.AddDynamic(this, &ACPNexus::OnCollisionSphereEndOverlap);
+
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
-	RootComponent = Mesh;
+	Mesh->SetupAttachment(CollisionSphere);
+}
+
+void ACPNexus::Interact(AActor* Interactor)
+{
+	OnInteracted.Broadcast(Interactor);
+
+	BP_OnInteracted(Interactor);
+}
+
+void ACPNexus::OnCollisionSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!OtherActor)
+	{
+		return;
+	}
+
+	if (ICPInteractor* Interactor = Cast<ICPInteractor>(OtherActor))
+	{
+		Interactor->RegisterInteractable(this);
+	}
+}
+
+void ACPNexus::OnCollisionSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (!OtherActor)
+	{
+		return;
+	}
+
+	if (ICPInteractor* Interactor = Cast<ICPInteractor>(OtherActor))
+	{
+		Interactor->UnregisterInteractable(this);
+	}
 }
 
 void ACPNexus::Dead() 
