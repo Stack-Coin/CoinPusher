@@ -11,8 +11,8 @@ class USphereComponent;
 class UStaticMeshComponent;
 
 /**
- *  Simple pickup that grants coins the instant it overlaps something that implements ICPCoinWallet.
- *  No key press is needed - the same ICPInteractable::Interact() call every interactable uses
+ *  Simple pickup that grants coins to the team (ACPGameMode's ICPCoinWallet) the instant it overlaps a
+ *  pawn. No key press is needed - the same ICPInteractable::Interact() call every interactable uses
  *  is simply triggered by the coin itself on overlap, instead of by a player key press.
  */
 UCLASS(abstract)

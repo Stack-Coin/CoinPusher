@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Player/CPStatInterface.h"
-#include "Player/CPCoinWallet.h"
 #include "Player/CPItemInventory.h"
 #include "CPStatWidget.generated.h"
 
@@ -13,10 +12,11 @@ class UTextBlock;
 class UButton;
 
 /**
- *  Simple debug/test UI that displays the current values of a player's stats.
- *  Reads its values purely through ICPStatInterface, so it works with any actor that implements it.
- *  No layout/design is provided - place the TextBlocks (matching these variable names) in the
- *  Widget Blueprint that inherits from this class.
+ *  Simple debug/test UI that displays the current values of a player's stats, plus the team-shared
+ *  resources owned by ACPGameMode (ticket/experience/level). Per-player stats are read purely
+ *  through ICPStatInterface, so it works with any actor that implements it. No layout/design is
+ *  provided - place the TextBlocks (matching these variable names) in the Widget Blueprint that
+ *  inherits from this class.
  */
 UCLASS(abstract)
 class CP_API UCPStatWidget : public UUserWidget
@@ -46,10 +46,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UTextBlock* LevelText;
 
-	/** Displays the current coin balance */
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
-	UTextBlock* CoinText;
-
 	/** Displays the names of every currently owned item */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UTextBlock* OwnedItemsText;
@@ -58,11 +54,15 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UTextBlock* CurrentWeaponText;
 
-	/** Test button that grants TestExperienceAmount experience to StatSource when clicked */
+	/** Displays the current team ticket count (ACPGameMode::GetTeamTicketCount) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UTextBlock* TicketText;
+
+	/** Test button that grants TestExperienceAmount team experience when clicked */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* AddExperienceButton;
 
-	/** Amount of experience granted by a single AddExperienceButton click */
+	/** Amount of team experience granted by a single AddExperienceButton click */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats", meta = (ClampMin = 0))
 	float TestExperienceAmount = 20.0f;
 

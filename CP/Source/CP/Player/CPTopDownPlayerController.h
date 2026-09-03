@@ -41,4 +41,10 @@ public:
 	/** Returns the world location under the mouse cursor, used to aim the basic attack */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	bool GetCursorWorldLocation(FVector& OutWorldLocation) const;
+
+	/** Returns true if this controller's platform user currently owns the default input device
+	 *  (keyboard/mouse) - false for a player mapped to a gamepad instead (see ACPGameMode::BeginPlay).
+	 *  ACPPlayerCharacter uses this to decide whether to aim with the cursor or the movement direction */
+	UFUNCTION(BlueprintPure, Category="Input")
+	bool IsUsingKeyboardAndMouse() const;
 };

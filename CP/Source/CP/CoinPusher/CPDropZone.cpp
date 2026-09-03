@@ -15,13 +15,13 @@ ACPDropZone::ACPDropZone()
 
 	RootComponent = CollectionVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("CollectionVolume"));
 
-	// BoxÅ©±â
+	// BoxÅ©ï¿½ï¿½
 	CollectionVolume->SetBoxExtent(FVector(100.0f, 100.0f, 50.0f));
 
 
 	CollectionVolume->SetCollisionProfileName(FName("OverlapAllDynamic"));
 
-	//overlapÇÔ¼ö µî·Ï
+	//overlapï¿½Ô¼ï¿½ ï¿½ï¿½ï¿½
 	CollectionVolume->OnComponentBeginOverlap.AddDynamic(this, &ACPDropZone::OnVolumeBeginOverlap);
 }
 
@@ -36,13 +36,27 @@ void ACPDropZone::AddCollectedCoins(int32 Amount)
 
 	OnCoinCollected.Broadcast(CollectedCoinCount);
 
-	//ÄÚÀÎÀÌ 10°³ ¸ðÀÏ ¶§¸¶´Ù(¿¹: 10, 20, 30...) GameMode¸¦ Ã£¾Æ ¶³¾îÁø ÄÚÀÎ ¼ö·®À» ³Ñ°ÜÁÜ
-	if (CollectedCoinCount % 10 == 0)
+	// Grants ExperiencePerCoin * Amount experience to the team - experience is shared/team-owned (ACPGameMode), not per player
+	if (ExperiencePerCoin != 0.0f)
 	{
+		if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+		{
+			GameMode->AddTeamExperience(ExperiencePerCoin * static_cast<float>(Amount));
+		}
+	}
+
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 10ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½: 10, 20, 30...) GameModeï¿½ï¿½ Ã£ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ°ï¿½ï¿½ï¿½
+	if (CollectedCoinCount % CoinsPerTicket == 0)
+	{
+		if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+		{
+			GameMode->AddTeamTickets(1);
+		}
+
 		/*
 		if (ACPGameMode* GameMode = GetWorld() ? Cast<ACPGameMode>(GetWorld()->GetAuthGameMode()) : nullptr)
 		{
-			//TODO: ACPGameMode¿¡ UpdateTicketCount°¡ Ãß°¡µÇ¸é ¿¬°á
+			//TODO: ACPGameModeï¿½ï¿½ UpdateTicketCountï¿½ï¿½ ï¿½ß°ï¿½ï¿½Ç¸ï¿½ ï¿½ï¿½ï¿½ï¿½
 			//GameMode->UpdateTicketCount(CollectedCoinCount);
 		}
 		*/
@@ -60,7 +74,7 @@ void ACPDropZone::RecordCollectedItem(FName ItemCode)
 
 	OnItemCollected.Broadcast(ItemCode);
 
-	//·¹º§(CoinPusher)¿¡¼­ ÁöÁ¤ÇØ µÐ Dispenser°¡ ÀÖÀ¸¸é ±×ÂÊ¿¡ °°Àº ItemIDÀÇ Àç»ý¼ºÀ» ¿äÃ»
+	//ï¿½ï¿½ï¿½ï¿½(CoinPusher)ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ Dispenserï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ê¿ï¿½ ï¿½ï¿½ï¿½ï¿½ ItemIDï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã»
 	if (ItemRespawnDispenser)
 	{
 		ItemRespawnDispenser->DispenseItemByID(ItemCode, 1, ECPDispenserSpawnType::WorldItem);
@@ -74,7 +88,7 @@ void ACPDropZone::SetItemRespawnDispenser(ACPDispenser* NewItemRespawnDispenser)
 
 void ACPDropZone::OnVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	//ICPCoinPusherItemÀ» ±¸ÇöÇÏ´Â ¿ÀºêÁ§Æ®(Coin, Item ...)°¡ ¶³¾îÁ³´Â°¡?
+	//ICPCoinPusherItemï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®(Coin, Item ...)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â°ï¿½?
 	if (ICPCoinPusherItem* Item = Cast<ICPCoinPusherItem>(OtherActor))
 	{
 		Item->OnDroppedInZone(this);

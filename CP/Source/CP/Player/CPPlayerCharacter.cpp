@@ -17,6 +17,7 @@
 #include "Weapon/CPWeaponManagerComponent.h"
 #include "Weapon/CPWeaponBase.h"
 #include "Roulette/CPRoulette.h"
+#include "Player/CPTopDownPlayerController.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -103,7 +104,14 @@ void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 
 void ACPPlayerCharacter::Move(const FInputActionValue& Value)
 {
-	const FVector2D MovementVector = Value.Get<FVector2D>();
+	FVector2D MovementVector = Value.Get<FVector2D>();
+
+	// Ignore tiny stick drift/noise below the deadzone threshold, so it doesn't register as movement
+	// (or, for a gamepad player, as an attack direction - see GetAttackDirection)
+	if (MovementVector.Size() < MoveInputDeadzone)
+	{
+		MovementVector = FVector2D::ZeroVector;
+	}
 
 	if (!MovementVector.IsNearlyZero())
 	{
@@ -213,11 +221,7 @@ void ACPPlayerCharacter::DoDash()
 		}
 	}
 
-	DashDirection = GetWorldDirectionFromInput(LastMoveInputVector);
-	if (DashDirection.IsNearlyZero())
-	{
-		DashDirection = GetActorForwardVector();
-	}
+	DashDirection = GetLastMovementWorldDirection();
 
 	bIsDashing = true;
 	bIsInvincible = true;
@@ -274,8 +278,29 @@ FVector ACPPlayerCharacter::GetWorldDirectionFromInput(const FVector2D& InputVec
 	).GetSafeNormal();
 }
 
+FVector ACPPlayerCharacter::GetLastMovementWorldDirection() const
+{
+	FVector Direction = GetWorldDirectionFromInput(LastMoveInputVector);
+	if (Direction.IsNearlyZero())
+	{
+		Direction = GetActorForwardVector();
+	}
+
+	return Direction;
+}
+
 FVector ACPPlayerCharacter::GetAttackDirection() const
 {
+	// Gamepad player: attack in the current/last movement direction instead of aiming with a mouse
+	// cursor (a gamepad player has no meaningful cursor position, and there's no separate aim stick)
+	if (const ACPTopDownPlayerController* TopDownController = Cast<ACPTopDownPlayerController>(GetController()))
+	{
+		if (!TopDownController->IsUsingKeyboardAndMouse())
+		{
+			return GetLastMovementWorldDirection();
+		}
+	}
+
 	FVector Direction = GetActorForwardVector();
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
@@ -377,42 +402,8 @@ void ACPPlayerCharacter::ApplyStatsToGameplay()
 	GetCharacterMovement()->MaxWalkSpeed = Stats.MoveSpeed;
 }
 
-float ACPPlayerCharacter::GetRequiredExperience() const
-{
-	return BaseRequiredExperience + static_cast<float>(Stats.Level - 1) * RequiredExperiencePerLevel;
-}
-
-void ACPPlayerCharacter::AddExperience(float Amount)
-{
-	if (Amount <= 0.0f)
-	{
-		return;
-	}
-
-	Stats.Experience = FMath::Clamp(Stats.Experience + Amount, ExperienceRange.Min, ExperienceRange.Max);
-
-	float RequiredExperience = GetRequiredExperience();
-	while (Stats.Level < FMath::RoundToInt32(LevelRange.Max) && Stats.Experience >= RequiredExperience && RequiredExperience > 0.0f)
-	{
-		Stats.Experience -= RequiredExperience;
-		Stats.Level += 1;
-
-		OnLevelUp.Broadcast(Stats.Level);
-
-		RequiredExperience = GetRequiredExperience();
-	}
-
-	Stats.Level = FMath::Clamp(Stats.Level, FMath::RoundToInt32(LevelRange.Min), FMath::RoundToInt32(LevelRange.Max));
-}
-
 void ACPPlayerCharacter::ModifyStat(ECPStatType StatType, float Delta)
 {
-	if (StatType == ECPStatType::Experience)
-	{
-		AddExperience(Delta);
-		return;
-	}
-
 	SetStat(StatType, GetStat(StatType) + Delta);
 }
 
@@ -422,9 +413,6 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 	{
 	case ECPStatType::Health:
 		Stats.Health = FMath::Clamp(NewValue, HealthRange.Min, HealthRange.Max);
-		break;
-	case ECPStatType::Experience:
-		Stats.Experience = FMath::Clamp(NewValue, ExperienceRange.Min, ExperienceRange.Max);
 		break;
 	case ECPStatType::AttackPower:
 		Stats.AttackPower = FMath::Clamp(NewValue, AttackPowerRange.Min, AttackPowerRange.Max);
@@ -438,8 +426,8 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 	case ECPStatType::Defense:
 		Stats.Defense = FMath::Clamp(NewValue, DefenseRange.Min, DefenseRange.Max);
 		break;
-	case ECPStatType::Level:
-		Stats.Level = FMath::Clamp(FMath::RoundToInt32(NewValue), FMath::RoundToInt32(LevelRange.Min), FMath::RoundToInt32(LevelRange.Max));
+	default:
+		// Experience/Level are owned by ACPGameMode now (team-shared) - not tracked per player
 		break;
 	}
 
@@ -452,8 +440,6 @@ float ACPPlayerCharacter::GetStat(ECPStatType StatType) const
 	{
 	case ECPStatType::Health:
 		return Stats.Health;
-	case ECPStatType::Experience:
-		return Stats.Experience;
 	case ECPStatType::AttackPower:
 		return Stats.AttackPower;
 	case ECPStatType::MoveSpeed:
@@ -462,8 +448,9 @@ float ACPPlayerCharacter::GetStat(ECPStatType StatType) const
 		return Stats.AttackSpeed;
 	case ECPStatType::Defense:
 		return Stats.Defense;
-	case ECPStatType::Level:
-		return static_cast<float>(Stats.Level);
+	default:
+		// Experience/Level are owned by ACPGameMode now (team-shared) - not tracked per player
+		break;
 	}
 
 	return 0.0f;
@@ -522,37 +509,6 @@ void ACPPlayerCharacter::RefreshCurrentInteractable()
 	}
 
 	CurrentInteractable = Closest;
-}
-
-void ACPPlayerCharacter::AddCoin(int32 Amount)
-{
-	if (Amount <= 0)
-	{
-		return;
-	}
-
-	CoinAmount += Amount;
-}
-
-int32 ACPPlayerCharacter::GetCoinAmount() const
-{
-	return CoinAmount;
-}
-
-bool ACPPlayerCharacter::HasEnoughCoin(int32 Amount) const
-{
-	return CoinAmount >= Amount;
-}
-
-bool ACPPlayerCharacter::TrySpendCoin(int32 Amount)
-{
-	if (!HasEnoughCoin(Amount))
-	{
-		return false;
-	}
-
-	CoinAmount -= Amount;
-	return true;
 }
 
 void ACPPlayerCharacter::AddOwnedItem(const FCPItemData& ItemData)
