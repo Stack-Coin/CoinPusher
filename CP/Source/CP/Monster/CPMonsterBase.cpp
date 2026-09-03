@@ -68,15 +68,17 @@ void ACPMonsterBase::Dead()
 	}
 
 	// todo. 임시로 아이템 드랍
+	if (GetWorld() && CoinItem)
 	{
-		FVector SpawnLocation = GetActorLocation();
-		SpawnLocation.Z += 50.0f;
+		FVector Location = GetActorLocation();
+		Location.X += 100.f;
+		FRotator Rotation = GetActorRotation();
 
-		AStaticMeshActor* Item = GetWorld()->SpawnActor<AStaticMeshActor>(
-			AStaticMeshActor::StaticClass(),
-			SpawnLocation,
-			FRotator::ZeroRotator
-		);
+		FActorSpawnParameters SpawnParms;
+		SpawnParms.Owner = this;
+		SpawnParms.Instigator = GetInstigator();
+
+		ACPCoinItem* SpawnActor = GetWorld()->SpawnActor<ACPCoinItem>(CoinItem, Location, Rotation, SpawnParms);
 	}
 
 	OnMonsterDied.Broadcast();
