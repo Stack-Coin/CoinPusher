@@ -4,6 +4,8 @@
 #include "Nexus/CPNexus.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/WidgetComponent.h"
+#include "Nexus/CPUserWidget_NexusHpBar.h"
 #include "Player/CPInteractor.h"
 
 // Sets default values
@@ -22,6 +24,47 @@ ACPNexus::ACPNexus()
 
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	Mesh->SetupAttachment(CollisionSphere);
+
+	HpBar = CreateDefaultSubobject<UWidgetComponent>(TEXT("HpBar"));
+	HpBar->SetupAttachment(CollisionSphere);
+	HpBar->SetRelativeLocation(FVector(0.0f, 0.0f, 180.0f));
+	HpBar->SetWidgetClass(UCPUserWidget_NexusHpBar::StaticClass());
+	HpBar->SetWidgetSpace(EWidgetSpace::Screen);
+	HpBar->SetDrawSize(FVector2D(100.0f, 10.0f));
+	HpBar->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void ACPNexus::BeginPlay()
+{
+	Super::BeginPlay();
+
+	CurrentHp = FMath::Clamp(CurrentHp, 0.f, MaxHp);
+	HpBar->InitWidget();
+	HpBarWidget = Cast<UCPUserWidget_NexusHpBar>(HpBar->GetUserWidgetObject());
+	if (HpBarWidget)
+	{
+		HpBarWidget->SetMaxHp(MaxHp);
+		UpdateHpBar();
+	}
+}
+
+void ACPNexus::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (CurrentHp > 0.f && CurrentHp < MaxHp && HealAmount > 0.f)
+	{
+		CurrentHp = FMath::Min(CurrentHp + HealAmount * DeltaTime, MaxHp);
+		UpdateHpBar();
+	}
+}
+
+void ACPNexus::UpdateHpBar()
+{
+	if (HpBarWidget)
+	{
+		HpBarWidget->UpdateHpBar(CurrentHp);
+	}
 }
 
 void ACPNexus::Interact(AActor* Interactor)
@@ -60,13 +103,16 @@ void ACPNexus::OnCollisionSphereEndOverlap(UPrimitiveComponent* OverlappedCompon
 void ACPNexus::Dead() 
 {
 	UE_LOG(LogTemp, Warning, TEXT("Nexus: %f"), CurrentHp);
+
+	HpBar->SetHiddenInGame(true);
 }
 
 float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-	CurrentHp -= DamageAmount;
+	CurrentHp = FMath::Max(CurrentHp - DamageAmount, 0.f);
+	UpdateHpBar();
 
 	if (CurrentHp <= 0) 
 	{
@@ -79,4 +125,3 @@ float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, 
 
 	return DamageAmount;
 }
-

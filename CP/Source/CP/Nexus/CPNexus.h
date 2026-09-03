@@ -9,6 +9,8 @@
 
 class UStaticMeshComponent;
 class USphereComponent;
+class UWidgetComponent;
+class UCPUserWidget_NexusHpBar;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNexusInteracted, AActor*, Interactor);
 
@@ -17,9 +19,11 @@ class CP_API ACPNexus : public AActor, public ICPInteractable
 {
 	GENERATED_BODY()
 	
-public:	
+public:
 	// Sets default values for this actor's properties
 	ACPNexus();
+
+	virtual void Tick(float DeltaTime) override;
 
 public:
 	//ICPInteractable
@@ -38,6 +42,9 @@ public:
 	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
 protected:
+	virtual void BeginPlay() override;
+	void UpdateHpBar();
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Input", meta = (DisplayName = "On Interacted"))
 	void BP_OnInteracted(AActor* Interactor);
 
@@ -53,6 +60,15 @@ protected:
 	USphereComponent* CollisionSphere;
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UWidgetComponent> HpBar;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UCPUserWidget_NexusHpBar> HpBarWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+	float HealAmount = 30.f;
+
 	float MaxHp = 100.f;
 	float CurrentHp = 100.f;
 };
