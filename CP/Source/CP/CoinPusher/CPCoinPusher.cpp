@@ -33,9 +33,9 @@ ACPCoinPusher::ACPCoinPusher()
 	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
 	//Floor->SetupAttachment(ExtraBoxMesh);
 
-	ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
-	ExtraBoxMesh->SetupAttachment(Floor);
-	ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	//ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
+	//ExtraBoxMesh->SetupAttachment(Floor);
+	//ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
 	Body->SetupAttachment(Floor);
