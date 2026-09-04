@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+ï»¿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -11,7 +11,7 @@ class UBoxComponent;
 class UChildActorComponent;
 class ACPDispenser;
 class ACPDropZone;
-class ACPInput;
+class ACPNexus;
 
 /**Broadcast whenever this CoinPusher's health changes as a result of damage */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCoinPusherDamaged, float, Damage, AActor*, DamageCauser);
@@ -24,54 +24,54 @@ class CP_API ACPCoinPusher : public AActor
 {
 	GENERATED_BODY()
 
-	//ÄÚÀÎÀÌ ³õÀÌ´Â ¹Ù´Ú (RootComponent, ½ÇÁ¦ Ãæµ¹ ´ã´ç)
+	//ì½”ì¸ì´ ë†“ì´ëŠ” ë°”ë‹¥ (RootComponent, ì‹¤ì œ ì¶©ëŒ ë‹´ë‹¹)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* Floor;
 
-	//Body Mesh (Äİ¸®Àü ¾øÀ½ - ¼ø¼ö ºñÁÖ¾ó, Floor¿¡ ºÎÂø)
+	//Body Mesh (ì½œë¦¬ì „ ì—†ìŒ - ìˆœìˆ˜ ë¹„ì£¼ì–¼, Floorì— ë¶€ì°©)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* Body;
 
-	//¿ŞÂÊ º®
+	//ì™¼ìª½ ë²½
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* LeftWall;
 
-	//¿À¸¥ÂÊ º®
+	//ì˜¤ë¥¸ìª½ ë²½
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* RightWall;
 
-	//µŞ º®
+	//ë’· ë²½
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* BackWall;
 
-	//¾Õ º®
+	//ì• ë²½
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* FrontWall;
 
-	//Ãß°¡ ¹Ú½º Äİ¸®Àü (Floor¿¡ ºÎÂø). ¿ëµµ´Â BP¿¡¼­ ÀÚÀ¯·Ó°Ô È®Àå
+	//ì¶”ê°€ ë°•ìŠ¤ ì½œë¦¬ì „ (Floorì— ë¶€ì°©). ìš©ë„ëŠ” BPì—ì„œ ììœ ë¡­ê²Œ í™•ì¥
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* ExtraBox;
 
-	//ExtraBox¿¡ ºÎÂøµÇ´Â ºñÁÖ¾ó ¸Ş½Ã (Äİ¸®Àü ¾øÀ½ - ¼ø¼ö ºñÁÖ¾ó)
+	//ExtraBoxì— ë¶€ì°©ë˜ëŠ” ë¹„ì£¼ì–¼ ë©”ì‹œ (ì½œë¦¬ì „ ì—†ìŒ - ìˆœìˆ˜ ë¹„ì£¼ì–¼)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* ExtraBoxMesh;
 
-	//Pusher ActorComponent (ÄÄÆ÷³ÍÆ®¸¦ ÅëÇÑ Has-a)
+	//Pusher ActorComponent (ì»´í¬ë„ŒíŠ¸ë¥¼ í†µí•œ Has-a)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* PusherComponent;
 
-	//Dispenser ActorComponent (ÄÄÆ÷³ÍÆ®¸¦ ÅëÇÑ Has-a) - ¾ÕÀ¸·Î ÄÚÀÎÀ» ¹ß»çÇÏ´Â Input ¿¬µ¿ Dispenser 2°³
+	//Dispenser ActorComponent (ì»´í¬ë„ŒíŠ¸ë¥¼ í†µí•œ Has-a) - ì•ìœ¼ë¡œ ì½”ì¸ì„ ë°œì‚¬í•˜ëŠ” Input ì—°ë™ Dispenser 2ê°œ
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* DispenserComponentA;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* DispenserComponentB;
 
-	//ÃµÀå¿¡¼­ ¹°°ÇÀ» »Ñ¸®´Â Dispenser (ÄÄÆ÷³ÍÆ®¸¦ ÅëÇÑ Has-a) - 5°³
+	//ì²œì¥ì—ì„œ ë¬¼ê±´ì„ ë¿Œë¦¬ëŠ” Dispenser (ì»´í¬ë„ŒíŠ¸ë¥¼ í†µí•œ Has-a) - 5ê°œ
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TArray<TObjectPtr<UChildActorComponent>> CeilingDispenserComponents;
 
-	//DropZone ActorComponent (ÄÄÆ÷³ÍÆ®¸¦ ÅëÇÑ Has-a)
+	//DropZone ActorComponent (ì»´í¬ë„ŒíŠ¸ë¥¼ í†µí•œ Has-a)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* DropZoneComponent;
 
@@ -80,38 +80,38 @@ public:
 
 protected:
 
-	//°¢ Dispenser¸¦ ÀÛµ¿½ÃÅ°´Â Input ¾×ÅÍ. ·¹º§¿¡ ¹èÄ¡ÇÑ ACPInputÀ» ¿©±â¼­ ¿¬°áÇÏ¸é
-	//PostInitializeComponents¿¡¼­ ÀÚµ¿À¸·Î ÇØ´ç DispenserÀÇ LinkedInputÀ¸·Î ¼³Á¤µÈ´Ù
+	//ê° Dispenserë¥¼ ì‘ë™ì‹œí‚¤ëŠ” Input ì•¡í„°. ë ˆë²¨ì— ë°°ì¹˜í•œ ACPInputì„ ì—¬ê¸°ì„œ ì—°ê²°í•˜ë©´
+	//PostInitializeComponentsì—ì„œ ìë™ìœ¼ë¡œ í•´ë‹¹ Dispenserì˜ LinkedInputìœ¼ë¡œ ì„¤ì •ëœë‹¤
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
-	TObjectPtr<ACPInput> InputA;
+	TObjectPtr<ACPNexus> InputA;
 
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
-	TObjectPtr<ACPInput> InputB;
+	TObjectPtr<ACPNexus> InputB;
 
-	//DropZone¿¡ ¾ÆÀÌÅÛÀÌ ¶³¾îÁ³À» ¶§ °°Àº ¾ÆÀÌÅÛÀÇ Àç»ı¼ºÀ» ¸ÃÀ» Dispenser.
-	// ¿ÜºÎ¿¡ Dispenser¸¦¼±ÅÃ
-	//PostInitializeComponents¿¡¼­ ÀÚµ¿À¸·Î DropZone¿¡ Àü´ŞµÈ´Ù
+	//DropZoneì— ì•„ì´í…œì´ ë–¨ì–´ì¡Œì„ ë•Œ ê°™ì€ ì•„ì´í…œì˜ ì¬ìƒì„±ì„ ë§¡ì„ Dispenser.
+	// ì™¸ë¶€ì— Dispenserë¥¼ì„ íƒ
+	//PostInitializeComponentsì—ì„œ ìë™ìœ¼ë¡œ DropZoneì— ì „ë‹¬ëœë‹¤
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
 	TObjectPtr<ACPDispenser> ItemRespawnDispenser;
 
-	//°ÔÀÓ ½ÃÀÛ ½Ã ÃµÀå Dispenser ÇÏ³ª´ç µå·ÓÇÒ ÄÚÀÎ °³¼ö
+	//ê²Œì„ ì‹œì‘ ì‹œ ì²œì¥ Dispenser í•˜ë‚˜ë‹¹ ë“œë¡­í•  ì½”ì¸ ê°œìˆ˜
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	int32 InitialCoinDropCount = 10;
 
-	//°ÔÀÓ ½ÃÀÛ ÈÄ FrontWallÀ» Á¦°ÅÇÏ±â±îÁö ´ë±âÇÏ´Â ½Ã°£(ÃÊ)
+	//ê²Œì„ ì‹œì‘ í›„ FrontWallì„ ì œê±°í•˜ê¸°ê¹Œì§€ ëŒ€ê¸°í•˜ëŠ” ì‹œê°„(ì´ˆ)
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	float FrontWallRemovalDelay = 3.0f;
 
-	//FrontWall Á¦°Å Å¸ÀÌ¸Ó ÇÚµé
+	//FrontWall ì œê±° íƒ€ì´ë¨¸ í•¸ë“¤
 	FTimerHandle FrontWallRemovalTimerHandle;
 
 protected:
 
-	//ÃÖ´ë Ã¼·Â
+	//ìµœëŒ€ ì²´ë ¥
 	UPROPERTY(EditAnywhere, Category="Health", meta = (ClampMin = 0))
 	float MaxHealth = 100.0f;
 
-	//ÇöÀç Ã¼·Â
+	//í˜„ì¬ ì²´ë ¥
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Health")
 	float CurrentHealth = 0.0f;
 
@@ -120,44 +120,44 @@ protected:
 
 public:
 
-	//µ¥¹ÌÁö ÀÔ¾úÀ» ¶§ BrodCast
+	//ë°ë¯¸ì§€ ì…ì—ˆì„ ë•Œ BrodCast
 	UPROPERTY(BlueprintAssignable, Category="Health")
 	FOnCoinPusherDamaged OnDamaged;
 
-	//Ã¼·ÂÀÌ 0ÀÌ µÇ¾úÀ» ¶§ Brodcast
+	//ì²´ë ¥ì´ 0ì´ ë˜ì—ˆì„ ë•Œ Brodcast
 	UPROPERTY(BlueprintAssignable, Category="Health")
 	FOnCoinPusherDestroyed OnCoinPusherDestroyed;
 
 public:
 
-	//DispenserComponentA/B°¡ ½ºÆùµÈ Á÷ÈÄ InputA/InputB¸¦ °¢ Dispenser¿¡ ¿¬°áÇÏ°í,
-	//DropZone¿¡ ItemRespawnDispenser¸¦ Àü´Ş
+	//DispenserComponentA/Bê°€ ìŠ¤í°ëœ ì§í›„ InputA/InputBë¥¼ ê° Dispenserì— ì—°ê²°í•˜ê³ ,
+	//DropZoneì— ItemRespawnDispenserë¥¼ ì „ë‹¬
 	virtual void PostInitializeComponents() override;
 
-	//ÃµÀå DispenserµéÀÌ °ÔÀÓ ½ÃÀÛ ½Ã ÄÚÀÎÀ» µå·Ó
+	//ì²œì¥ Dispenserë“¤ì´ ê²Œì„ ì‹œì‘ ì‹œ ì½”ì¸ì„ ë“œë¡­
 	virtual void BeginPlay() override;
 
-	//UGameplayStatics::ApplyDamage(¹× ApplyPointDamage/ApplyRadialDamage)·Î µé¾î¿À´Â µ¥¹ÌÁö Ã³¸®
+	//UGameplayStatics::ApplyDamage(ë° ApplyPointDamage/ApplyRadialDamage)ë¡œ ë“¤ì–´ì˜¤ëŠ” ë°ë¯¸ì§€ ì²˜ë¦¬
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
-	//µ¥¹ÌÁö ÀÔ´Â ÇÔ¼ö
+	//ë°ë¯¸ì§€ ì…ëŠ” í•¨ìˆ˜
 	UFUNCTION(BlueprintCallable, Category="Health")
 	virtual void ApplyDamage(float Damage, AActor* DamageCauser);
 
-	//ÇöÀç Ã¼·Â ¹İÈ¯
+	//í˜„ì¬ ì²´ë ¥ ë°˜í™˜
 	UFUNCTION(BlueprintPure, Category="Health")
 	float GetCurrentHealth() const { return CurrentHealth; }
 
-	//ÃÖ´ë Ã¼·Â ¹İÈ¯
+	//ìµœëŒ€ ì²´ë ¥ ë°˜í™˜
 	UFUNCTION(BlueprintPure, Category="Health")
 	float GetMaxHealth() const { return MaxHealth; }
 
 protected:
 
-	// Ã¼·ÂÀÌ 0ÀÌ µÇ¾úÀ» ¶§ È£Ãâ
+	// ì²´ë ¥ì´ 0ì´ ë˜ì—ˆì„ ë•Œ í˜¸ì¶œ
 	virtual void HandleDestroyed();
 
-	//FrontWallRemovalDelay °æ°ú ÈÄ È£ÃâµÇ¾î FrontWallÀ» ºñÈ°¼ºÈ­
+	//FrontWallRemovalDelay ê²½ê³¼ í›„ í˜¸ì¶œë˜ì–´ FrontWallì„ ë¹„í™œì„±í™”
 	void RemoveFrontWall();
 
 	/** Passes control to BP to play effects when the machine is destroyed */
@@ -166,7 +166,7 @@ protected:
 
 public:
 
-	//CoinPusher ±¸¼ºÃ¼ ¹İÈ¯
+	//CoinPusher êµ¬ì„±ì²´ ë°˜í™˜
 	FORCEINLINE UBoxComponent* GetFloor() const { return Floor; }
 	FORCEINLINE UStaticMeshComponent* GetBody() const { return Body; }
 	FORCEINLINE UBoxComponent* GetLeftWall() const { return LeftWall; }
@@ -181,23 +181,23 @@ public:
 	FORCEINLINE UChildActorComponent* GetDropZoneComponent() const { return DropZoneComponent; }
 	FORCEINLINE const TArray<TObjectPtr<UChildActorComponent>>& GetCeilingDispenserComponents() const { return CeilingDispenserComponents; }
 
-	//ChildActorComponent°¡ ½ÇÁ¦·Î ½ºÆùÇÑ ¾×ÅÍ ÀÎ½ºÅÏ½º ¹İÈ¯ (BP¿¡¼­ Child Actor Class¸¦ ÁöÁ¤ÇØ¾ß À¯È¿ÇÔ)
+	//ChildActorComponentê°€ ì‹¤ì œë¡œ ìŠ¤í°í•œ ì•¡í„° ì¸ìŠ¤í„´ìŠ¤ ë°˜í™˜ (BPì—ì„œ Child Actor Classë¥¼ ì§€ì •í•´ì•¼ ìœ íš¨í•¨)
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDispenser* GetDispenserA() const;
 
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDispenser* GetDispenserB() const;
 
-	//Index¹øÂ° ÃµÀå Dispenser°¡ ½ÇÁ¦·Î ½ºÆùÇÑ ¾×ÅÍ ÀÎ½ºÅÏ½º ¹İÈ¯
+	//Indexë²ˆì§¸ ì²œì¥ Dispenserê°€ ì‹¤ì œë¡œ ìŠ¤í°í•œ ì•¡í„° ì¸ìŠ¤í„´ìŠ¤ ë°˜í™˜
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDispenser* GetCeilingDispenser(int32 Index) const;
 
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDropZone* GetDropZone() const;
 
-	//Roulette µî ¿ÜºÎ¿¡¼­ Æ¯Á¤ ItemID¸¦ SpawnCount¸¸Å­ »ı¼ºÇÏ°í ½ÍÀ» ¶§ È£Ãâ.
-	//ÃµÀå Dispenser(CeilingDispenserComponents) Áß ÇÏ³ª¸¦ ·£´ıÇÏ°Ô °ñ¶ó ±× DispenserÀÇ
-	//DispenseItemByID()·Î À§ÀÓÇÑ´Ù
+	//Roulette ë“± ì™¸ë¶€ì—ì„œ íŠ¹ì • ItemIDë¥¼ SpawnCountë§Œí¼ ìƒì„±í•˜ê³  ì‹¶ì„ ë•Œ í˜¸ì¶œ.
+	//ì²œì¥ Dispenser(CeilingDispenserComponents) ì¤‘ í•˜ë‚˜ë¥¼ ëœë¤í•˜ê²Œ ê³¨ë¼ ê·¸ Dispenserì˜
+	//DispenseItemByID()ë¡œ ìœ„ì„í•œë‹¤
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void ItemSpawn(FName ItemID, int32 SpawnCount);
 };

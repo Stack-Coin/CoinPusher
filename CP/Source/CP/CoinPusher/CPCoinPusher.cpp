@@ -1,10 +1,11 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+ï»¿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CPCoinPusher.h"
 #include "CPDispenser.h"
 #include "CPDropZone.h"
-#include "CPInput.h"
+//#include "CPInput.h"
+#include "../Nexus/CPNexus.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
@@ -14,7 +15,7 @@ ACPCoinPusher::ACPCoinPusher()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// Ãß°¡ ¹Ú½º Äİ¸®Àü + ±× ÀÚ½ÄÀ¸·Î ºÙ´Â ºñÁÖ¾ó ¸Ş½Ã. ¿ëµµ´Â BP¿¡¼­ È®Àå
+	// ì¶”ê°€ ë°•ìŠ¤ ì½œë¦¬ì „ + ê·¸ ìì‹ìœ¼ë¡œ ë¶™ëŠ” ë¹„ì£¼ì–¼ ë©”ì‹œ. ìš©ë„ëŠ” BPì—ì„œ í™•ì¥
 	ExtraBox = CreateDefaultSubobject<UBoxComponent>(TEXT("ExtraBox"));
 	RootComponent = ExtraBox;
 
@@ -25,7 +26,7 @@ ACPCoinPusher::ACPCoinPusher()
 	ExtraBoxMesh->SetupAttachment(ExtraBox);
 	ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	// ÄÚÀÎÀÌ ³õÀÌ´Â ¹Ù´Ú. RootComponent·Î ÁöÁ¤ÇØ ½ÇÁ¦ Ãæµ¹ÀÇ ±âÁØÀÌ µÇµµ·Ï ÇÔ.
+	// ì½”ì¸ì´ ë†“ì´ëŠ” ë°”ë‹¥. RootComponentë¡œ ì§€ì •í•´ ì‹¤ì œ ì¶©ëŒì˜ ê¸°ì¤€ì´ ë˜ë„ë¡ í•¨.
 	Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
 	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
 	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
@@ -68,7 +69,7 @@ ACPCoinPusher::ACPCoinPusher()
 	DispenserComponentB = CreateDefaultSubobject<UChildActorComponent>(TEXT("DispenserComponentB"));
 	DispenserComponentB->SetupAttachment(Floor);
 
-	// ÃµÀå¿¡¼­ ¹°°ÇÀ» »Ñ¸®´Â Dispenser 5°³. À§Ä¡/¹ß»ç ¼³Á¤°ú Item Class´Â BP¿¡¼­ Á¶Á¤
+	// ì²œì¥ì—ì„œ ë¬¼ê±´ì„ ë¿Œë¦¬ëŠ” Dispenser 5ê°œ. ìœ„ì¹˜/ë°œì‚¬ ì„¤ì •ê³¼ Item ClassëŠ” BPì—ì„œ ì¡°ì •
 	CeilingDispenserComponents.SetNum(5);
 	for (int32 Index = 0; Index < CeilingDispenserComponents.Num(); ++Index)
 	{
@@ -86,9 +87,9 @@ void ACPCoinPusher::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
 
-	//ChildActorComponent°¡ ½ºÆùÇÑ Dispenser´Â ·¹º§¿¡ Á÷Á¢ ¹èÄ¡µÈ ¾×ÅÍ°¡ ¾Æ´Ï¶ó¼­
-	//¿¡µğÅÍ¿¡¼­ °³º°ÀûÀ¸·Î LinkedInputÀ» ÁöÁ¤ÇÒ ¼ö ¾ø´Ù. ´ë½Å CoinPusher°¡ µé°í ÀÖ´Â
-	//InputA/InputB¸¦ BeginPlay ÀÌÀü¿¡ °¢ Dispenser·Î Àü´ŞÇØ ÁØ´Ù
+	//ChildActorComponentê°€ ìŠ¤í°í•œ DispenserëŠ” ë ˆë²¨ì— ì§ì ‘ ë°°ì¹˜ëœ ì•¡í„°ê°€ ì•„ë‹ˆë¼ì„œ
+	//ì—ë””í„°ì—ì„œ ê°œë³„ì ìœ¼ë¡œ LinkedInputì„ ì§€ì •í•  ìˆ˜ ì—†ë‹¤. ëŒ€ì‹  CoinPusherê°€ ë“¤ê³  ìˆëŠ”
+	//InputA/InputBë¥¼ BeginPlay ì´ì „ì— ê° Dispenserë¡œ ì „ë‹¬í•´ ì¤€ë‹¤
 	if (ACPDispenser* DispenserA = GetDispenserA())
 	{
 		DispenserA->SetLinkedInput(InputA);
@@ -99,8 +100,8 @@ void ACPCoinPusher::PostInitializeComponents()
 		DispenserB->SetLinkedInput(InputB);
 	}
 
-	//DropZoneµµ ¸¶Âù°¡Áö·Î ChildActorComponent·Î ½ºÆùµÇ´Â ÀÎ½ºÅÏ½º¶ó ·¹º§¿¡¼­ Á÷Á¢ ÆíÁıÇÒ ¼ö
-	//¾øÀ¸¹Ç·Î, ·¹º§(ÀÌ CoinPusher ÀÎ½ºÅÏ½º)¿¡¼­ ÁöÁ¤ÇÑ ItemRespawnDispenser¸¦ ´ë½Å Àü´ŞÇØ ÁØ´Ù
+	//DropZoneë„ ë§ˆì°¬ê°€ì§€ë¡œ ChildActorComponentë¡œ ìŠ¤í°ë˜ëŠ” ì¸ìŠ¤í„´ìŠ¤ë¼ ë ˆë²¨ì—ì„œ ì§ì ‘ í¸ì§‘í•  ìˆ˜
+	//ì—†ìœ¼ë¯€ë¡œ, ë ˆë²¨(ì´ CoinPusher ì¸ìŠ¤í„´ìŠ¤)ì—ì„œ ì§€ì •í•œ ItemRespawnDispenserë¥¼ ëŒ€ì‹  ì „ë‹¬í•´ ì¤€ë‹¤
 	if (ACPDropZone* DropZone = GetDropZone())
 	{
 		DropZone->SetItemRespawnDispenser(ItemRespawnDispenser);
@@ -113,7 +114,7 @@ void ACPCoinPusher::BeginPlay()
 
 	CurrentHealth = MaxHealth;
 
-	// °ÔÀÓ ½ÃÀÛ ½Ã ÃµÀå DispenserµéÀÌ °¢°¢ InitialCoinDropCount°³¾¿ ÄÚÀÎÀ» µå·Ó
+	// ê²Œì„ ì‹œì‘ ì‹œ ì²œì¥ Dispenserë“¤ì´ ê°ê° InitialCoinDropCountê°œì”© ì½”ì¸ì„ ë“œë¡­
 	for (const TObjectPtr<UChildActorComponent>& CeilingComponent : CeilingDispenserComponents)
 	{
 		if (!CeilingComponent)
@@ -127,7 +128,7 @@ void ACPCoinPusher::BeginPlay()
 		}
 	}
 
-	// °ÔÀÓ ½ÃÀÛ FrontWallRemovalDelayÃÊ ÈÄ FrontWallÀ» ºñÈ°¼ºÈ­ÇØ ÄÚÀÎÀÌ ¾ÕÀ¸·Î ºüÁú ¼ö ÀÖµµ·Ï ÇÔ
+	// ê²Œì„ ì‹œì‘ FrontWallRemovalDelayì´ˆ í›„ FrontWallì„ ë¹„í™œì„±í™”í•´ ì½”ì¸ì´ ì•ìœ¼ë¡œ ë¹ ì§ˆ ìˆ˜ ìˆë„ë¡ í•¨
 	GetWorldTimerManager().SetTimer(FrontWallRemovalTimerHandle, this, &ACPCoinPusher::RemoveFrontWall, FrontWallRemovalDelay, false);
 }
 
@@ -228,7 +229,7 @@ void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 		return;
 	}
 
-	//ÃµÀå Dispenser Áß ÇÏ³ª¸¦ ·£´ıÇÏ°Ô °ñ¶ó ±×ÂÊ¿¡¼­ SpawnµÇµµ·Ï À§ÀÓ
+	//ì²œì¥ Dispenser ì¤‘ í•˜ë‚˜ë¥¼ ëœë¤í•˜ê²Œ ê³¨ë¼ ê·¸ìª½ì—ì„œ Spawnë˜ë„ë¡ ìœ„ì„
 	const int32 RandomIndex = FMath::RandRange(0, ValidCeilingDispensers.Num() - 1);
 	ValidCeilingDispensers[RandomIndex]->DispenseItemByID(ItemID, SpawnCount);
 }

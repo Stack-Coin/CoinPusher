@@ -82,7 +82,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float RespawnOffsetDistance = 1000.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float MaxHp = 100.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float CurrentHp = 100.f;
 
 	static int32 GlobalRemainingRespawns;

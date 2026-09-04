@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+ï»¿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,7 +9,8 @@
 
 class UStaticMeshComponent;
 class USceneComponent;
-class ACPInput;
+//class ACPInput;
+class ACPNexus;
 
 UCLASS(abstract)
 class CP_API ACPDispenser : public AActor
@@ -28,61 +29,61 @@ public:
 
 protected:
 
-	//SpawnÇÒ ¿ÀºêÁ§Æ® Å¬·¡½º. ICPCoinPusherItemÀ» ±¸ÇöÇÏ´Â Actor¿©¾ß ÇÔ (ACPCoin, ACPItem µî)
+	//Spawní•  ì˜¤ë¸Œì íŠ¸ í´ë˜ìŠ¤. ICPCoinPusherItemì„ êµ¬í˜„í•˜ëŠ” Actorì—¬ì•¼ í•¨ (ACPCoin, ACPItem ë“±)
 	UPROPERTY(EditAnywhere, Category="Dispenser")
 	TSubclassOf<AActor> ItemClass;
 
-	//ItemID·Î »ı¼ºÇÒ Å¬·¡½º¸¦ Á¶È¸ÇÒ ¶§ »ç¿ëÇÏ´Â °ø¿ë µ¥ÀÌÅÍ ¿¡¼Â. DispenseItemByID()°¡ »ç¿ëÇÏ¸ç,
-	//¿©·¯ Dispenser(¹× ´Ù¸¥ Å¬·¡½º)°¡ °°Àº ¿¡¼ÂÀ» °øÀ¯ÇØ¼­ ÂüÁ¶ÇÒ ¼ö ÀÖ´Ù
+	//ItemIDë¡œ ìƒì„±í•  í´ë˜ìŠ¤ë¥¼ ì¡°íšŒí•  ë•Œ ì‚¬ìš©í•˜ëŠ” ê³µìš© ë°ì´í„° ì—ì…‹. DispenseItemByID()ê°€ ì‚¬ìš©í•˜ë©°,
+	//ì—¬ëŸ¬ Dispenser(ë° ë‹¤ë¥¸ í´ë˜ìŠ¤)ê°€ ê°™ì€ ì—ì…‹ì„ ê³µìœ í•´ì„œ ì°¸ì¡°í•  ìˆ˜ ìˆë‹¤
 	UPROPERTY(EditAnywhere, Category="Dispenser")
 	TObjectPtr<UCPItemRegistry> ItemRegistry;
 
-	//¾Õ ¹æÇâ ¹ß»ç ¼Óµµ cm/s
+	//ì• ë°©í–¥ ë°œì‚¬ ì†ë„ cm/s
 	UPROPERTY(EditAnywhere, Category="Dispenser", meta = (ClampMin = 0, Units = "cm/s"))
 	float LaunchForwardSpeed = 500.0f;
 
-	//À§ ¹æÇâ ¹ß»ç ¼Óµµ cm/s
+	//ìœ„ ë°©í–¥ ë°œì‚¬ ì†ë„ cm/s
 	UPROPERTY(EditAnywhere, Category="Dispenser", meta = (ClampMin = 0, Units = "cm/s"))
 	float LaunchUpwardSpeed = 150.0f;
 
-	//µğ½ºÆæ¼­¸¦ ÀÛµ¿ ½ÃÅ°´Â ÀÔ·Â ¿¢ÅÍ. ChildActorComponent·Î ½ºÆùµÇ¹Ç·Î Á÷Á¢ ÆíÁıÇÏÁö ¾Ê°í
-	//¼ÒÀ¯ÀÚÀÎ ACPCoinPusher°¡ SetLinkedInput()À» ÅëÇØ ¼³Á¤ÇÑ´Ù. ÃµÀå µğ½ºÆæ¼­Ã³·³ Input ¾øÀÌ
-	//ÄÚµå·Î¸¸ ÀÛµ¿ÇÏ´Â °æ¿ì¿¡´Â ºñ¿öµÑ ¼ö ÀÖ´Ù
+	//ë””ìŠ¤íœì„œë¥¼ ì‘ë™ ì‹œí‚¤ëŠ” ì…ë ¥ ì—‘í„°. ChildActorComponentë¡œ ìŠ¤í°ë˜ë¯€ë¡œ ì§ì ‘ í¸ì§‘í•˜ì§€ ì•Šê³ 
+	//ì†Œìœ ìì¸ ACPCoinPusherê°€ SetLinkedInput()ì„ í†µí•´ ì„¤ì •í•œë‹¤. ì²œì¥ ë””ìŠ¤íœì„œì²˜ëŸ¼ Input ì—†ì´
+	//ì½”ë“œë¡œë§Œ ì‘ë™í•˜ëŠ” ê²½ìš°ì—ëŠ” ë¹„ì›Œë‘˜ ìˆ˜ ìˆë‹¤
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Dispenser")
-	TObjectPtr<ACPInput> LinkedInput;
+	TObjectPtr<ACPNexus> LinkedInput;
 
 public:
 
 	virtual void BeginPlay() override;
 
-	//ItemClass¸¦ SpawnPoint¿¡¼­ ÇÏ³ª »ı¼ºÇÏ°í ¹ß»ç
+	//ItemClassë¥¼ SpawnPointì—ì„œ í•˜ë‚˜ ìƒì„±í•˜ê³  ë°œì‚¬
 	UFUNCTION(BlueprintCallable, Category="Dispenser")
 	virtual void DispenseItem();
 
-	//ItemClass¸¦ Count°³ ¿¬¼ÓÀ¸·Î »ı¼ºÇÏ°í ¹ß»ç
+	//ItemClassë¥¼ Countê°œ ì—°ì†ìœ¼ë¡œ ìƒì„±í•˜ê³  ë°œì‚¬
 	UFUNCTION(BlueprintCallable, Category="Dispenser")
 	void DispenseItems(int32 Count);
 
-	//ItemRegistry¿¡¼­ ItemID + SpawnType¿¡ ¸Â´Â Å¬·¡½º¸¦ Ã£¾Æ SpawnCount°³ »ı¼º.
-	//bLaunch°¡ false¸é ¹ß»ç ¼Óµµ¸¦ ºÎ¿©ÇÏÁö ¾Ê´Â´Ù (¿¹: WorldItemÀº ±× ÀÚ¸®¿¡ µÎ°í ½ÍÀ» ¶§)
+	//ItemRegistryì—ì„œ ItemID + SpawnTypeì— ë§ëŠ” í´ë˜ìŠ¤ë¥¼ ì°¾ì•„ SpawnCountê°œ ìƒì„±.
+	//bLaunchê°€ falseë©´ ë°œì‚¬ ì†ë„ë¥¼ ë¶€ì—¬í•˜ì§€ ì•ŠëŠ”ë‹¤ (ì˜ˆ: WorldItemì€ ê·¸ ìë¦¬ì— ë‘ê³  ì‹¶ì„ ë•Œ)
 	UFUNCTION(BlueprintCallable, Category="Dispenser")
 	void DispenseItemByID(FName ItemID, int32 SpawnCount, ECPDispenserSpawnType SpawnType = ECPDispenserSpawnType::CoinPusherItem, bool bLaunch = true);
 
-	//¼ÒÀ¯ÀÚ(ACPCoinPusher)°¡ LinkedInputÀ» ¼³Á¤ÇÒ ¶§ »ç¿ë. ±âÁ¸¿¡ ¿¬°áµÇ¾î ÀÖ´ø InputÀÇ µ¨¸®°ÔÀÌÆ®´Â ÇØÁ¦ÇÏ°í »õ Input¿¡ ´Ù½Ã ¹ÙÀÎµùÇÑ´Ù
+	//ì†Œìœ ì(ACPCoinPusher)ê°€ LinkedInputì„ ì„¤ì •í•  ë•Œ ì‚¬ìš©. ê¸°ì¡´ì— ì—°ê²°ë˜ì–´ ìˆë˜ Inputì˜ ë¸ë¦¬ê²Œì´íŠ¸ëŠ” í•´ì œí•˜ê³  ìƒˆ Inputì— ë‹¤ì‹œ ë°”ì¸ë”©í•œë‹¤
 	UFUNCTION(BlueprintCallable, Category="Dispenser")
-	void SetLinkedInput(ACPInput* NewLinkedInput);
+	void SetLinkedInput(ACPNexus* NewLinkedInput);
 
 protected:
 
-	//ClassToSpawnÀ» SpawnPoint¿¡¼­ »ı¼º. bLaunch°¡ trueÀÌ°í RootComponent°¡ ¹°¸® ½Ã¹Ä·¹ÀÌ¼Ç ÁßÀÎ
-	//ÇÁ¸®¹ÌÆ¼ºê¶ó¸é ¹ß»ç ¼Óµµ¸¦ ºÎ¿© (DispenseItem/DispenseItemByID°¡ °øÀ¯ÇÏ´Â ½ÇÁ¦ ½ºÆù ·ÎÁ÷)
+	//ClassToSpawnì„ SpawnPointì—ì„œ ìƒì„±. bLaunchê°€ trueì´ê³  RootComponentê°€ ë¬¼ë¦¬ ì‹œë®¬ë ˆì´ì…˜ ì¤‘ì¸
+	//í”„ë¦¬ë¯¸í‹°ë¸Œë¼ë©´ ë°œì‚¬ ì†ë„ë¥¼ ë¶€ì—¬ (DispenseItem/DispenseItemByIDê°€ ê³µìœ í•˜ëŠ” ì‹¤ì œ ìŠ¤í° ë¡œì§)
 	void SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLaunch);
 
-	//¿¬°áµÈ InputÀÌ »óÈ£ÀÛ¿ë ÇÏ´Â ¸â¹ö ÇÔ¼ö
+	//ì—°ê²°ëœ Inputì´ ìƒí˜¸ì‘ìš© í•˜ëŠ” ë©¤ë²„ í•¨ìˆ˜
 	UFUNCTION()
 	void HandleInputInteracted(AActor* Interactor);
 
-	//LinkedInputÀÇ OnInteracted µ¨¸®°ÔÀÌÆ®¿¡ (Áßº¹ ¾øÀÌ) ¹ÙÀÎµù
+	//LinkedInputì˜ OnInteracted ë¸ë¦¬ê²Œì´íŠ¸ì— (ì¤‘ë³µ ì—†ì´) ë°”ì¸ë”©
 	void BindToLinkedInput();
 
 public:
@@ -91,7 +92,7 @@ public:
 
 	FORCEINLINE USceneComponent* GetSpawnPoint() const { return SpawnPoint; }
 
-	FORCEINLINE ACPInput* GetLinkedInput() const { return LinkedInput; }
+	FORCEINLINE ACPNexus* GetLinkedInput() const { return LinkedInput; }
 
 	FORCEINLINE UCPItemRegistry* GetItemRegistry() const { return ItemRegistry; }
 };

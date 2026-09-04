@@ -149,14 +149,14 @@ void ACPNexus::Dead()
 	{
 		--GlobalRemainingRespawns;
 
-		const bool bIsOnWorldLeft = GetActorLocation().Y < 0.f;
+		/*const bool bIsOnWorldLeft = GetActorLocation().Y < 0.f;
 		const FVector SpawnDirection = bIsOnWorldLeft ? GetActorRightVector() : -GetActorRightVector();
 		const FVector SpawnLocation = GetActorLocation() + SpawnDirection * RespawnOffsetDistance;
 
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-		GetWorld()->SpawnActor<ACPNexus>(GetClass(), FTransform(GetActorRotation(), SpawnLocation), SpawnParams);
+		GetWorld()->SpawnActor<ACPNexus>(GetClass(), FTransform(GetActorRotation(), SpawnLocation), SpawnParams);*/
 	}
 }
 
