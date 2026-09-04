@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Monster/CPMonsterAttackInterface.h"
 #include "Monster/CPMonsterAIInterface.h"
+#include "../Player/CPCoinItem.h"
 #include "CPMonsterBase.generated.h"
 
 /*
@@ -83,6 +84,13 @@ protected:
 	// todo. Data Table 형태로
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float CurrentHealth = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+	float CurrentSpeed = 100.0f;
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	TSubclassOf<ACPCoinItem> CoinItem;
 
 protected:
 	int8 bIsDead : 1 = false;

@@ -1,9 +1,10 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+ï»¿// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #include "CPDispenser.h"
 #include "CPCoinPusherItem.h"
-#include "CPInput.h"
+//#include "CPInput.h"
+#include "../Nexus/CPNexus.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/PrimitiveComponent.h"
@@ -25,13 +26,13 @@ void ACPDispenser::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//Input¿¡ Delegate¿¡ µî·Ï (ACPCoinPusher°¡ ¹Ì¸® SetLinkedInput()À¸·Î ¿¬°áÇØ µĞ °æ¿ì ¿©±â¼­´Â ÀÌ¹Ì ¹ÙÀÎµùµÇ¾î ÀÖÀ½)
+	//Inputì— Delegateì— ë“±ë¡ (ACPCoinPusherê°€ ë¯¸ë¦¬ SetLinkedInput()ìœ¼ë¡œ ì—°ê²°í•´ ë‘” ê²½ìš° ì—¬ê¸°ì„œëŠ” ì´ë¯¸ ë°”ì¸ë”©ë˜ì–´ ìˆìŒ)
 	BindToLinkedInput();
 }
 
 void ACPDispenser::DispenseItem()
 {
-	//ICPCoinPusherItemÀ» ±¸ÇöÇÏÁö ¾Ê´Â Å¬·¡½º´Â DropZoneÀÌ Ã³¸®ÇÒ ¼ö ¾øÀ¸¹Ç·Î ½ºÆùÇÏÁö ¾Ê´Â´Ù
+	//ICPCoinPusherItemì„ êµ¬í˜„í•˜ì§€ ì•ŠëŠ” í´ë˜ìŠ¤ëŠ” DropZoneì´ ì²˜ë¦¬í•  ìˆ˜ ì—†ìœ¼ë¯€ë¡œ ìŠ¤í°í•˜ì§€ ì•ŠëŠ”ë‹¤
 	if (!ItemClass || !ItemClass->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
 	{
 		return;
@@ -61,8 +62,8 @@ void ACPDispenser::DispenseItemByID(FName ItemID, int32 SpawnCount, ECPDispenser
 		return;
 	}
 
-	//CoinPusherItem Å¸ÀÔÀº DropZoneÀÌ Ã³¸®ÇÒ ¼ö ÀÖµµ·Ï ICPCoinPusherItemÀ» ±¸ÇöÇØ¾ß ÇÔ.
-	//WorldItem Å¸ÀÔÀº º°µµÀÇ »óÈ£ÀÛ¿ë ½Ã½ºÅÛ(ICPInteractable/ICPInteractor)À» ¾²¹Ç·Î °Ë»çÇÏÁö ¾Ê´Â´Ù
+	//CoinPusherItem íƒ€ì…ì€ DropZoneì´ ì²˜ë¦¬í•  ìˆ˜ ìˆë„ë¡ ICPCoinPusherItemì„ êµ¬í˜„í•´ì•¼ í•¨.
+	//WorldItem íƒ€ì…ì€ ë³„ë„ì˜ ìƒí˜¸ì‘ìš© ì‹œìŠ¤í…œ(ICPInteractable/ICPInteractor)ì„ ì“°ë¯€ë¡œ ê²€ì‚¬í•˜ì§€ ì•ŠëŠ”ë‹¤
 	if (SpawnType == ECPDispenserSpawnType::CoinPusherItem && !ClassToSpawn->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
 	{
 		return;
@@ -89,7 +90,7 @@ void ACPDispenser::SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLaunch
 	{
 		if (bLaunch)
 		{
-			//RootComponent°¡ ¹°¸® ½Ã¹Ä·¹ÀÌ¼Ç ÁßÀÎ ÇÁ¸®¹ÌÆ¼ºê¶ó¸é ¹ß»ç ¼Óµµ¸¦ ºÎ¿© (ACPCoin, ACPItem °øÅë)
+			//RootComponentê°€ ë¬¼ë¦¬ ì‹œë®¬ë ˆì´ì…˜ ì¤‘ì¸ í”„ë¦¬ë¯¸í‹°ë¸Œë¼ë©´ ë°œì‚¬ ì†ë„ë¥¼ ë¶€ì—¬ (ACPCoin, ACPItem ê³µí†µ)
 			if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(SpawnedItem->GetRootComponent()))
 			{
 				const FVector LaunchVelocity = SpawnPoint->GetForwardVector() * LaunchForwardSpeed + FVector::UpVector * LaunchUpwardSpeed;
@@ -99,14 +100,14 @@ void ACPDispenser::SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLaunch
 	}
 }
 
-void ACPDispenser::SetLinkedInput(ACPInput* NewLinkedInput)
+void ACPDispenser::SetLinkedInput(ACPNexus* NewLinkedInput)
 {
 	if (LinkedInput == NewLinkedInput)
 	{
 		return;
 	}
 
-	//±âÁ¸¿¡ ¿¬°áµÇ¾î ÀÖ´ø InputÀÇ µ¨¸®°ÔÀÌÆ®´Â ÇØÁ¦
+	//ê¸°ì¡´ì— ì—°ê²°ë˜ì–´ ìˆë˜ Inputì˜ ë¸ë¦¬ê²Œì´íŠ¸ëŠ” í•´ì œ
 	if (LinkedInput)
 	{
 		LinkedInput->OnInteracted.RemoveDynamic(this, &ACPDispenser::HandleInputInteracted);
