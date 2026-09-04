@@ -24,7 +24,13 @@ class ICPKnockbackable
 
 public:
 
-	/** Pushes this actor Distance units along Direction. Instigator is whoever caused the knockback */
+	/** Pushes this actor Distance units along Direction. InstigatorActor is whoever caused the knockback */
 	UFUNCTION(BlueprintCallable, Category="Knockback")
-	virtual void ApplyKnockback(const FVector& Direction, float Distance, AActor* Instigator) = 0;
+	virtual void ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor) = 0;
 };
+
+/** Shared LaunchCharacter-based physics for an ICPKnockbackable::ApplyKnockback implementation on any
+ *  ACharacter - converts Distance into a launch speed via DurationSeconds (Speed = Distance / DurationSeconds,
+ *  the same convention as ACPPlayerCharacter's dash/attack lunge) and adds a fixed vertical pop on top, so
+ *  every ACharacter implementing this interface doesn't have to duplicate the same physics math */
+CP_API void ApplyCPKnockbackToCharacter(class ACharacter* Character, const FVector& Direction, float Distance, float DurationSeconds, float VerticalLaunchStrength);
