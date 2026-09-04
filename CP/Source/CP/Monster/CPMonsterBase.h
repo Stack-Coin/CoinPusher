@@ -7,7 +7,7 @@
 #include "Monster/CPMonsterAttackInterface.h"
 #include "Monster/CPMonsterAIInterface.h"
 #include "Weapon/CPKnockbackInterface.h"
-#include "../Player/CPCoinItem.h"
+#include "../CoinPusher/CPCoin.h"
 #include "CPMonsterBase.generated.h"
 
 /*
@@ -111,7 +111,7 @@ protected:
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TSubclassOf<ACPCoinItem> CoinItem;
+	TSubclassOf<ACPCoin> CoinItem;
 
 protected:
 	int8 bIsDead : 1 = false;

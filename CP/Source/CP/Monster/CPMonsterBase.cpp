@@ -39,7 +39,7 @@ void ACPMonsterBase::AttackHitCheck()
 		GetActorLocation(),
 		GetActorLocation() + GetActorForwardVector() * GetAIAttackRange(),
 		FQuat::Identity,
-		ECollisionChannel::ECC_GameTraceChannel2, // todo. 코인 푸셔 및 캐릭터 채널 파기
+		ECollisionChannel::ECC_GameTraceChannel1, // todo. 코인 푸셔 및 캐릭터 채널 파기
 		FCollisionShape::MakeSphere(10.f),
 		Params
 	);
@@ -76,32 +76,19 @@ void ACPMonsterBase::Dead()
 		Location.X += 100.f;
 		FRotator Rotation = GetActorRotation();
 
-		/*FActorSpawnParameters SpawnParms;
+		FActorSpawnParameters SpawnParms;
 		SpawnParms.Owner = this;
 		SpawnParms.Instigator = GetInstigator();
+		SpawnParms.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; 
 
-		ACPCoinItem* SpawnActor = GetWorld()->SpawnActor<ACPCoinItem>(CoinItem, Location, Rotation, SpawnParms);*/
-
-		FActorSpawnParameters SpawnParms;
-		SpawnParms.SpawnCollisionHandlingOverride =
-			ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-		ACPCoinItem* SpawnActor = GetWorld()->SpawnActor<ACPCoinItem>(
-			CoinItem,
-			Location,
-			Rotation,
-			SpawnParms
-		);
+		ACPCoin* SpawnActor = GetWorld()->SpawnActor<ACPCoin>(CoinItem, Location, Rotation, SpawnParms);
 
 		if (SpawnActor)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Spawn Success: %s"), *SpawnActor->GetName());
 		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("Spawn Failed"));
-		}
 	}
+
 
 	OnMonsterDied.Broadcast();
 
