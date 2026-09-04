@@ -20,6 +20,7 @@
 #include "Weapon/CPWeaponBase.h"
 #include "Roulette/CPRoulette.h"
 #include "Player/CPTopDownPlayerController.h"
+#include "Player/CPGameMode.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -105,6 +106,7 @@ void ACPPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::StartDash);
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::Interact);
 		EnhancedInputComponent->BindAction(RollRouletteAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::RollRoulette);
+		EnhancedInputComponent->BindAction(ToggleCameraAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::ToggleCamera);
 	}
 	else
 	{
@@ -130,6 +132,14 @@ void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 
 	UE_LOG(LogTemp, Warning, TEXT("Rollin"));
 	Roulette->Roll();
+}
+
+void ACPPlayerCharacter::ToggleCamera(const FInputActionValue& Value)
+{
+	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+	{
+		GameMode->ToggleCameraMode();
+	}
 }
 
 void ACPPlayerCharacter::Move(const FInputActionValue& Value)

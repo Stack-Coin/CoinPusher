@@ -6,11 +6,13 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "Nexus/CPGoddess.h"
 #include "Nexus/CPNexus.h"
 #include "Monster/Spawner/CPMonsterSpawner.h"
 #include "Monster/Spawner/CPUserWidget_WaveStatus.h"
+#include "Player/CPPartyCamera.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -131,6 +133,89 @@ AActor* ACPGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	}
 
 	return nullptr;
+}
+
+void ACPGameMode::ToggleCameraMode()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	bIsSingleCameraMode = !bIsSingleCameraMode;
+
+	UGameViewportClient* ViewportClient = World->GetGameViewport();
+
+	if (bIsSingleCameraMode)
+	{
+		if (!PartyCamera)
+		{
+			TSubclassOf<ACPPartyCamera> ClassToSpawn = ACPPartyCamera::StaticClass();
+			if (PartyCameraClass)
+			{
+				ClassToSpawn = PartyCameraClass;
+			}
+			PartyCamera = World->SpawnActor<ACPPartyCamera>(ClassToSpawn);
+		}
+
+		if (!PartyCamera)
+		{
+			bIsSingleCameraMode = false;
+			return;
+		}
+
+		TArray<TWeakObjectPtr<AActor>> TrackedPlayers;
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			APlayerController* PC = It->Get();
+			if (PC && PC->IsLocalController() && PC->GetPawn())
+			{
+				TrackedPlayers.Add(PC->GetPawn());
+			}
+		}
+		PartyCamera->SetTrackedActors(TrackedPlayers);
+		PartyCamera->SetActorTickEnabled(true);
+
+		if (ViewportClient)
+		{
+			ViewportClient->SetForceDisableSplitscreen(true);
+		}
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (APlayerController* PC = It->Get())
+			{
+				if (PC->IsLocalController())
+				{
+					PC->SetViewTargetWithBlend(PartyCamera, CameraSwapBlendTime);
+				}
+			}
+		}
+	}
+	else
+	{
+		if (ViewportClient)
+		{
+			ViewportClient->SetForceDisableSplitscreen(false);
+		}
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (APlayerController* PC = It->Get())
+			{
+				if (PC->IsLocalController() && PC->GetPawn())
+				{
+					PC->SetViewTargetWithBlend(PC->GetPawn(), CameraSwapBlendTime);
+				}
+			}
+		}
+
+		if (PartyCamera)
+		{
+			PartyCamera->SetActorTickEnabled(false);
+		}
+	}
 }
 
 void ACPGameMode::AddTeamTickets(int32 Amount)

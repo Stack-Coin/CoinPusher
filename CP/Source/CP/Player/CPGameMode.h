@@ -9,6 +9,8 @@
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "CPGameMode.generated.h"
 
+class ACPPartyCamera;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamTicketCountChanged, int32, NewTicketCount);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamLevelUp, int32, NewLevel);
@@ -59,6 +61,23 @@ protected:
 	/** Bound to IPlatformInputDeviceMapper's connection-change event for the lifetime of this GameMode */
 	FDelegateHandle InputDeviceConnectionChangeHandle;
 
+	/** Class spawned as the shared single camera (see ToggleCameraMode). Defaults to ACPPartyCamera itself
+	 *  if left unset - only needs overriding if a level wants different default zoom/speed values */
+	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|Camera")
+	TSubclassOf<ACPPartyCamera> PartyCameraClass;
+
+	/** Blend time used by SetViewTargetWithBlend when swapping between split-screen and the party camera */
+	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|Camera", meta = (ClampMin = 0, Units = "s"))
+	float CameraSwapBlendTime = 0.75f;
+
+	/** Spawned lazily the first time single-camera mode is entered, then reused */
+	UPROPERTY()
+	TObjectPtr<ACPPartyCamera> PartyCamera;
+
+	/** True while every local player is viewing the single shared PartyCamera instead of their own
+	 *  split-screen viewport/camera */
+	bool bIsSingleCameraMode = false;
+
 public:
 
 	/** Constructor */
@@ -87,6 +106,16 @@ protected:
 	void TryAssignGamepadToSecondPlayer();
 
 public:
+
+	/** Swaps between per-player split-screen and a single shared camera (ACPPartyCamera) that frames
+	 *  every local player and zooms with their spread. Bound to the C key by default (see ACPPlayerCharacter) */
+	UFUNCTION(BlueprintCallable, Category="Local Multiplayer")
+	void ToggleCameraMode();
+
+	/** Returns true while showing the single shared party camera instead of split-screen */
+	UFUNCTION(BlueprintPure, Category="Local Multiplayer")
+	bool IsSingleCameraMode() const { return bIsSingleCameraMode; }
+
 	/** Broadcast whenever TeamTicketCount changes */
 	UPROPERTY(BlueprintAssignable, Category="Team")
 	FOnCPTeamTicketCountChanged OnTeamTicketCountChanged;

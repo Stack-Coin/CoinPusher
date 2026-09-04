@@ -89,6 +89,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* RollRouletteAction;
 
+	/** Toggle Camera Mode Input Action (C key) - swaps between split-screen and the single party camera */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ToggleCameraAction;
+
 protected:
 
 	/** Core per-player combat stats (health, attack power, move speed, attack speed, defense). Coin/ticket/
@@ -298,6 +302,9 @@ protected:
 
 	/** Called for RollRoulette input */
 	void RollRoulette(const FInputActionValue& Value);
+
+	/** Called for ToggleCamera input. Swaps split-screen/single-camera via ACPGameMode::ToggleCameraMode */
+	void ToggleCamera(const FInputActionValue& Value);
 
 	/** Bound to WeaponManager->OnWeaponChanged. Subscribes to the newly equipped weapon's OnAttackStateChanged */
 	UFUNCTION()
