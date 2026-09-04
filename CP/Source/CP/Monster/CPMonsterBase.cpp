@@ -25,6 +25,8 @@ ACPMonsterBase::ACPMonsterBase()
 void ACPMonsterBase::BeginPlay()
 {
 	Super::BeginPlay();
+
+	GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
 }
 
 void ACPMonsterBase::AttackHitCheck()
@@ -46,7 +48,7 @@ void ACPMonsterBase::AttackHitCheck()
 	{
 		if (HitResult.GetActor()->IsValidLowLevel())
 		{
-			UGameplayStatics::ApplyDamage(HitResult.GetActor(), 50.0f, GetController(), this, UDamageType::StaticClass());
+			UGameplayStatics::ApplyDamage(HitResult.GetActor(), AttackPower, GetController(), this, UDamageType::StaticClass());
 		}
 	}
 }
@@ -68,15 +70,37 @@ void ACPMonsterBase::Dead()
 	}
 
 	// todo. 임시로 아이템 드랍
+	if (GetWorld() && CoinItem)
 	{
-		FVector SpawnLocation = GetActorLocation();
-		SpawnLocation.Z += 50.0f;
+		FVector Location = GetActorLocation();
+		Location.X += 100.f;
+		FRotator Rotation = GetActorRotation();
 
-		AStaticMeshActor* Item = GetWorld()->SpawnActor<AStaticMeshActor>(
-			AStaticMeshActor::StaticClass(),
-			SpawnLocation,
-			FRotator::ZeroRotator
+		/*FActorSpawnParameters SpawnParms;
+		SpawnParms.Owner = this;
+		SpawnParms.Instigator = GetInstigator();
+
+		ACPCoinItem* SpawnActor = GetWorld()->SpawnActor<ACPCoinItem>(CoinItem, Location, Rotation, SpawnParms);*/
+
+		FActorSpawnParameters SpawnParms;
+		SpawnParms.SpawnCollisionHandlingOverride =
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		ACPCoinItem* SpawnActor = GetWorld()->SpawnActor<ACPCoinItem>(
+			CoinItem,
+			Location,
+			Rotation,
+			SpawnParms
 		);
+
+		if (SpawnActor)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Spawn Success: %s"), *SpawnActor->GetName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Spawn Failed"));
+		}
 	}
 
 	OnMonsterDied.Broadcast();
@@ -117,7 +141,7 @@ float ACPMonsterBase::GetAIDetectRange()
 
 float ACPMonsterBase::GetAIAttackRange()
 {
-	return 200.0f;
+	return 500.0f;
 }
 
 float ACPMonsterBase::GetAITurnSpeed()
@@ -151,20 +175,22 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 
 	CurrentHealth -= DamageAmount;
 
-	if (CurrentHealth <= 0) 
+	if (CurrentHealth <= 0)
 	{
 		Dead();
 	}
-	else if (IsValid(DamageCauser)) 
-	{
-		FVector KnockbackDirection = GetActorLocation() - DamageCauser->GetActorLocation();
-		KnockbackDirection.Z = 0.f;
-		KnockbackDirection.Normalize();
-
-		LaunchCharacter(KnockbackDirection * 300.0f + FVector::UpVector * 300.0f, true, true);
-	}
 
 	return DamageAmount;
+}
+
+void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor)
+{
+	if (bIsDead)
+	{
+		return;
+	}
+
+	ApplyCPKnockbackToCharacter(this, Direction, Distance, KnockbackDuration, KnockbackLaunchStrength);
 }
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)

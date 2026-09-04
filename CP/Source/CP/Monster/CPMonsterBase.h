@@ -6,6 +6,8 @@
 #include "GameFramework/Character.h"
 #include "Monster/CPMonsterAttackInterface.h"
 #include "Monster/CPMonsterAIInterface.h"
+#include "Weapon/CPKnockbackInterface.h"
+#include "../Player/CPCoinItem.h"
 #include "CPMonsterBase.generated.h"
 
 /*
@@ -26,7 +28,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMonsterDied);
 
 UCLASS()
-class CP_API ACPMonsterBase : public ACharacter, public ICPMonsterAttackInterface, public ICPMonsterAIInterface
+class CP_API ACPMonsterBase : public ACharacter, public ICPMonsterAttackInterface, public ICPMonsterAIInterface, public ICPKnockbackable
 {
 	GENERATED_BODY()
 
@@ -57,6 +59,14 @@ public:
 	// 피격 함수 // 협업용
 	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
+	// ~begin ICPKnockbackable
+
+	/** Pushes the monster Distance units along Direction (converted to a launch speed via
+	 *  KnockbackDuration, plus KnockbackLaunchStrength upward). No-ops once the monster is dead */
+	virtual void ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor) override;
+
+	// ~end ICPKnockbackable
+
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
 
@@ -83,6 +93,25 @@ protected:
 	// todo. Data Table 형태로
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float CurrentHealth = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+	float CurrentSpeed = 100.0f;
+
+	/** Damage dealt to whatever AttackHitCheck hits */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+	float AttackPower = 50.0f;
+
+	/** Converts ApplyKnockback's Distance into a launch speed: Speed = Distance / KnockbackDuration */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Knockback", meta = (ClampMin = 0.01, Units = "s"))
+	float KnockbackDuration = 0.2f;
+
+	/** Additional vertical launch speed applied on top of the horizontal knockback, for a "popped up" feel */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Knockback", meta = (Units = "cm/s"))
+	float KnockbackLaunchStrength = 1000.0f;
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	TSubclassOf<ACPCoinItem> CoinItem;
 
 protected:
 	int8 bIsDead : 1 = false;

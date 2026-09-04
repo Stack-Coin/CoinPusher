@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CPGameMode.h"
 #include "Kismet/GameplayStatics.h"
@@ -6,7 +6,13 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "Nexus/CPGoddess.h"
+#include "Nexus/CPNexus.h"
+#include "Monster/Spawner/CPMonsterSpawner.h"
+#include "Monster/Spawner/CPUserWidget_WaveStatus.h"
+#include "Player/CPPartyCamera.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -30,6 +36,24 @@ void ACPGameMode::BeginPlay()
 	// ...but device detection (XInput/RawInput polling) can still lag a frame or more past BeginPlay,
 	// so keep watching for one to show up later too
 	InputDeviceConnectionChangeHandle = IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().AddUObject(this, &ACPGameMode::HandleInputDeviceConnectionChange);
+
+	// KohMs // Goddess가 죽으면 패배
+	if (ACPGoddess* Goddess = Cast<ACPGoddess>(UGameplayStatics::GetActorOfClass(this, ACPGoddess::StaticClass())))
+	{
+		Goddess->OnGoddessDead.AddUniqueDynamic(this, &ACPGameMode::HandleGoddessDead);
+	}
+
+	// KohMS // 웨이브 진행 상황을 화면에 텍스트로 표시 (레벨에 배치된 스포너 중 하나의 상태를 그대로 보여줍니다)
+	WaveStatusSourceSpawner = Cast<ACPMonsterSpawner>(UGameplayStatics::GetActorOfClass(this, ACPMonsterSpawner::StaticClass()));
+	if (WaveStatusSourceSpawner)
+	{
+		WaveStatusWidget = CreateWidget<UCPUserWidget_WaveStatus>(GetWorld(), UCPUserWidget_WaveStatus::StaticClass());
+		if (WaveStatusWidget)
+		{
+			WaveStatusWidget->AddToViewport();
+			GetWorld()->GetTimerManager().SetTimer(WaveStatusUpdateTimer, this, &ACPGameMode::UpdateWaveStatusDisplay, 0.2f, true);
+		}
+	}
 }
 
 void ACPGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -111,6 +135,89 @@ AActor* ACPGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	return nullptr;
 }
 
+void ACPGameMode::ToggleCameraMode()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	bIsSingleCameraMode = !bIsSingleCameraMode;
+
+	UGameViewportClient* ViewportClient = World->GetGameViewport();
+
+	if (bIsSingleCameraMode)
+	{
+		if (!PartyCamera)
+		{
+			TSubclassOf<ACPPartyCamera> ClassToSpawn = ACPPartyCamera::StaticClass();
+			if (PartyCameraClass)
+			{
+				ClassToSpawn = PartyCameraClass;
+			}
+			PartyCamera = World->SpawnActor<ACPPartyCamera>(ClassToSpawn);
+		}
+
+		if (!PartyCamera)
+		{
+			bIsSingleCameraMode = false;
+			return;
+		}
+
+		TArray<TWeakObjectPtr<AActor>> TrackedPlayers;
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			APlayerController* PC = It->Get();
+			if (PC && PC->IsLocalController() && PC->GetPawn())
+			{
+				TrackedPlayers.Add(PC->GetPawn());
+			}
+		}
+		PartyCamera->SetTrackedActors(TrackedPlayers);
+		PartyCamera->SetActorTickEnabled(true);
+
+		if (ViewportClient)
+		{
+			ViewportClient->SetForceDisableSplitscreen(true);
+		}
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (APlayerController* PC = It->Get())
+			{
+				if (PC->IsLocalController())
+				{
+					PC->SetViewTargetWithBlend(PartyCamera, CameraSwapBlendTime);
+				}
+			}
+		}
+	}
+	else
+	{
+		if (ViewportClient)
+		{
+			ViewportClient->SetForceDisableSplitscreen(false);
+		}
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (APlayerController* PC = It->Get())
+			{
+				if (PC->IsLocalController() && PC->GetPawn())
+				{
+					PC->SetViewTargetWithBlend(PC->GetPawn(), CameraSwapBlendTime);
+				}
+			}
+		}
+
+		if (PartyCamera)
+		{
+			PartyCamera->SetActorTickEnabled(false);
+		}
+	}
+}
+
 void ACPGameMode::AddTeamTickets(int32 Amount)
 {
 	if (Amount <= 0)
@@ -185,4 +292,58 @@ bool ACPGameMode::TrySpendCoin(int32 Amount)
 	TeamCoinCount -= Amount;
 
 	return true;
+}
+
+// KohMS
+void ACPGameMode::UpdateWaveStatusDisplay()
+{
+	if (!WaveStatusSourceSpawner || !WaveStatusWidget)
+	{
+		return;
+	}
+
+	const ECPWavePhase Phase = WaveStatusSourceSpawner->GetCurrentPhase();
+
+	int32 ProgressSeconds = 0;
+	int32 TotalSeconds = 0;
+
+	switch (Phase)
+	{
+	case ECPWavePhase::Spawning:
+		ProgressSeconds = WaveStatusSourceSpawner->GetSpawnElapsedSeconds();
+		TotalSeconds = WaveStatusSourceSpawner->GetSpawnTotalSeconds();
+		break;
+
+	case ECPWavePhase::WaveWait:
+		TotalSeconds = FMath::RoundToInt(WaveStatusSourceSpawner->GetWaveIntervalSeconds());
+		ProgressSeconds = FMath::Clamp(TotalSeconds - FMath::CeilToInt(WaveStatusSourceSpawner->GetWaveWaitSecondsRemaining()), 0, TotalSeconds);
+		break;
+
+	case ECPWavePhase::RoundWait:
+		TotalSeconds = FMath::RoundToInt(WaveStatusSourceSpawner->GetRoundEndWaitSeconds());
+		ProgressSeconds = FMath::Clamp(TotalSeconds - FMath::CeilToInt(WaveStatusSourceSpawner->GetRoundWaitSecondsRemaining()), 0, TotalSeconds);
+		break;
+
+	default:
+		break;
+	}
+
+	WaveStatusWidget->UpdateWaveStatus(
+		WaveStatusSourceSpawner->GetCurrentWaveIndex() + 1,
+		WaveStatusSourceSpawner->GetWaveCount(),
+		Phase,
+		ProgressSeconds,
+		TotalSeconds);
+}
+
+void ACPGameMode::HandleGoddessDead()
+{
+	if (bIsGameOver)
+	{
+		return;
+	}
+
+	bIsGameOver = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("[CPGameMode] Defeat! Goddess has fallen."));
 }
