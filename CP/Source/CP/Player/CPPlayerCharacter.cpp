@@ -21,12 +21,14 @@
 #include "Roulette/CPRoulette.h"
 #include "Player/CPTopDownPlayerController.h"
 #include "Player/CPGameMode.h"
+#include "UI/CPRadialGaugeComponent.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
 namespace
 {
 	constexpr float ReviveDebugDrawInterval = 0.1f;
+	constexpr float ReviveGaugeUpdateInterval = 0.1f;
 }
 
 ACPPlayerCharacter::ACPPlayerCharacter()
@@ -483,6 +485,12 @@ void ACPPlayerCharacter::OnReviveRangeEndOverlap(UPrimitiveComponent* Overlapped
 	GetWorldTimerManager().ClearTimer(ReviveTimerHandle);
 	CurrentReviver.Reset();
 	ReviveStartTime = -1.0f;
+
+	GetWorldTimerManager().ClearTimer(ReviveGaugeUpdateTimerHandle);
+	if (ReviveGaugeComponent)
+	{
+		ReviveGaugeComponent->SetGaugeEnabled(false);
+	}
 }
 
 void ACPPlayerCharacter::EnterDownedState()
@@ -530,6 +538,13 @@ void ACPPlayerCharacter::StartRevive(AActor* Reviver)
 	ReviveStartTime = GetWorld()->GetTimeSeconds();
 
 	GetWorldTimerManager().SetTimer(ReviveTimerHandle, this, &ACPPlayerCharacter::Revive, ReviveDuration, false);
+
+	if (ReviveGaugeComponent)
+	{
+		ReviveGaugeComponent->SetGaugeEnabled(true);
+		UpdateReviveGaugeDisplay();
+		GetWorldTimerManager().SetTimer(ReviveGaugeUpdateTimerHandle, this, &ACPPlayerCharacter::UpdateReviveGaugeDisplay, ReviveGaugeUpdateInterval, true);
+	}
 }
 
 void ACPPlayerCharacter::Revive()
@@ -538,6 +553,12 @@ void ACPPlayerCharacter::Revive()
 	CurrentReviver.Reset();
 	ReviveStartTime = -1.0f;
 	GetWorldTimerManager().ClearTimer(ReviveTimerHandle);
+
+	GetWorldTimerManager().ClearTimer(ReviveGaugeUpdateTimerHandle);
+	if (ReviveGaugeComponent)
+	{
+		ReviveGaugeComponent->SetGaugeEnabled(false);
+	}
 
 	ReviveDetectionRange->ShapeColor = DebugReviveRangeColor;
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
@@ -556,6 +577,17 @@ float ACPPlayerCharacter::GetReviveTimeRemaining() const
 
 	const float Elapsed = GetWorld()->GetTimeSeconds() - ReviveStartTime;
 	return FMath::Max(ReviveDuration - Elapsed, 0.0f);
+}
+
+void ACPPlayerCharacter::UpdateReviveGaugeDisplay()
+{
+	if (!ReviveGaugeComponent)
+	{
+		return;
+	}
+
+	const float Elapsed = ReviveDuration - GetReviveTimeRemaining();
+	ReviveGaugeComponent->UpdateGauge(Elapsed, ReviveDuration);
 }
 
 void ACPPlayerCharacter::DrawDebugReviveRangeShape() const
@@ -585,6 +617,7 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 	{
 	case ECPStatType::Health:
 		Stats.Health = FMath::Clamp(NewValue, HealthRange.Min, HealthRange.Max);
+		OnHealthChanged.Broadcast(Stats.Health, HealthRange.Max);
 		break;
 	case ECPStatType::AttackPower:
 		Stats.AttackPower = FMath::Clamp(NewValue, AttackPowerRange.Min, AttackPowerRange.Max);

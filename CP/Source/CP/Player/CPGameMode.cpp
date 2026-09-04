@@ -13,6 +13,12 @@
 #include "Monster/Spawner/CPMonsterSpawner.h"
 #include "Monster/Spawner/CPUserWidget_WaveStatus.h"
 #include "Player/CPPartyCamera.h"
+#include "Player/CPPlayerCharacter.h"
+#include "Blueprint/UserWidget.h"
+#include "UI/CPHealthBarWidget.h"
+#include "UI/CPTicketCountWidget.h"
+#include "UI/CPCoinCountWidget.h"
+#include "UI/CPRadialGaugeComponent.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -53,6 +59,33 @@ void ACPGameMode::BeginPlay()
 			WaveStatusWidget->AddToViewport();
 			GetWorld()->GetTimerManager().SetTimer(WaveStatusUpdateTimer, this, &ACPGameMode::UpdateWaveStatusDisplay, 0.2f, true);
 		}
+	}
+
+	SetupTeamResourceWidgets();
+
+	// Per-local-player UI: health bar (1P/2P) and the revive progress gauge. Both players' pawns are
+	// already possessed by this point (created above/by the engine's own initial-player flow)
+	TArray<TSubclassOf<UCPHealthBarWidget>> HealthBarClassesByIndex = { Player1HealthBarWidgetClass, Player2HealthBarWidgetClass };
+	int32 LocalPlayerIndex = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PC = It->Get();
+		if (!PC || !PC->IsLocalController())
+		{
+			continue;
+		}
+
+		if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(PC->GetPawn()))
+		{
+			AttachReviveGaugeToPlayer(PlayerCharacter);
+
+			if (HealthBarClassesByIndex.IsValidIndex(LocalPlayerIndex))
+			{
+				SetupPlayerHealthBarWidget(PlayerCharacter, HealthBarClassesByIndex[LocalPlayerIndex]);
+			}
+		}
+
+		++LocalPlayerIndex;
 	}
 }
 
@@ -218,6 +251,75 @@ void ACPGameMode::ToggleCameraMode()
 	}
 }
 
+void ACPGameMode::SetupTeamResourceWidgets()
+{
+	if (TicketWidgetClass)
+	{
+		if (UCPTicketCountWidget* TicketWidget = CreateWidget<UCPTicketCountWidget>(GetWorld(), TicketWidgetClass))
+		{
+			TicketWidget->AddToViewport();
+			OnTeamTicketCountChanged.AddDynamic(TicketWidget, &UCPTicketCountWidget::UpdateTicketCount);
+			TicketWidget->UpdateTicketCount(TeamTicketCount);
+		}
+	}
+
+	if (CoinWidgetClass)
+	{
+		if (UCPCoinCountWidget* CoinWidget = CreateWidget<UCPCoinCountWidget>(GetWorld(), CoinWidgetClass))
+		{
+			CoinWidget->AddToViewport();
+			OnTeamCoinCountChanged.AddDynamic(CoinWidget, &UCPCoinCountWidget::UpdateCoinCount);
+			CoinWidget->UpdateCoinCount(TeamCoinCount);
+		}
+	}
+}
+
+void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHealthBarWidget> HealthBarWidgetClass)
+{
+	if (!PlayerCharacter || !HealthBarWidgetClass)
+	{
+		return;
+	}
+
+	APlayerController* OwningController = Cast<APlayerController>(PlayerCharacter->GetController());
+	if (!OwningController)
+	{
+		return;
+	}
+
+	UCPHealthBarWidget* HealthBarWidget = CreateWidget<UCPHealthBarWidget>(OwningController, HealthBarWidgetClass);
+	if (!HealthBarWidget)
+	{
+		return;
+	}
+
+	HealthBarWidget->AddToPlayerScreen();
+
+	PlayerCharacter->OnHealthChanged.AddDynamic(HealthBarWidget, &UCPHealthBarWidget::UpdateHealth);
+	HealthBarWidget->UpdateHealth(PlayerCharacter->GetStat(ECPStatType::Health), PlayerCharacter->GetMaxHealth());
+}
+
+void ACPGameMode::AttachReviveGaugeToPlayer(ACPPlayerCharacter* PlayerCharacter)
+{
+	if (!PlayerCharacter || !ReviveGaugeComponentClass || PlayerCharacter->GetReviveGaugeComponent())
+	{
+		return;
+	}
+
+	UCPRadialGaugeComponent* Gauge = NewObject<UCPRadialGaugeComponent>(PlayerCharacter, ReviveGaugeComponentClass);
+	if (!Gauge)
+	{
+		return;
+	}
+
+	
+	Gauge->SetupAttachment(PlayerCharacter->GetRootComponent());
+	Gauge->RegisterComponent();
+	Gauge->SetGaugeEnabled(false);
+
+	PlayerCharacter->SetReviveGaugeComponent(Gauge);
+}
+
 void ACPGameMode::AddTeamTickets(int32 Amount)
 {
 	if (Amount <= 0)
@@ -280,6 +382,8 @@ void ACPGameMode::AddCoin(int32 Amount)
 	}
 
 	TeamCoinCount += Amount;
+
+	OnTeamCoinCountChanged.Broadcast(TeamCoinCount);
 }
 
 bool ACPGameMode::TrySpendCoin(int32 Amount)
@@ -290,6 +394,8 @@ bool ACPGameMode::TrySpendCoin(int32 Amount)
 	}
 
 	TeamCoinCount -= Amount;
+
+	OnTeamCoinCountChanged.Broadcast(TeamCoinCount);
 
 	return true;
 }
