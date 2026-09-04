@@ -63,7 +63,7 @@ void UCPBTService_Detect::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* Nod
 			{
 				OwnerComp.GetBlackboardComponent()->SetValueAsObject(BBKEY_TARGET, Player);
 
-				//DrawDebugSphere(World, Center, DetectRadius, 16, FColor::Green, false, 0.2f);
+				DrawDebugSphere(World, Center, DetectRadius, 16, FColor::Green, false, 0.2f);
 				return;
 			}
 		}
@@ -71,5 +71,5 @@ void UCPBTService_Detect::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* Nod
 
 	OwnerComp.GetBlackboardComponent()->SetValueAsObject(BBKEY_TARGET, nullptr);
 
-	//DrawDebugSphere(World, Center, DetectRadius, 16, FColor::Red, false, 0.2f);
+	DrawDebugSphere(World, Center, DetectRadius, 16, FColor::Red, false, 0.2f);
 }
