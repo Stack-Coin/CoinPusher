@@ -21,6 +21,7 @@
 class USpringArmComponent;
 class UCameraComponent;
 class USphereComponent;
+class UCPRadialGaugeComponent;
 class UInputAction;
 struct FInputActionValue;
 class UCPWeaponManagerComponent;
@@ -38,6 +39,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerDowned);
 
 /** Broadcast the moment a downed player finishes being revived */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerRevived);
+
+/** Broadcast whenever Health changes (see SetStat). Bind a UCPHealthBarWidget/-Component's UpdateHealth
+ *  here to keep a health bar in sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPPlayerHealthChanged, float, CurrentHealth, float, MaxHealth);
 
 /**
  *  Top-down / quarter view action prototype character.
@@ -88,6 +93,10 @@ protected:
 	/** Interact Input Action (R key) */
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* RollRouletteAction;
+
+	/** Toggle Camera Mode Input Action (C key) - swaps between split-screen and the single party camera */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* ToggleCameraAction;
 
 protected:
 
@@ -262,6 +271,15 @@ protected:
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnCPPlayerRevived OnPlayerRevived;
 
+	/** The RadialGaugeComponent ACPGameMode attaches to this player at creation time (see
+	 *  ACPGameMode::AttachReviveGaugeToPlayer), driven during a revive attempt to show progress. May be
+	 *  null if none was assigned (e.g. testing this character outside ACPGameMode) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCPRadialGaugeComponent> ReviveGaugeComponent;
+
+	/** Periodically pushes revive progress to ReviveGaugeComponent while a revive attempt is in progress */
+	FTimerHandle ReviveGaugeUpdateTimerHandle;
+
 	/** Every ICPInteractable currently in range of at least one registered interactable's collision */
 	TArray<TWeakObjectPtr<AActor>> NearbyInteractables;
 
@@ -299,6 +317,9 @@ protected:
 	/** Called for RollRoulette input */
 	void RollRoulette(const FInputActionValue& Value);
 
+	/** Called for ToggleCamera input. Swaps split-screen/single-camera via ACPGameMode::ToggleCameraMode */
+	void ToggleCamera(const FInputActionValue& Value);
+
 	/** Bound to WeaponManager->OnWeaponChanged. Subscribes to the newly equipped weapon's OnAttackStateChanged */
 	UFUNCTION()
 	void HandleWeaponChanged(ACPWeaponBase* NewWeapon);
@@ -330,6 +351,10 @@ protected:
 	/** Draws ReviveDetectionRange's sphere at its current location. Called on DebugReviveRangeTimerHandle
 	 *  while bDrawDebugReviveRange is true */
 	void DrawDebugReviveRangeShape() const;
+
+	/** Pushes current revive progress (elapsed time out of ReviveDuration) to ReviveGaugeComponent. Bound
+	 *  to ReviveGaugeUpdateTimerHandle while a revive attempt is in progress */
+	void UpdateReviveGaugeDisplay();
 
 public:
 
@@ -472,6 +497,23 @@ public:
 	virtual float GetReviveDuration() const override { return ReviveDuration; }
 
 	// ~end ICPReviveProgressProvider
+
+	/** Returns the upper bound of the Health stat, for UI that needs Max as well as Current */
+	UFUNCTION(BlueprintPure, Category="Stats")
+	float GetMaxHealth() const { return HealthRange.Max; }
+
+	/** Broadcast whenever Health changes (see SetStat). Bind a UCPHealthBarWidget/-Component's
+	 *  UpdateHealth here to keep a health bar in sync - done automatically by
+	 *  ACPGameMode::SetupPlayerHealthBarWidget */
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnCPPlayerHealthChanged OnHealthChanged;
+
+	/** Assigns the RadialGaugeComponent this character drives to show revive progress. Called once by
+	 *  ACPGameMode right after this character is created (see ACPGameMode::AttachReviveGaugeToPlayer) */
+	void SetReviveGaugeComponent(UCPRadialGaugeComponent* InComponent) { ReviveGaugeComponent = InComponent; }
+
+	/** Returns the RadialGaugeComponent assigned via SetReviveGaugeComponent, or null if none yet */
+	UCPRadialGaugeComponent* GetReviveGaugeComponent() const { return ReviveGaugeComponent; }
 
 	/** Returns true while the dash movement is in progress */
 	UFUNCTION(BlueprintPure, Category="Dash")

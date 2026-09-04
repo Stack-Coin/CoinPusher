@@ -6,11 +6,19 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "Nexus/CPGoddess.h"
 #include "Nexus/CPNexus.h"
 #include "Monster/Spawner/CPMonsterSpawner.h"
 #include "Monster/Spawner/CPUserWidget_WaveStatus.h"
+#include "Player/CPPartyCamera.h"
+#include "Player/CPPlayerCharacter.h"
+#include "Blueprint/UserWidget.h"
+#include "UI/CPHealthBarWidget.h"
+#include "UI/CPTicketCountWidget.h"
+#include "UI/CPCoinCountWidget.h"
+#include "UI/CPRadialGaugeComponent.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -51,6 +59,33 @@ void ACPGameMode::BeginPlay()
 			WaveStatusWidget->AddToViewport();
 			GetWorld()->GetTimerManager().SetTimer(WaveStatusUpdateTimer, this, &ACPGameMode::UpdateWaveStatusDisplay, 0.2f, true);
 		}
+	}
+
+	SetupTeamResourceWidgets();
+
+	// Per-local-player UI: health bar (1P/2P) and the revive progress gauge. Both players' pawns are
+	// already possessed by this point (created above/by the engine's own initial-player flow)
+	TArray<TSubclassOf<UCPHealthBarWidget>> HealthBarClassesByIndex = { Player1HealthBarWidgetClass, Player2HealthBarWidgetClass };
+	int32 LocalPlayerIndex = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PC = It->Get();
+		if (!PC || !PC->IsLocalController())
+		{
+			continue;
+		}
+
+		if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(PC->GetPawn()))
+		{
+			AttachReviveGaugeToPlayer(PlayerCharacter);
+
+			if (HealthBarClassesByIndex.IsValidIndex(LocalPlayerIndex))
+			{
+				SetupPlayerHealthBarWidget(PlayerCharacter, HealthBarClassesByIndex[LocalPlayerIndex]);
+			}
+		}
+
+		++LocalPlayerIndex;
 	}
 }
 
@@ -133,6 +168,158 @@ AActor* ACPGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	return nullptr;
 }
 
+void ACPGameMode::ToggleCameraMode()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	bIsSingleCameraMode = !bIsSingleCameraMode;
+
+	UGameViewportClient* ViewportClient = World->GetGameViewport();
+
+	if (bIsSingleCameraMode)
+	{
+		if (!PartyCamera)
+		{
+			TSubclassOf<ACPPartyCamera> ClassToSpawn = ACPPartyCamera::StaticClass();
+			if (PartyCameraClass)
+			{
+				ClassToSpawn = PartyCameraClass;
+			}
+			PartyCamera = World->SpawnActor<ACPPartyCamera>(ClassToSpawn);
+		}
+
+		if (!PartyCamera)
+		{
+			bIsSingleCameraMode = false;
+			return;
+		}
+
+		TArray<TWeakObjectPtr<AActor>> TrackedPlayers;
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			APlayerController* PC = It->Get();
+			if (PC && PC->IsLocalController() && PC->GetPawn())
+			{
+				TrackedPlayers.Add(PC->GetPawn());
+			}
+		}
+		PartyCamera->SetTrackedActors(TrackedPlayers);
+		PartyCamera->SetActorTickEnabled(true);
+
+		if (ViewportClient)
+		{
+			ViewportClient->SetForceDisableSplitscreen(true);
+		}
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (APlayerController* PC = It->Get())
+			{
+				if (PC->IsLocalController())
+				{
+					PC->SetViewTargetWithBlend(PartyCamera, CameraSwapBlendTime);
+				}
+			}
+		}
+	}
+	else
+	{
+		if (ViewportClient)
+		{
+			ViewportClient->SetForceDisableSplitscreen(false);
+		}
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (APlayerController* PC = It->Get())
+			{
+				if (PC->IsLocalController() && PC->GetPawn())
+				{
+					PC->SetViewTargetWithBlend(PC->GetPawn(), CameraSwapBlendTime);
+				}
+			}
+		}
+
+		if (PartyCamera)
+		{
+			PartyCamera->SetActorTickEnabled(false);
+		}
+	}
+}
+
+void ACPGameMode::SetupTeamResourceWidgets()
+{
+	if (TicketWidgetClass)
+	{
+		if (UCPTicketCountWidget* TicketWidget = CreateWidget<UCPTicketCountWidget>(GetWorld(), TicketWidgetClass))
+		{
+			TicketWidget->AddToViewport();
+			OnTeamTicketCountChanged.AddDynamic(TicketWidget, &UCPTicketCountWidget::UpdateTicketCount);
+			TicketWidget->UpdateTicketCount(TeamTicketCount);
+		}
+	}
+
+	if (CoinWidgetClass)
+	{
+		if (UCPCoinCountWidget* CoinWidget = CreateWidget<UCPCoinCountWidget>(GetWorld(), CoinWidgetClass))
+		{
+			CoinWidget->AddToViewport();
+			OnTeamCoinCountChanged.AddDynamic(CoinWidget, &UCPCoinCountWidget::UpdateCoinCount);
+			CoinWidget->UpdateCoinCount(TeamCoinCount);
+		}
+	}
+}
+
+void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHealthBarWidget> HealthBarWidgetClass)
+{
+	if (!PlayerCharacter || !HealthBarWidgetClass)
+	{
+		return;
+	}
+
+	APlayerController* OwningController = Cast<APlayerController>(PlayerCharacter->GetController());
+	if (!OwningController)
+	{
+		return;
+	}
+
+	UCPHealthBarWidget* HealthBarWidget = CreateWidget<UCPHealthBarWidget>(OwningController, HealthBarWidgetClass);
+	if (!HealthBarWidget)
+	{
+		return;
+	}
+
+	HealthBarWidget->AddToPlayerScreen();
+
+	PlayerCharacter->OnHealthChanged.AddDynamic(HealthBarWidget, &UCPHealthBarWidget::UpdateHealth);
+	HealthBarWidget->UpdateHealth(PlayerCharacter->GetStat(ECPStatType::Health), PlayerCharacter->GetMaxHealth());
+}
+
+void ACPGameMode::AttachReviveGaugeToPlayer(ACPPlayerCharacter* PlayerCharacter)
+{
+	if (!PlayerCharacter || !ReviveGaugeComponentClass || PlayerCharacter->GetReviveGaugeComponent())
+	{
+		return;
+	}
+
+	UCPRadialGaugeComponent* Gauge = NewObject<UCPRadialGaugeComponent>(PlayerCharacter, ReviveGaugeComponentClass);
+	if (!Gauge)
+	{
+		return;
+	}
+
+	
+	Gauge->SetupAttachment(PlayerCharacter->GetRootComponent());
+	Gauge->RegisterComponent();
+	Gauge->SetGaugeEnabled(false);
+
+	PlayerCharacter->SetReviveGaugeComponent(Gauge);
+}
+
 void ACPGameMode::AddTeamTickets(int32 Amount)
 {
 	if (Amount <= 0)
@@ -195,6 +382,8 @@ void ACPGameMode::AddCoin(int32 Amount)
 	}
 
 	TeamCoinCount += Amount;
+
+	OnTeamCoinCountChanged.Broadcast(TeamCoinCount);
 }
 
 bool ACPGameMode::TrySpendCoin(int32 Amount)
@@ -205,6 +394,8 @@ bool ACPGameMode::TrySpendCoin(int32 Amount)
 	}
 
 	TeamCoinCount -= Amount;
+
+	OnTeamCoinCountChanged.Broadcast(TeamCoinCount);
 
 	return true;
 }

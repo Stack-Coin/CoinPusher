@@ -9,7 +9,16 @@
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "CPGameMode.generated.h"
 
+class ACPPartyCamera;
+class ACPPlayerCharacter;
+class UCPHealthBarWidget;
+class UCPTicketCountWidget;
+class UCPCoinCountWidget;
+class UCPRadialGaugeComponent;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamTicketCountChanged, int32, NewTicketCount);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamCoinCountChanged, int32, NewCoinCount);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamLevelUp, int32, NewLevel);
 
@@ -59,6 +68,49 @@ protected:
 	/** Bound to IPlatformInputDeviceMapper's connection-change event for the lifetime of this GameMode */
 	FDelegateHandle InputDeviceConnectionChangeHandle;
 
+	/** Class spawned as the shared single camera (see ToggleCameraMode). Defaults to ACPPartyCamera itself
+	 *  if left unset - only needs overriding if a level wants different default zoom/speed values */
+	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|Camera")
+	TSubclassOf<ACPPartyCamera> PartyCameraClass;
+
+	/** Blend time used by SetViewTargetWithBlend when swapping between split-screen and the party camera */
+	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|Camera", meta = (ClampMin = 0, Units = "s"))
+	float CameraSwapBlendTime = 0.75f;
+
+	/** Spawned lazily the first time single-camera mode is entered, then reused */
+	UPROPERTY()
+	TObjectPtr<ACPPartyCamera> PartyCamera;
+
+	/** True while every local player is viewing the single shared PartyCamera instead of their own
+	 *  split-screen viewport/camera */
+	bool bIsSingleCameraMode = false;
+
+	/** Widget Blueprint (inheriting UCPTicketCountWidget) for the team ticket count HUD. Created once in
+	 *  BeginPlay and bound directly to OnTeamTicketCountChanged in C++ - no BP graph wiring needed */
+	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
+	TSubclassOf<UCPTicketCountWidget> TicketWidgetClass;
+
+	/** Widget Blueprint (inheriting UCPCoinCountWidget) for the team coin count HUD. Created once in
+	 *  BeginPlay and bound directly to OnTeamCoinCountChanged in C++ - no BP graph wiring needed */
+	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
+	TSubclassOf<UCPCoinCountWidget> CoinWidgetClass;
+
+	/** Widget Blueprint (inheriting UCPHealthBarWidget) for the first local player's (1P) health bar -
+	 *  give it a WBP with the bar anchored to the left of the screen */
+	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
+	TSubclassOf<UCPHealthBarWidget> Player1HealthBarWidgetClass;
+
+	/** Widget Blueprint (inheriting UCPHealthBarWidget) for the second local player's (2P) health bar -
+	 *  give it a WBP with the bar anchored to the right of the screen */
+	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
+	TSubclassOf<UCPHealthBarWidget> Player2HealthBarWidgetClass;
+
+	/** Class (inheriting UCPRadialGaugeComponent) dynamically attached to every player pawn in BeginPlay
+	 *  to show revive progress. Give it a BP subclass with GaugeWidgetClass (a UCPRadialGaugeWidget WBP)
+	 *  and a relative location already set in its Class Defaults - left unset, no gauge is attached */
+	UPROPERTY(EditAnywhere, Category="Local Multiplayer|UI")
+	TSubclassOf<UCPRadialGaugeComponent> ReviveGaugeComponentClass;
+
 public:
 
 	/** Constructor */
@@ -86,10 +138,38 @@ protected:
 	 *  has a device, or no gamepad is connected yet */
 	void TryAssignGamepadToSecondPlayer();
 
+	/** Creates the team-wide ticket/coin HUD widgets (see TicketWidgetClass/CoinWidgetClass) and binds
+	 *  them directly to OnTeamTicketCountChanged/OnTeamCoinCountChanged. Called once from BeginPlay */
+	void SetupTeamResourceWidgets();
+
+	/** Creates a health bar widget using HealthBarWidgetClass, adds it to PlayerCharacter's owning
+	 *  player's screen, and binds it directly to PlayerCharacter's OnHealthChanged. Called once per
+	 *  local player from BeginPlay */
+	void SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHealthBarWidget> HealthBarWidgetClass);
+
+	/** Creates a ReviveGaugeComponentClass instance, attaches it to PlayerCharacter (disabled until a
+	 *  revive attempt starts), and hands it to the character via SetReviveGaugeComponent. No-ops if
+	 *  ReviveGaugeComponentClass is unset or PlayerCharacter already has one */
+	void AttachReviveGaugeToPlayer(ACPPlayerCharacter* PlayerCharacter);
+
 public:
+
+	/** Swaps between per-player split-screen and a single shared camera (ACPPartyCamera) that frames
+	 *  every local player and zooms with their spread. Bound to the C key by default (see ACPPlayerCharacter) */
+	UFUNCTION(BlueprintCallable, Category="Local Multiplayer")
+	void ToggleCameraMode();
+
+	/** Returns true while showing the single shared party camera instead of split-screen */
+	UFUNCTION(BlueprintPure, Category="Local Multiplayer")
+	bool IsSingleCameraMode() const { return bIsSingleCameraMode; }
+
 	/** Broadcast whenever TeamTicketCount changes */
 	UPROPERTY(BlueprintAssignable, Category="Team")
 	FOnCPTeamTicketCountChanged OnTeamTicketCountChanged;
+
+	/** Broadcast whenever TeamCoinCount changes */
+	UPROPERTY(BlueprintAssignable, Category="Team")
+	FOnCPTeamCoinCountChanged OnTeamCoinCountChanged;
 
 	/** Broadcast right after TeamLevel increases by 1 (once per level, even on a multi level up) */
 	UPROPERTY(BlueprintAssignable, Category="Team")
