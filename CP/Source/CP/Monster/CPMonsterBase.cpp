@@ -25,6 +25,8 @@ ACPMonsterBase::ACPMonsterBase()
 void ACPMonsterBase::BeginPlay()
 {
 	Super::BeginPlay();
+
+	GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
 }
 
 void ACPMonsterBase::AttackHitCheck()

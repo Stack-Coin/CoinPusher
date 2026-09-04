@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Monster/Spawner/CPMonsterSpawner.h"
@@ -8,6 +8,7 @@
 #include "Components/ArrowComponent.h"
 #include "TimerManager.h"
 #include "../CPMonsterBase.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
 ACPMonsterSpawner::ACPMonsterSpawner()
@@ -73,7 +74,19 @@ void ACPMonsterSpawner::SpawnBurst()
 		// AdjustIfPossibleButAlwaysSpawn 덕분에 서로 겹치지 않도록 엔진이 알아서 살짝 밀어서 배치해줍니다.
 		for (int32 i = 0; i < MonstersPerBurst; ++i)
 		{
-			GetWorld()->SpawnActor<ACPMonsterBase>(EnemyClass, SpawnCapsule->GetComponentTransform(), SpawnParams);
+			//AActor* actor = GetWorld()->SpawnActor<ACPMonsterBase>(EnemyClass, SpawnCapsule->GetComponentTransform(), SpawnParams);
+			//actor->GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
+
+			ACPMonsterBase* SpawnedMonster = GetWorld()->SpawnActor<ACPMonsterBase>(EnemyClass, SpawnCapsule->GetComponentTransform(), SpawnParams);
+
+			// 2. nullptr 체크 후 무브먼트 컴포넌트의 속도를 수정합니다.
+			if (SpawnedMonster)
+			{
+				if (SpawnedMonster->GetCharacterMovement())
+				{
+					SpawnedMonster->GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
+				}
+			}
 		}
 	}
 

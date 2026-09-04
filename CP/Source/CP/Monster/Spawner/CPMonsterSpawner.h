@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -113,6 +113,9 @@ protected:
 	// 마지막 웨이브가 끝난 뒤의 "라운드 대기시간"(기획서 기준 15초)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave", meta = (ClampMin = 0))
 	float RoundEndWaitTime = 15.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+	float CurrentSpeed = 100.0f;
 
 	ECPWavePhase CurrentPhase = ECPWavePhase::Spawning;
 	int32 CurrentWaveIndex = 0;
