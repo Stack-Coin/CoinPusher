@@ -9,6 +9,7 @@
 class UCapsuleComponent;
 class UArrowComponent;
 class ACPMonsterBase;
+class ACPMonsterBoss;
 
 /** 화면 표시(UCPUserWidget_WaveStatus)에서 쓰는, 스포너가 지금 어떤 단계에 있는지 나타내는 상태 */
 UENUM(BlueprintType)
@@ -89,6 +90,10 @@ public:
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave")
 	TSubclassOf<ACPMonsterBase> EnemyClass;
+
+	// 모든 일반 몬스터 웨이브(WaveCount) + 라운드 대기시간(RoundEndWaitTime)이 끝난 뒤 소환할 보스 몬스터 클래스
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave")
+	TSubclassOf<ACPMonsterBase> BossClass;
 
 	// 프로토타입: 라운드당 일반 몬스터 웨이브 수 (보스 웨이브는 아직 미구현이라 제외)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave", meta = (ClampMin = 1))

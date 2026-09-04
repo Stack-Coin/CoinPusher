@@ -27,6 +27,9 @@ ACPNexus::ACPNexus()
 	CollisionSphere->InitSphereRadius(150.0f);
 	CollisionSphere->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
 
+	// ACPMonsterBase::AttackHitCheck()가 ECC_GameTraceChannel1로 SweepSingleByChannel로 검사
+	CollisionSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_GameTraceChannel1, ECR_Block);
+
 	CollisionSphere->OnComponentBeginOverlap.AddDynamic(this, &ACPNexus::OnCollisionSphereBeginOverlap);
 	CollisionSphere->OnComponentEndOverlap.AddDynamic(this, &ACPNexus::OnCollisionSphereEndOverlap);
 

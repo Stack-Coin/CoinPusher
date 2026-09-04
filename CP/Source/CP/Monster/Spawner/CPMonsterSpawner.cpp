@@ -124,8 +124,38 @@ void ACPMonsterSpawner::FinishRound()
 {
 	CurrentPhase = ECPWavePhase::Finished;
 
-	// 프로토타입: 라운드가 1개뿐이라 여기서 그냥 멈춥니다.
-	// (추후 라운드가 여러 개가 되면, 여기서 다음 라운드를 시작하거나 보스 웨이브로 넘어가면 됩니다)
+	UE_LOG(LogTemp, Warning, TEXT("[%s] FinishRound called. BossClass=%s"),
+		*GetName(), IsValid(BossClass) ? *BossClass->GetName() : TEXT("None"));
+
+	// 일반 몬스터 웨이브(WaveCount) + 라운드 대기시간(RoundEndWaitTime)이 모두 끝났으므로 보스 몬스터를 소환합니다.
+	if (IsValid(BossClass))
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+		ACPMonsterBase* SpawnedBoss = GetWorld()->SpawnActor<ACPMonsterBase>(BossClass, SpawnCapsule->GetComponentTransform(), SpawnParams);
+
+		if (SpawnedBoss)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[%s] Boss spawned: %s"), *GetName(), *SpawnedBoss->GetName());
+
+			if (SpawnedBoss->GetCharacterMovement())
+			{
+				SpawnedBoss->GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[%s] SpawnActor failed for BossClass=%s"), *GetName(), *BossClass->GetName());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] BossClass is not set on this spawner instance (Details panel > Wave > Boss Class)."), *GetName());
+	}
+
+	// 프로토타입: 라운드가 1개뿐이라 보스 소환 후 여기서 그냥 멈춥니다.
+	// (추후 라운드가 여러 개가 되면, 여기서 다음 라운드를 시작하면 됩니다)
 }
 
 float ACPMonsterSpawner::GetWaveWaitSecondsRemaining() const
