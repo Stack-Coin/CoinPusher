@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Monster/CPMonsterAttackInterface.h"
 #include "Monster/CPMonsterAIInterface.h"
+#include "Monster/Stat/CPMonsterStatComponent.h"
 #include "Weapon/CPKnockbackInterface.h"
 #include "../CoinPusher/CPCoin.h"
 #include "CPMonsterBase.generated.h"
@@ -45,27 +46,38 @@ public:
 	virtual void AttackHitCheck() override;
 	virtual void Dead();
 
-public:
-	// todo. Stat Component에서 구하기
-	virtual float GetAIPatrolRadius() override;
-	virtual float GetAIDetectRange() override;
-	virtual float GetAIAttackRange() override;
-	virtual float GetAITurnSpeed() override;
-
 	// 공격 함수 // BTTask에서 수행
 	virtual void SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished) override;
 	virtual void AttackByAI() override;
 
 	// 피격 함수 // 협업용
 	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
-
-	// ~begin ICPKnockbackable
-
-	/** Pushes the monster Distance units along Direction (converted to a launch speed via
-	 *  KnockbackDuration, plus KnockbackLaunchStrength upward). No-ops once the monster is dead */
+	// 넉백 함수 // 협업용
 	virtual void ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor) override;
 
-	// ~end ICPKnockbackable
+public:
+	// StatComponent의 값을 참조
+	virtual UCPMonsterStatComponent* GetAIStatComponent() const override;
+
+	// FCPMonsterTemplate
+	virtual ECPMonsterMoveType GetAIMoveType() override;
+	virtual ECPMonsterAttackType GetAIAttackType() override;
+	virtual FCPMonsterProjectileStat GetAIProjectileStat() override;
+
+	// Wave별
+	virtual float GetAIMaxHealth() override;
+	virtual float GetAICurrentHealth() override;
+	virtual float GetAIMoveSpeed() override;
+	virtual float GetAIAttackPower() override;
+
+	// Default
+	virtual float GetAIAttackSpeed() override;
+	virtual float GetAIKnockbackPower() override;
+	virtual float GetAIDetectRange() override;
+	virtual float GetAICollisionRadius() override;
+	virtual float GetAIPatrolRadius() override;
+	virtual float GetAIAttackRange() override;
+	virtual float GetAITurnSpeed() override;
 
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
@@ -90,24 +102,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<UAnimMontage> DeadMontage;
 
-	// todo. Data Table 형태로
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
-	float CurrentHealth = 100.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
-	float CurrentSpeed = 100.0f;
-
-	/** Damage dealt to whatever AttackHitCheck hits */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
-	float AttackPower = 50.0f;
-
-	/** Converts ApplyKnockback's Distance into a launch speed: Speed = Distance / KnockbackDuration */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Knockback", meta = (ClampMin = 0.01, Units = "s"))
-	float KnockbackDuration = 0.2f;
-
-	/** Additional vertical launch speed applied on top of the horizontal knockback, for a "popped up" feel */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Knockback", meta = (Units = "cm/s"))
-	float KnockbackLaunchStrength = 1000.0f;
+	TObjectPtr< UCPMonsterStatComponent> StatComponent;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")

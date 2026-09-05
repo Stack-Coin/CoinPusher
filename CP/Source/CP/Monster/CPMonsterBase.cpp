@@ -19,6 +19,8 @@ ACPMonsterBase::ACPMonsterBase()
 
 	AIControllerClass = ACPMonsterAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+	StatComponent = CreateDefaultSubobject<UCPMonsterStatComponent>(TEXT("StatComponent"));
 }
 
 // Called when the game starts or when spawned
@@ -26,7 +28,17 @@ void ACPMonsterBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
+	if (StatComponent)
+	{
+		StatComponent->InitStat(ECPMonsterType::Normal, 1);
+	}
+
+	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
+
+	if (Collider)
+	{
+		Collider->SetCapsuleRadius(GetAICollisionRadius());
+	}
 }
 
 void ACPMonsterBase::AttackHitCheck()
@@ -46,9 +58,16 @@ void ACPMonsterBase::AttackHitCheck()
 
 	if (bResult)
 	{
-		if (HitResult.GetActor()->IsValidLowLevel())
+		AActor* HitActor = HitResult.GetActor();
+		if (HitActor && HitActor->IsValidLowLevel())
 		{
-			UGameplayStatics::ApplyDamage(HitResult.GetActor(), AttackPower, GetController(), this, UDamageType::StaticClass());
+			UGameplayStatics::ApplyDamage(HitActor, GetAIAttackPower(), GetController(), this, UDamageType::StaticClass());
+
+			// KnockbackPower 스탯만큼 맞은 대상을 밀어냄 (ICPKnockbackable을 구현한 대상만)
+			if (ICPKnockbackable* KnockbackTarget = Cast<ICPKnockbackable>(HitActor))
+			{
+				KnockbackTarget->ApplyKnockback(GetActorForwardVector(), GetAIKnockbackPower(), this);
+			}
 		}
 	}
 }
@@ -79,7 +98,7 @@ void ACPMonsterBase::Dead()
 		FActorSpawnParameters SpawnParms;
 		SpawnParms.Owner = this;
 		SpawnParms.Instigator = GetInstigator();
-		SpawnParms.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; 
+		SpawnParms.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 		ACPCoin* SpawnActor = GetWorld()->SpawnActor<ACPCoin>(CoinItem, Location, Rotation, SpawnParms);
 
@@ -116,26 +135,6 @@ void ACPMonsterBase::Dead()
 	SetLifeSpan(2.0f);
 }
 
-float ACPMonsterBase::GetAIPatrolRadius()
-{
-	return 800.0f;
-}
-
-float ACPMonsterBase::GetAIDetectRange()
-{
-	return 400.0f;
-}
-
-float ACPMonsterBase::GetAIAttackRange()
-{
-	return 500.0f;
-}
-
-float ACPMonsterBase::GetAITurnSpeed()
-{
-	return 2.0f;
-}
-
 void ACPMonsterBase::SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished)
 {
 	OnAttackFinished = InOnAttackFinished;
@@ -160,11 +159,14 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 {
 	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-	CurrentHealth -= DamageAmount;
-
-	if (CurrentHealth <= 0)
+	if (StatComponent)
 	{
-		Dead();
+		StatComponent->CurrentHealth -= DamageAmount;
+
+		if (StatComponent->CurrentHealth <= 0.0f)
+		{
+			Dead();
+		}
 	}
 
 	return DamageAmount;
@@ -177,10 +179,91 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 		return;
 	}
 
-	ApplyCPKnockbackToCharacter(this, Direction, Distance, KnockbackDuration, KnockbackLaunchStrength);
+	// KnockbackDuration/KnockbackLaunchStrength 프로퍼티가 제거되어, 기존에 쓰던 기본값을 그대로 리터럴로 사용
+	// (필요하면 나중에 별도 프로퍼티나 DefaultStat 쪽으로 다시 옮길 수 있음)
+	ApplyCPKnockbackToCharacter(this, Direction, Distance, 0.2f, 1000.0f);
 }
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
 {
 	OnAttackFinished.ExecuteIfBound();
+}
+
+// 몬스터 스텟 컴포넌트
+UCPMonsterStatComponent* ACPMonsterBase::GetAIStatComponent() const
+{
+	return StatComponent;
+}
+
+// 몬스터 템플릿
+ECPMonsterMoveType ACPMonsterBase::GetAIMoveType()
+{
+	return StatComponent ? StatComponent->MonsterTemplete.MoveType : ECPMonsterMoveType::Walking;
+}
+
+ECPMonsterAttackType ACPMonsterBase::GetAIAttackType()
+{
+	return StatComponent ? StatComponent->MonsterTemplete.AttackType : ECPMonsterAttackType::Melee;
+}
+
+FCPMonsterProjectileStat ACPMonsterBase::GetAIProjectileStat()
+{
+	return StatComponent ? StatComponent->MonsterTemplete.ProjectileStat : FCPMonsterProjectileStat();
+}
+
+// 웨이브에 따른 수치 변화 있음
+float ACPMonsterBase::GetAIMaxHealth()
+{
+	return StatComponent ? StatComponent->MaxHealth : 0.0f;
+}
+
+float ACPMonsterBase::GetAICurrentHealth()
+{
+	return StatComponent ? StatComponent->CurrentHealth : 0.0f;
+}
+
+float ACPMonsterBase::GetAIMoveSpeed()
+{
+	return StatComponent ? StatComponent->MoveSpeed : 0.0f;
+}
+
+float ACPMonsterBase::GetAIAttackPower()
+{
+	return StatComponent ? StatComponent->AttackPower : 0.0f;
+}
+
+// 웨이브에 따른 수치 변화 없음
+float ACPMonsterBase::GetAIAttackSpeed()
+{
+	return StatComponent ? StatComponent->DefaultStat.AttackSpeed : 1.0f;
+}
+
+float ACPMonsterBase::GetAIKnockbackPower()
+{
+	return StatComponent ? StatComponent->DefaultStat.KnockbackPower : 0.0f;
+}
+
+float ACPMonsterBase::GetAIDetectRange()
+{
+	return StatComponent ? StatComponent->DefaultStat.DetectRange : 0.0f;
+}
+
+float ACPMonsterBase::GetAICollisionRadius()
+{
+	return StatComponent ? StatComponent->DefaultStat.CollisionRadius : 0.0f;
+}
+
+float ACPMonsterBase::GetAIPatrolRadius()
+{
+	return StatComponent ? StatComponent->DefaultStat.PatrolRadius : 0.0f;
+}
+
+float ACPMonsterBase::GetAIAttackRange()
+{
+	return StatComponent ? StatComponent->DefaultStat.AttackRange : 0.0f;
+}
+
+float ACPMonsterBase::GetAITurnSpeed()
+{
+	return StatComponent ? StatComponent->DefaultStat.TurnSpeed : 0.0f;
 }

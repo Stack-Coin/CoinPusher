@@ -35,7 +35,7 @@ bool UCPBTDecorator_NexusAttackInRange::CalculateRawConditionValue(UBehaviorTree
 	}
 
 	float DistanceToTarget = ControllingPawn->GetDistanceTo(Target);
-	float AttackRangeWithRadius = 300.0f;
+	float AttackRangeWithRadius = AIPawn->GetAIAttackRange();
 
 	bResult = (DistanceToTarget <= AttackRangeWithRadius);
 	return bResult;
