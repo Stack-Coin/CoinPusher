@@ -11,21 +11,6 @@
 #include "../CoinPusher/CPCoin.h"
 #include "CPMonsterBase.generated.h"
 
-/*
-// todo. 공격 피격 테스트 + TakeDamage 구현됐는지 + Trace Channel 및 Collision Preset 설정
-// todo. 사망 구현 및 사망 시 item drop
-// todo. spawner
-
-// todo. Knock Back
-// todo. 체력바
-
-// todo. mesh 겹침
-// todo. 애니메이션
-// todo. 오브젝트 풀링
-
-// todo. 모듈화 (Stat Component 등...)
-*/
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMonsterDied);
 
 UCLASS()
@@ -40,7 +25,8 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	
+	virtual void Tick(float DeltaSeconds) override;
+
 public:
 	// 공격 판정 함수
 	virtual void AttackHitCheck() override;
@@ -73,9 +59,13 @@ public:
 	virtual float GetAIPatrolRadius() override;
 	virtual float GetAIAttackRange() override;
 	virtual float GetAITurnSpeed() override;
+	virtual float GetAIMoveAcceptableRadius() override;
 
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
+
+protected:
+	void SeparateFromOtherMonsters(float DeltaSeconds);
 
 public:
 	FAICharacterAttackFinished OnAttackFinished;
@@ -110,4 +100,11 @@ protected:
 
 protected:
 	int8 bIsDead : 1 = false;
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Separation")
+	float SeparationPadding = 70.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Separation")
+	float SeparationSpeed = 400.f;
 };

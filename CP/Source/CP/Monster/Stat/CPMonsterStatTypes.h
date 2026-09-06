@@ -42,6 +42,11 @@ struct FCPMonsterDefaultStat
 	/** 타겟을 향해 회전하는 속도 (AIController 구현에 맞춰 사용) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float TurnSpeed = 0.f;
+
+	/** MoveTo(BT)로 이동할 때 목표 지점에서 이 반경 안에 들어오면 도착으로 간주함 (cm).
+	 * 근접형은 작게, 원거리형은 공격 사거리만큼 크게 잡아서 너무 가까이 붙지 않고 멈추도록 함 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float MoveAcceptableRadius = 0.f;
 };
 
 USTRUCT(BlueprintType)

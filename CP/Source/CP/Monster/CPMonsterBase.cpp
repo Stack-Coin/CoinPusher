@@ -10,6 +10,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
 #include "BrainComponent.h"
+#include "Engine/OverlapResult.h"
 
 // Sets default values
 ACPMonsterBase::ACPMonsterBase()
@@ -30,21 +31,35 @@ void ACPMonsterBase::BeginPlay()
 
 	if (StatComponent)
 	{
-		// MonsterType 프로퍼티 값으로 BaseStatTable의 RowName(Normal/Tanker/Ranged)을 대조해 스탯을 가져옴
 		StatComponent->InitStat(MonsterType, 1);
 	}
 
 	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
 
-	// MonsterType에 따른 이동 방식 자동 설정 (일반형/탱커형 = 보행, 원거리형 = 부유)
-	if (MonsterType == ECPMonsterType::Ranged)
-	{
-		GetCharacterMovement()->SetMovementMode(MOVE_Flying);
-	}
-
 	if (Collider)
 	{
 		Collider->SetCapsuleRadius(GetAICollisionRadius());
+	}
+
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->bUseRVOAvoidance = true;
+		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * 3.f;
+		MoveComp->AvoidanceWeight = 0.5f;
+
+		// 몬스터끼리만 서로 피하도록 그룹 마스크 설정
+		MoveComp->SetAvoidanceGroup(1);
+		MoveComp->SetGroupsToAvoid(1);
+	}
+}
+
+void ACPMonsterBase::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!bIsDead)
+	{
+		SeparateFromOtherMonsters(DeltaSeconds);
 	}
 }
 
@@ -196,6 +211,66 @@ void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrup
 	OnAttackFinished.ExecuteIfBound();
 }
 
+void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
+{
+	const float MyRadius = GetAICollisionRadius();
+	if (MyRadius <= 0.f)
+	{
+		return;
+	}
+
+	// 콜리전 반경 + 여유 간격보다 살짝 넓게 잡아서 그 범위 안에 있는 다른 몬스터를 찾음
+	const float SearchRadius = (MyRadius + SeparationPadding) * 2.5f;
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams Params(NAME_None, false, this);
+	GetWorld()->OverlapMultiByObjectType
+	(
+		Overlaps,
+		GetActorLocation(),
+		FQuat::Identity,
+		FCollisionObjectQueryParams(ECC_Pawn),
+		FCollisionShape::MakeSphere(SearchRadius),
+		Params
+	);
+
+	FVector PushDirection = FVector::ZeroVector;
+	int32 NeighborCount = 0;
+
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		ACPMonsterBase* Other = Cast<ACPMonsterBase>(Overlap.GetActor());
+		if (!Other || Other == this || Other->bIsDead)
+		{
+			continue;
+		}
+
+		// 수평을 기준으로 실제 몬스터 간의 거리 판단
+		FVector Delta = GetActorLocation() - Other->GetActorLocation();
+		Delta.Z = 0.f;
+		const float Distance = Delta.Size();
+
+		// 콜리전 반경끼리 딱 닿기 전에 SeparationPadding만큼 여유를 두고 몬스터 간의 거리 판단
+		const float MinDistance = MyRadius + Other->GetAICollisionRadius() + SeparationPadding;
+
+		if (Distance < MinDistance && Distance > KINDA_SMALL_NUMBER)
+		{
+			// 겹친 비율이 클수록(가까울수록) 세게 밀어냄
+			const float W = (MinDistance - Distance) / MinDistance;
+			PushDirection += Delta.GetSafeNormal() * W;
+			++NeighborCount;
+		}
+	}
+
+	if (NeighborCount > 0)
+	{
+		//정규화하면 항상 같은 세기로만 밀려나서, 몬스터 군집에서는 힘이 서로 상쇄됨. 
+		// 정규화하지 않고 최대 1.5배로만 클램프로, 많이 겹칠수록 더 세게 밀려나도록 함.
+		const FVector PushVector = PushDirection.GetClampedToMaxSize(1.5f);
+		AddActorWorldOffset(PushVector * SeparationSpeed * DeltaSeconds, true);
+	}
+}
+
 // 몬스터 스텟 컴포넌트
 UCPMonsterStatComponent* ACPMonsterBase::GetAIStatComponent() const
 {
@@ -257,4 +332,9 @@ float ACPMonsterBase::GetAIAttackRange()
 float ACPMonsterBase::GetAITurnSpeed()
 {
 	return StatComponent ? StatComponent->DefaultStat.TurnSpeed : 0.0f;
+}
+
+float ACPMonsterBase::GetAIMoveAcceptableRadius()
+{
+	return StatComponent ? StatComponent->DefaultStat.MoveAcceptableRadius : 0.0f;
 }

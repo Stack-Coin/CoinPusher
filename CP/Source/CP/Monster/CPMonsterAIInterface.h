@@ -41,6 +41,7 @@ public:
 	virtual float GetAIPatrolRadius() = 0;
 	virtual float GetAIAttackRange() = 0;
 	virtual float GetAITurnSpeed() = 0;
+	virtual float GetAIMoveAcceptableRadius() = 0;
 
 	/**
 	 * 최대체력 / 공격력 / 공격속도 / 넉백 / 콜리전 등,
