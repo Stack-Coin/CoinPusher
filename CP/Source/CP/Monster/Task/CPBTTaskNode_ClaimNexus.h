@@ -4,24 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "BehaviorTree/BTTaskNode.h"
-#include "CPBTTaskNode_FindCloseNexus.generated.h"
+#include "CPBTTaskNode_ClaimNexus.generated.h"
 
-class UBlackboardComponent;
-
-/**
- *
- */
 UCLASS()
-class CP_API UCPBTTaskNode_FindCloseNexus : public UBTTaskNode
+class CP_API UCPBTTaskNode_ClaimNexus : public UBTTaskNode
 {
 	GENERATED_BODY()
 
 public:
-	UCPBTTaskNode_FindCloseNexus();
+	UCPBTTaskNode_ClaimNexus();
 
 protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
-
-private:
-	EBTNodeResult::Type FindRandomWaypoint(APawn* ControllingPawn, UBlackboardComponent& Blackboard) const;
 };
