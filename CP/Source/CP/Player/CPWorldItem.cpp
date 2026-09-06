@@ -5,6 +5,7 @@
 #include "Player/CPItemInventory.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Debug/CPDebugCollisionShapeComponent.h"
 
 ACPWorldItem::ACPWorldItem()
 {
@@ -14,6 +15,11 @@ ACPWorldItem::ACPWorldItem()
 	SetRootComponent(InteractionRange);
 	InteractionRange->InitSphereRadius(150.0f);
 	InteractionRange->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+
+	DebugPickupShape = CreateDefaultSubobject<UCPDebugCollisionShapeComponent>(TEXT("DebugPickupShape"));
+	DebugPickupShape->Category = ECPDebugCollisionCategory::ItemPickup;
+	DebugPickupShape->ShapeColor = FColor::Cyan;
+	DebugPickupShape->SetTargetComponent(InteractionRange);
 
 	ItemMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ItemMesh"));
 	ItemMesh->SetupAttachment(InteractionRange);

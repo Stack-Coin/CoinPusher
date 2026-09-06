@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/TimerHandle.h"
 #include "Weapon/CPWeaponBase.h"
+#include "Debug/CPDebugTypes.h"
 #include "CPMeleeWeapon.generated.h"
 
 class UCPAttackModule;
@@ -90,6 +91,9 @@ protected:
 
 	// ~begin ACPWeaponBase
 
+	/** Subscribes to UCPDebugCollisionSubsystem so the F1 debug widget's PlayerWeapon checkbox can drive bDrawDebugAttackShape */
+	virtual void BeginPlay() override;
+
 	/** Schedules ExecuteMeleeHit after the swing's AttackTiming (or runs it immediately if AttackTiming is 0) */
 	virtual void ExecuteAttack(int32 ComboIndex) override;
 
@@ -97,6 +101,10 @@ protected:
 	virtual void CancelAttack() override;
 
 	// ~end ACPWeaponBase
+
+	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged */
+	UFUNCTION()
+	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
 
 	/** Runs the hit-scan shape trace for ComboSteps[PendingHitComboIndex] and applies damage/knockback/effects/modules to everything it hits. Public entry point for a future Animation Notify */
 	UFUNCTION(BlueprintCallable, Category="Melee")

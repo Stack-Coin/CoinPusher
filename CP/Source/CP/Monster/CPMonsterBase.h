@@ -7,8 +7,11 @@
 #include "Monster/CPMonsterAttackInterface.h"
 #include "Monster/CPMonsterAIInterface.h"
 #include "Weapon/CPKnockbackInterface.h"
-#include "../CoinPusher/CPCoin.h"
+#include "Player/CPCoinItem.h"
+#include "Debug/CPDebugTypes.h"
 #include "CPMonsterBase.generated.h"
+
+class UCPDebugCollisionShapeComponent;
 
 /*
 // todo. 공격 피격 테스트 + TakeDamage 구현됐는지 + Trace Channel 및 Collision Preset 설정
@@ -39,7 +42,11 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	
+
+	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Reacts to MonsterAttackRange */
+	UFUNCTION()
+	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
+
 public:
 	// 공격 판정 함수
 	virtual void AttackHitCheck() override;
@@ -79,7 +86,15 @@ public:
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
 	TObjectPtr<UCapsuleComponent> Collider;
-	
+
+	/** Draws GetCapsuleComponent()'s wireframe while the F1 debug widget's EnemyHitbox checkbox is on */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCPDebugCollisionShapeComponent> DebugHitboxShape;
+
+	/** If true, AttackHitCheck draws its sweep shape. Driven by the F1 debug widget's MonsterAttackRange checkbox */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
+	bool bDrawDebugAttackRange = false;
+
 	// todo. Data Asset 형태로
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterMesh")
 	TObjectPtr<USkeletalMeshComponent> MonsterMesh;
@@ -110,8 +125,11 @@ protected:
 	float KnockbackLaunchStrength = 1000.0f;
 
 protected:
+	/** Coin pickup spawned in the field on death (ACPCoinItem - walk-over auto-collect, distinct from the
+	 *  physics-simulated ACPCoin used by the coin-pusher machine, which only ever gets collected by
+	 *  falling into ACPDropZone and can't be picked up out in the field) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TSubclassOf<ACPCoin> CoinItem;
+	TSubclassOf<ACPCoinItem> CoinItem;
 
 protected:
 	int8 bIsDead : 1 = false;

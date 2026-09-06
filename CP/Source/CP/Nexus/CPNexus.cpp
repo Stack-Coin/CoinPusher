@@ -13,6 +13,7 @@
 #include "Monster/Task/CPAI.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "Debug/CPDebugCollisionShapeComponent.h"
 
 int32 ACPNexus::GlobalRemainingRespawns = 2;
 
@@ -35,6 +36,11 @@ ACPNexus::ACPNexus()
 
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	Mesh->SetupAttachment(CollisionSphere);
+
+	DebugCollisionShape = CreateDefaultSubobject<UCPDebugCollisionShapeComponent>(TEXT("DebugCollisionShape"));
+	DebugCollisionShape->Category = ECPDebugCollisionCategory::CoinNexus;
+	DebugCollisionShape->ShapeColor = FColor::Yellow;
+	DebugCollisionShape->SetTargetComponent(CollisionSphere);
 
 	HpBar = CreateDefaultSubobject<UWidgetComponent>(TEXT("HpBar"));
 	HpBar->SetupAttachment(CollisionSphere);

@@ -8,6 +8,7 @@
 #include "Monster/CPMonsterAIInterface.h"
 #include "Monster/Task/CPAI.h"
 #include "../../Player/CPPlayerCharacter.h"
+#include "Debug/CPDebugCollisionSubsystem.h"
 
 UCPBTService_Detect::UCPBTService_Detect()
 {
@@ -40,6 +41,11 @@ void UCPBTService_Detect::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* Nod
 
 	float DetectRadius = AIPawn->GetAIDetectRange();
 
+	// UBTService nodes are shared across every AI running this behavior tree (no per-instance state), so
+	// the F1 debug widget's MonsterDetectRange checkbox is read live here instead of cached in a member
+	const UCPDebugCollisionSubsystem* DebugSubsystem = World->GetSubsystem<UCPDebugCollisionSubsystem>();
+	const bool bDrawDebugDetectRange = DebugSubsystem && DebugSubsystem->IsCategoryVisible(ECPDebugCollisionCategory::MonsterDetectRange);
+
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionQueryParams CollisionQueryParams(SCENE_QUERY_STAT(Detect), false, ControllingPawn);
 
@@ -63,7 +69,10 @@ void UCPBTService_Detect::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* Nod
 			{
 				OwnerComp.GetBlackboardComponent()->SetValueAsObject(BBKEY_TARGET, Player);
 
-				DrawDebugSphere(World, Center, DetectRadius, 16, FColor::Green, false, 0.2f);
+				if (bDrawDebugDetectRange)
+				{
+					DrawDebugSphere(World, Center, DetectRadius, 16, FColor::Green, false, 0.2f);
+				}
 				return;
 			}
 		}
@@ -71,5 +80,8 @@ void UCPBTService_Detect::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* Nod
 
 	OwnerComp.GetBlackboardComponent()->SetValueAsObject(BBKEY_TARGET, nullptr);
 
-	DrawDebugSphere(World, Center, DetectRadius, 16, FColor::Red, false, 0.2f);
+	if (bDrawDebugDetectRange)
+	{
+		DrawDebugSphere(World, Center, DetectRadius, 16, FColor::Red, false, 0.2f);
+	}
 }

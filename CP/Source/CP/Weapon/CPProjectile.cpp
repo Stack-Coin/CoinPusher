@@ -10,6 +10,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
+#include "Debug/CPDebugCollisionSubsystem.h"
 
 namespace
 {
@@ -56,7 +57,30 @@ void ACPProjectile::BeginPlay()
 		SetLifeSpan(Range / ProjectileSpeed);
 	}
 
+	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
+	{
+		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPProjectile::HandleDebugCollisionVisibilityChanged);
+		bDrawDebugCollision = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::PlayerWeapon);
+	}
+
 	if (bDrawDebugCollision)
+	{
+		DrawDebugCollisionShape();
+		GetWorldTimerManager().SetTimer(DebugDrawTimerHandle, this, &ACPProjectile::DrawDebugCollisionShape, DebugDrawInterval, true);
+	}
+}
+
+void ACPProjectile::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
+{
+	if (Category != ECPDebugCollisionCategory::PlayerWeapon)
+	{
+		return;
+	}
+
+	bDrawDebugCollision = bVisible;
+	GetWorldTimerManager().ClearTimer(DebugDrawTimerHandle);
+
+	if (bVisible)
 	{
 		DrawDebugCollisionShape();
 		GetWorldTimerManager().SetTimer(DebugDrawTimerHandle, this, &ACPProjectile::DrawDebugCollisionShape, DebugDrawInterval, true);
