@@ -36,6 +36,12 @@ void ACPMonsterBase::BeginPlay()
 
 	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
 
+	// MonsterType에 따른 이동 방식 자동 설정 (일반형/탱커형 = 보행, 원거리형 = 부유)
+	if (MonsterType == ECPMonsterType::Ranged)
+	{
+		GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+	}
+
 	if (Collider)
 	{
 		Collider->SetCapsuleRadius(GetAICollisionRadius());
