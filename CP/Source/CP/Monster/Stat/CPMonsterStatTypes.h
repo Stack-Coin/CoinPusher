@@ -14,52 +14,6 @@ enum class ECPMonsterType : uint8
 	Ranged   UMETA(DisplayName = "원거리형"),
 };
 
-UENUM(BlueprintType)
-enum class ECPMonsterMoveType : uint8
-{
-	Walking   UMETA(DisplayName = "보행"),
-	Hovering  UMETA(DisplayName = "부유"),
-};
-
-UENUM(BlueprintType)
-enum class ECPMonsterAttackType : uint8
-{
-	Melee      UMETA(DisplayName = "근접 공격"),
-	Ranged     UMETA(DisplayName = "원거리"),
-};
-
-USTRUCT(BlueprintType)
-struct FCPMonsterProjectileStat
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
-	float Radius = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
-	TSubclassOf<AActor> ProjectileClass;
-};
-
-/**
- * - 일반형, 탱커형(보행형 + 오버랩)
- * - 원거리형(부유형 + 투사체)
- */
-USTRUCT(BlueprintType)
-struct FCPMonsterTemplate
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preset")
-	ECPMonsterMoveType MoveType = ECPMonsterMoveType::Walking;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preset")
-	ECPMonsterAttackType AttackType = ECPMonsterAttackType::Melee;
-
-	// AttackType == Projectile일 때만 설정 가능.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preset", meta = (EditCondition = "AttackType == ECPMonsterAttackType::Projectile"))
-	FCPMonsterProjectileStat ProjectileStat;
-};
-
 USTRUCT(BlueprintType)
 struct FCPMonsterDefaultStat
 {
@@ -69,7 +23,7 @@ struct FCPMonsterDefaultStat
 	float AttackSpeed = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float KnockbackPower = 0.f;
+	float KnockbackDistance = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float DetectRange = 0.f;
@@ -95,10 +49,6 @@ struct FCPMonsterStatRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	// 몬스터 템플릿
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	FCPMonsterTemplate Preset;
-
 	// 웨이브에 따른 수치 변화 있음
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Wave")
 	float MaxHealth = 0.f;
@@ -114,8 +64,9 @@ struct FCPMonsterStatRow : public FTableRowBase
 	FCPMonsterDefaultStat DefaultStat;
 };
 
+// 웨이브 1개에 대한 증가치
 USTRUCT(BlueprintType)
-struct FCPMonsterWaveStatRow : public FTableRowBase
+struct FCPMonsterWaveStat
 {
 	GENERATED_BODY()
 
@@ -130,4 +81,15 @@ struct FCPMonsterWaveStatRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
 	float AddAttackPower = 0.f;
+};
+
+// RowName은 BaseStatTable과 동일하게 MonsterType(Normal/Tanker/Ranged)을 사용하고,
+// 그 안에서 웨이브별 증가치를 배열로 관리
+USTRUCT(BlueprintType)
+struct FCPMonsterWaveStatRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
+	TArray<FCPMonsterWaveStat> WaveStats;
 };

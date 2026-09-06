@@ -27,11 +27,6 @@ class CP_API ICPMonsterAIInterface
 
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
-	// FCPMonsterTemplate
-	virtual ECPMonsterMoveType GetAIMoveType() = 0;
-	virtual ECPMonsterAttackType GetAIAttackType() = 0;
-	virtual FCPMonsterProjectileStat GetAIProjectileStat() = 0;
-
 	// Wave별
 	virtual float GetAIMaxHealth() = 0;
 	virtual float GetAICurrentHealth() = 0;
@@ -40,7 +35,7 @@ public:
 
 	// Default
 	virtual float GetAIAttackSpeed() = 0;
-	virtual float GetAIKnockbackPower() = 0;
+	virtual float GetAIKnockbackDistance() = 0;
 	virtual float GetAIDetectRange() = 0;
 	virtual float GetAICollisionRadius() = 0;
 	virtual float GetAIPatrolRadius() = 0;
@@ -48,7 +43,7 @@ public:
 	virtual float GetAITurnSpeed() = 0;
 
 	/**
-	 * 최대체력 / 이동방식 / 공격력 / 공격방식 / 공격속도 / 넉백 / 콜리전 / 투사체 등,
+	 * 최대체력 / 공격력 / 공격속도 / 넉백 / 콜리전 등,
 	 * 값이 늘어날 때마다 인터페이스 함수를 추가하는 대신 StatComponent 전체를 한 번에 참조하기 위한 통로.
 	 * (개별 필드가 필요하면 여기서 얻은 StatComponent의 property를 직접 읽으면 됨)
 	 */

@@ -21,8 +21,6 @@ FName UCPMonsterStatComponent::GetMonsterTypeRowName(ECPMonsterType InType)
 
 void UCPMonsterStatComponent::ResetStat()
 {
-	MonsterTemplete = FCPMonsterTemplate();
-
 	MaxHealth = 0.f;
 	CurrentHealth = 0.f;
 	MoveSpeed = 0.f;
@@ -39,30 +37,43 @@ void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InWav
 		return;
 	}
 
-	const FCPMonsterStatRow* BaseRow = BaseStatTable->FindRow<FCPMonsterStatRow>(GetMonsterTypeRowName(InMonsterType), TEXT("InitDefaultStat"));
+	// BaseStatTable / WaveStatTable 모두 RowName을 MonsterType(Normal/Tanker/Ranged)으로 통일해서 사용
+	const FName RowName = GetMonsterTypeRowName(InMonsterType);
 
+	const FCPMonsterStatRow* BaseRow = BaseStatTable->FindRow<FCPMonsterStatRow>(RowName, TEXT("InitDefaultStat"));
 	if (!BaseRow)
 	{
 		ResetStat();
 		return;
 	}
 
-	const FName WaveRowName = *FString::FromInt(InWave);
-	const FCPMonsterWaveStatRow* WaveRow = WaveStatTable->FindRow<FCPMonsterWaveStatRow>(WaveRowName, TEXT("InitWaveStat"));
+	if (!WaveStatTable)
+	{
+		ResetStat();
+		return;
+	}
 
-	if (!WaveRow)
+	const FCPMonsterWaveStatRow* WaveStatRow = WaveStatTable->FindRow<FCPMonsterWaveStatRow>(RowName, TEXT("InitWaveStat"));
+	if (!WaveStatRow)
+	{
+		ResetStat();
+		return;
+	}
+
+	// 같은 Row 안에서 웨이브 번호가 일치하는 항목을 찾음
+	const FCPMonsterWaveStat* WaveStat = WaveStatRow->WaveStats.FindByPredicate([InWave](const FCPMonsterWaveStat& Stat) { return Stat.Wave == InWave; });
+	if (!WaveStat)
 	{
 		ResetStat();
 		return;
 	}
 
 	// 웨이브에 따른 수치 변화 있음
-	MaxHealth   = BaseRow->MaxHealth   + WaveRow->AddMaxHealth;
+	MaxHealth   = BaseRow->MaxHealth   + WaveStat->AddMaxHealth;
 	CurrentHealth = MaxHealth;
-	MoveSpeed   = BaseRow->MoveSpeed   + WaveRow->AddMoveSpeed;
-	AttackPower = BaseRow->AttackPower + WaveRow->AddAttackPower;
+	MoveSpeed   = BaseRow->MoveSpeed   + WaveStat->AddMoveSpeed;
+	AttackPower = BaseRow->AttackPower + WaveStat->AddAttackPower;
 
 	// 웨이브에 따른 수치 변화 없음
-	MonsterTemplete = BaseRow->Preset;       // 이동방식 + 공격방식 + (투사체)
-	DefaultStat     = BaseRow->DefaultStat;  // 공격속도 + 넉백 + 인식범위 + 콜리전
+	DefaultStat = BaseRow->DefaultStat;  // 공격속도 + 넉백 + 인식범위 + 콜리전
 }

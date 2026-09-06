@@ -33,10 +33,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Stat|DataTable")
 	TObjectPtr<UDataTable> WaveStatTable;
 
-	// 몬스터 타입
-	UPROPERTY(EditDefaultsOnly, Category = "Stat|Template")
-	FCPMonsterTemplate MonsterTemplete;
-
 	// 읽기 전용
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stat|Wave")
 	float MaxHealth = 0.f;

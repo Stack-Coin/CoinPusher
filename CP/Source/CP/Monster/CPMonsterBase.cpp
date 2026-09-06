@@ -30,7 +30,8 @@ void ACPMonsterBase::BeginPlay()
 
 	if (StatComponent)
 	{
-		StatComponent->InitStat(ECPMonsterType::Normal, 1);
+		// MonsterType 프로퍼티 값으로 BaseStatTable의 RowName(Normal/Tanker/Ranged)을 대조해 스탯을 가져옴
+		StatComponent->InitStat(MonsterType, 1);
 	}
 
 	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
@@ -66,7 +67,7 @@ void ACPMonsterBase::AttackHitCheck()
 			// KnockbackPower 스탯만큼 맞은 대상을 밀어냄 (ICPKnockbackable을 구현한 대상만)
 			if (ICPKnockbackable* KnockbackTarget = Cast<ICPKnockbackable>(HitActor))
 			{
-				KnockbackTarget->ApplyKnockback(GetActorForwardVector(), GetAIKnockbackPower(), this);
+				KnockbackTarget->ApplyKnockback(GetActorForwardVector(), GetAIKnockbackDistance(), this);
 			}
 		}
 	}
@@ -195,22 +196,6 @@ UCPMonsterStatComponent* ACPMonsterBase::GetAIStatComponent() const
 	return StatComponent;
 }
 
-// 몬스터 템플릿
-ECPMonsterMoveType ACPMonsterBase::GetAIMoveType()
-{
-	return StatComponent ? StatComponent->MonsterTemplete.MoveType : ECPMonsterMoveType::Walking;
-}
-
-ECPMonsterAttackType ACPMonsterBase::GetAIAttackType()
-{
-	return StatComponent ? StatComponent->MonsterTemplete.AttackType : ECPMonsterAttackType::Melee;
-}
-
-FCPMonsterProjectileStat ACPMonsterBase::GetAIProjectileStat()
-{
-	return StatComponent ? StatComponent->MonsterTemplete.ProjectileStat : FCPMonsterProjectileStat();
-}
-
 // 웨이브에 따른 수치 변화 있음
 float ACPMonsterBase::GetAIMaxHealth()
 {
@@ -238,9 +223,9 @@ float ACPMonsterBase::GetAIAttackSpeed()
 	return StatComponent ? StatComponent->DefaultStat.AttackSpeed : 1.0f;
 }
 
-float ACPMonsterBase::GetAIKnockbackPower()
+float ACPMonsterBase::GetAIKnockbackDistance()
 {
-	return StatComponent ? StatComponent->DefaultStat.KnockbackPower : 0.0f;
+	return StatComponent ? StatComponent->DefaultStat.KnockbackDistance : 0.0f;
 }
 
 float ACPMonsterBase::GetAIDetectRange()

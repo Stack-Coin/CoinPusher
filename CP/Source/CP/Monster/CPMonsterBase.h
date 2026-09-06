@@ -59,11 +59,6 @@ public:
 	// StatComponent의 값을 참조
 	virtual UCPMonsterStatComponent* GetAIStatComponent() const override;
 
-	// FCPMonsterTemplate
-	virtual ECPMonsterMoveType GetAIMoveType() override;
-	virtual ECPMonsterAttackType GetAIAttackType() override;
-	virtual FCPMonsterProjectileStat GetAIProjectileStat() override;
-
 	// Wave별
 	virtual float GetAIMaxHealth() override;
 	virtual float GetAICurrentHealth() override;
@@ -72,7 +67,7 @@ public:
 
 	// Default
 	virtual float GetAIAttackSpeed() override;
-	virtual float GetAIKnockbackPower() override;
+	virtual float GetAIKnockbackDistance() override;
 	virtual float GetAIDetectRange() override;
 	virtual float GetAICollisionRadius() override;
 	virtual float GetAIPatrolRadius() override;
@@ -102,8 +97,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<UAnimMontage> DeadMontage;
 
+	// BaseStatTable에서 이 값과 일치하는 RowName(Normal/Tanker/Ranged)의 스탯을 찾아옴
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
-	TObjectPtr< UCPMonsterStatComponent> StatComponent;
+	ECPMonsterType MonsterType = ECPMonsterType::Normal;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
+	TObjectPtr<UCPMonsterStatComponent> StatComponent;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
