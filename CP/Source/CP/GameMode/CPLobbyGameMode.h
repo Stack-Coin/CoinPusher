@@ -8,6 +8,8 @@
 #include "Engine/TimerHandle.h"
 #include "CPLobbyGameMode.generated.h"
 
+class UUserWidget;
+
 /** Broadcast whenever a player slot is assigned. PlayerIndex is 0-based (0 = P1, 1 = P2, ...) */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerJoined, int32, PlayerIndex);
 
@@ -19,13 +21,30 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPAllPlayersJoined);
  *  입력한 사람이 1P, 그 다음 처음 보는 장치로 입력한 사람이 2P가 되도록 순서대로 로컬 플레이어를
  *  배정한다. NumberOfPlayersToJoin명이 모두 배정되면 LevelLoadDelay초 후 NextLevelName 레벨을 연다.
  *  UCPPlayerJoinWidget이 감지한 입력을 RegisterPlayerInput으로 전달해준다.
+ *
+ *  BeginPlay에서 StartWidgetClass(보통 UCPPressAnyKeyWidget 상속 WBP)를 자동으로 화면에 띄워주므로,
+ *  레벨 블루프린트 등에서 따로 위젯을 생성/배치할 필요 없이 이 GameMode를 상속하는 BP를 만들어
+ *  StartWidgetClass/NextLevelName 등만 Class Defaults에서 지정하면 바로 동작한다.
+ *  PlayerControllerClass는 기본적으로 ACPLobbyPlayerController로 지정된다.
  */
 UCLASS(abstract)
 class CP_API ACPLobbyGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
+public:
+
+	ACPLobbyGameMode();
+
 protected:
+
+	/** 레벨 시작 시 자동으로 화면에 띄울 위젯 (보통 "아무 버튼이나 눌러 시작하세요" 화면인
+	 *  UCPPressAnyKeyWidget 상속 WBP). 그 위젯이 자신의 NextWidgetClass를 통해 참가 화면
+	 *  (UCPPlayerJoinWidget 상속 WBP)으로 스스로 전환해준다 */
+	UPROPERTY(EditDefaultsOnly, Category="Lobby")
+	TSubclassOf<UUserWidget> StartWidgetClass;
+
+	virtual void BeginPlay() override;
 
 	/** 참가를 기다릴 플레이어 수 (로컬 2인 플레이면 2) */
 	UPROPERTY(EditDefaultsOnly, Category="Lobby", meta = (ClampMin = 1, ClampMax = 4))

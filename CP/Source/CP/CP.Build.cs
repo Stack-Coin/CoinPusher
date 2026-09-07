@@ -19,6 +19,7 @@ public class CP : ModuleRules
 			"GameplayStateTreeModule",
 			"UMG",
 			"Slate",
+			"SlateCore",
 			"NavigationSystem",
 			"GameplayTasks"
 		});
@@ -42,9 +43,6 @@ public class CP : ModuleRules
 			"CP/Variant_SideScrolling/Interfaces",
 			"CP/Variant_SideScrolling/UI"
 		});
-
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
