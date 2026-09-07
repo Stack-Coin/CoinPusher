@@ -16,6 +16,7 @@
 #include "Weapon/CPAimDirectionInterface.h"
 #include "Player/CPWeaponEquipper.h"
 #include "Weapon/CPKnockbackInterface.h"
+#include "Debug/CPDebugTypes.h"
 #include "CPPlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -27,6 +28,7 @@ struct FInputActionValue;
 class UCPWeaponManagerComponent;
 class ACPWeaponBase;
 class ACPRoulette;
+class UCPDebugCollisionShapeComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -71,6 +73,10 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	 *  timer. Always overlap-active; the overlap handlers no-op unless bIsDowned is true */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	USphereComponent* ReviveDetectionRange;
+
+	/** Draws GetCapsuleComponent()'s wireframe while the F1 debug widget's PlayerHitbox checkbox is on */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UCPDebugCollisionShapeComponent* DebugHitboxShape;
 
 protected:
 
@@ -351,6 +357,15 @@ protected:
 	/** Draws ReviveDetectionRange's sphere at its current location. Called on DebugReviveRangeTimerHandle
 	 *  while bDrawDebugReviveRange is true */
 	void DrawDebugReviveRangeShape() const;
+
+	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Reacts to PlayerWeapon (the legacy
+	 *  unarmed attack box) and PlayerRevive (ReviveDetectionRange) - the other categories are handled by
+	 *  DebugHitboxShape directly */
+	UFUNCTION()
+	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
+
+	/** Starts/stops DebugReviveRangeTimerHandle and updates bDrawDebugReviveRange to match */
+	void SetReviveRangeDebugDrawEnabled(bool bEnabled);
 
 	/** Pushes current revive progress (elapsed time out of ReviveDuration) to ReviveGaugeComponent. Bound
 	 *  to ReviveGaugeUpdateTimerHandle while a revive attempt is in progress */

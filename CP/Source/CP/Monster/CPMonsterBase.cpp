@@ -10,6 +10,9 @@
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
 #include "BrainComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Debug/CPDebugCollisionShapeComponent.h"
+#include "Debug/CPDebugCollisionSubsystem.h"
 
 // Sets default values
 ACPMonsterBase::ACPMonsterBase()
@@ -19,6 +22,11 @@ ACPMonsterBase::ACPMonsterBase()
 
 	AIControllerClass = ACPMonsterAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+	DebugHitboxShape = CreateDefaultSubobject<UCPDebugCollisionShapeComponent>(TEXT("DebugHitboxShape"));
+	DebugHitboxShape->Category = ECPDebugCollisionCategory::EnemyHitbox;
+	DebugHitboxShape->ShapeColor = FColor::Orange;
+	DebugHitboxShape->SetTargetComponent(GetCapsuleComponent());
 }
 
 // Called when the game starts or when spawned
@@ -27,22 +35,49 @@ void ACPMonsterBase::BeginPlay()
 	Super::BeginPlay();
 
 	GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
+
+	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
+	{
+		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPMonsterBase::HandleDebugCollisionVisibilityChanged);
+		bDrawDebugAttackRange = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::MonsterAttackRange);
+	}
+}
+
+void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
+{
+	if (Category == ECPDebugCollisionCategory::MonsterAttackRange)
+	{
+		bDrawDebugAttackRange = bVisible;
+	}
 }
 
 void ACPMonsterBase::AttackHitCheck()
 {
+	const FVector SweepStart = GetActorLocation();
+	const FVector SweepEnd = SweepStart + GetActorForwardVector() * GetAIAttackRange();
+	constexpr float SweepRadius = 10.f;
+
 	FHitResult HitResult;
 	FCollisionQueryParams Params(NAME_None, false, this);
 	bool bResult = GetWorld()->SweepSingleByChannel
 	(
 		HitResult,
-		GetActorLocation(),
-		GetActorLocation() + GetActorForwardVector() * GetAIAttackRange(),
+		SweepStart,
+		SweepEnd,
 		FQuat::Identity,
 		ECollisionChannel::ECC_GameTraceChannel1, // todo. 코인 푸셔 및 캐릭터 채널 파기
-		FCollisionShape::MakeSphere(10.f),
+		FCollisionShape::MakeSphere(SweepRadius),
 		Params
 	);
+
+	if (bDrawDebugAttackRange)
+	{
+		// Visualizes the swept sphere (Start->End, radius SweepRadius) as the equivalent capsule
+		const FVector Center = (SweepStart + SweepEnd) * 0.5f;
+		const float HalfHeight = (SweepEnd - SweepStart).Size() * 0.5f + SweepRadius;
+		const FQuat CapsuleRotation = FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat();
+		DrawDebugCapsule(GetWorld(), Center, HalfHeight, SweepRadius, CapsuleRotation, bResult ? FColor::Red : FColor::Orange, false, 0.5f, 0, 1.5f);
+	}
 
 	if (bResult)
 	{
@@ -81,7 +116,7 @@ void ACPMonsterBase::Dead()
 		SpawnParms.Instigator = GetInstigator();
 		SpawnParms.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; 
 
-		ACPCoin* SpawnActor = GetWorld()->SpawnActor<ACPCoin>(CoinItem, Location, Rotation, SpawnParms);
+		ACPCoinItem* SpawnActor = GetWorld()->SpawnActor<ACPCoinItem>(CoinItem, Location, Rotation, SpawnParms);
 
 		if (SpawnActor)
 		{

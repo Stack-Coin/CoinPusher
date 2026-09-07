@@ -9,10 +9,30 @@
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
+#include "Debug/CPDebugCollisionSubsystem.h"
 
 ACPMeleeWeapon::ACPMeleeWeapon()
 {
 	WeaponType = ECPWeaponType::Melee;
+}
+
+void ACPMeleeWeapon::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
+	{
+		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPMeleeWeapon::HandleDebugCollisionVisibilityChanged);
+		bDrawDebugAttackShape = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::PlayerWeapon);
+	}
+}
+
+void ACPMeleeWeapon::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
+{
+	if (Category == ECPDebugCollisionCategory::PlayerWeapon)
+	{
+		bDrawDebugAttackShape = bVisible;
+	}
 }
 
 void ACPMeleeWeapon::ExecuteAttack(int32 ComboIndex)

@@ -5,12 +5,14 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "../Player/CPInteractable.h"
+#include "Debug/CPDebugTypes.h"
 #include "CPNexus.generated.h"
 
 class UStaticMeshComponent;
 class USphereComponent;
 class UWidgetComponent;
 class UCPUserWidget_NexusHpBar;
+class UCPDebugCollisionShapeComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNexusInteracted, AActor*, Interactor);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNexusHpChanged, ACPNexus*, Nexus, float, NewCurrentHp);
@@ -68,6 +70,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	USphereComponent* CollisionSphere;
+
+	/** Draws CollisionSphere's wireframe while the F1 debug widget's CoinNexus checkbox is on */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UCPDebugCollisionShapeComponent* DebugCollisionShape;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))

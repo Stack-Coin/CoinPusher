@@ -22,6 +22,8 @@
 #include "Player/CPTopDownPlayerController.h"
 #include "Player/CPGameMode.h"
 #include "UI/CPRadialGaugeComponent.h"
+#include "Debug/CPDebugCollisionSubsystem.h"
+#include "Debug/CPDebugCollisionShapeComponent.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -79,6 +81,10 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	// effect - InitSphereRadius here only seeds a sane editor-time default
 	ReviveDetectionRange->OnComponentBeginOverlap.AddDynamic(this, &ACPPlayerCharacter::OnReviveRangeBeginOverlap);
 	ReviveDetectionRange->OnComponentEndOverlap.AddDynamic(this, &ACPPlayerCharacter::OnReviveRangeEndOverlap);
+
+	DebugHitboxShape = CreateDefaultSubobject<UCPDebugCollisionShapeComponent>(TEXT("DebugHitboxShape"));
+	DebugHitboxShape->Category = ECPDebugCollisionCategory::PlayerHitbox;
+	DebugHitboxShape->SetTargetComponent(GetCapsuleComponent());
 }
 
 void ACPPlayerCharacter::BeginPlay()
@@ -90,7 +96,37 @@ void ACPPlayerCharacter::BeginPlay()
 	ReviveDetectionRange->SetSphereRadius(ReviveDetectionRadius);
 	ReviveDetectionRange->ShapeColor = DebugReviveRangeColor;
 
-	if (bDrawDebugReviveRange)
+	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
+	{
+		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPPlayerCharacter::HandleDebugCollisionVisibilityChanged);
+		bDrawDebugAttackBox = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::PlayerWeapon);
+		SetReviveRangeDebugDrawEnabled(Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::PlayerRevive));
+	}
+	else if (bDrawDebugReviveRange)
+	{
+		DrawDebugReviveRangeShape();
+		GetWorldTimerManager().SetTimer(DebugReviveRangeTimerHandle, this, &ACPPlayerCharacter::DrawDebugReviveRangeShape, ReviveDebugDrawInterval, true);
+	}
+}
+
+void ACPPlayerCharacter::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
+{
+	if (Category == ECPDebugCollisionCategory::PlayerWeapon)
+	{
+		bDrawDebugAttackBox = bVisible;
+	}
+	else if (Category == ECPDebugCollisionCategory::PlayerRevive)
+	{
+		SetReviveRangeDebugDrawEnabled(bVisible);
+	}
+}
+
+void ACPPlayerCharacter::SetReviveRangeDebugDrawEnabled(bool bEnabled)
+{
+	bDrawDebugReviveRange = bEnabled;
+	GetWorldTimerManager().ClearTimer(DebugReviveRangeTimerHandle);
+
+	if (bEnabled)
 	{
 		DrawDebugReviveRangeShape();
 		GetWorldTimerManager().SetTimer(DebugReviveRangeTimerHandle, this, &ACPPlayerCharacter::DrawDebugReviveRangeShape, ReviveDebugDrawInterval, true);

@@ -7,6 +7,9 @@
 #include "CPTopDownPlayerController.generated.h"
 
 class UInputMappingContext;
+class UInputAction;
+struct FInputActionValue;
+class UCPDebugWidget;
 
 /**
  *  PlayerController for the top-down / quarter view action prototype.
@@ -23,6 +26,19 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input|Input Mappings")
 	TArray<UInputMappingContext*> DefaultMappingContexts;
 
+	/** Shows/hides the F1 debug widget (player stats + collision visualization checkboxes). Only takes
+	 *  effect for the local player who owns the keyboard/mouse - see IsUsingKeyboardAndMouse() */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* ToggleDebugWidgetAction;
+
+	/** Widget Blueprint (inheriting UCPDebugWidget) shown/hidden by ToggleDebugWidgetAction (F1 by default) */
+	UPROPERTY(EditDefaultsOnly, Category="Debug")
+	TSubclassOf<UCPDebugWidget> DebugWidgetClass;
+
+	/** Created lazily the first time the debug widget is toggled on, then reused */
+	UPROPERTY()
+	TObjectPtr<UCPDebugWidget> DebugWidgetInstance;
+
 public:
 
 	/** Constructor */
@@ -35,6 +51,10 @@ protected:
 
 	/** Input mapping context setup */
 	virtual void SetupInputComponent() override;
+
+	/** Bound to ToggleDebugWidgetAction. Creates DebugWidgetInstance on first use, then shows/hides it.
+	 *  No-ops for a player not on keyboard/mouse, or if DebugWidgetClass is unset */
+	void ToggleDebugWidget(const FInputActionValue& Value);
 
 public:
 

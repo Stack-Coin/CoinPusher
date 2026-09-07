@@ -3,9 +3,11 @@
 #include "Player/CPCoinItem.h"
 #include "Player/CPCoinWallet.h"
 #include "Player/CPGameMode.h"
+#include "Player/CPInteractor.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "GameFramework/Pawn.h"
+#include "Debug/CPDebugCollisionShapeComponent.h"
+#include "TimerManager.h"
 
 ACPCoinItem::ACPCoinItem()
 {
@@ -16,11 +18,30 @@ ACPCoinItem::ACPCoinItem()
 	CollisionSphere->InitSphereRadius(50.0f);
 	CollisionSphere->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
 
+	DebugPickupShape = CreateDefaultSubobject<UCPDebugCollisionShapeComponent>(TEXT("DebugPickupShape"));
+	DebugPickupShape->Category = ECPDebugCollisionCategory::ItemPickup;
+	DebugPickupShape->ShapeColor = FColor::Cyan;
+	DebugPickupShape->SetTargetComponent(CollisionSphere);
+
 	CoinMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CoinMesh"));
 	CoinMesh->SetupAttachment(CollisionSphere);
 	CoinMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	CollisionSphere->OnComponentBeginOverlap.AddDynamic(this, &ACPCoinItem::OnCollisionSphereBeginOverlap);
+}
+
+void ACPCoinItem::BeginPlay()
+{
+	Super::BeginPlay();
+
+	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetWorldTimerManager().SetTimer(PickupDelayTimerHandle, this, &ACPCoinItem::EnableCollection, PickupDelay, false);
+}
+
+void ACPCoinItem::EnableCollection()
+{
+	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CollisionSphere->UpdateOverlaps();
 }
 
 void ACPCoinItem::Tick(float DeltaTime)
@@ -32,9 +53,9 @@ void ACPCoinItem::Tick(float DeltaTime)
 
 void ACPCoinItem::OnCollisionSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// Coins are picked up by pawns (the player) - the wallet itself now lives on ACPGameMode (team-shared),
-	// not on whatever overlapped, so this just gates on "a pawn touched it" instead of an ICPCoinWallet cast
-	if (bCollected || !Cast<APawn>(OtherActor))
+	// Gate on ICPInteractor (implemented only by the player) rather than "any Pawn touched it" - a monster's
+	// own corpse is a Pawn too and can easily still be sitting right on top of a coin it just dropped
+	if (bCollected || !Cast<ICPInteractor>(OtherActor))
 	{
 		return;
 	}

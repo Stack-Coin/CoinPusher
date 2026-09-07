@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Engine/TimerHandle.h"
+#include "Debug/CPDebugTypes.h"
 #include "CPProjectile.generated.h"
 
 class USphereComponent;
@@ -112,4 +113,9 @@ protected:
 
 	/** Draws CollisionComp's sphere at its current location. Called on DebugDrawTimerHandle while bDrawDebugCollision is true */
 	void DrawDebugCollisionShape() const;
+
+	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Starts/stops DebugDrawTimerHandle
+	 *  to match the F1 debug widget's PlayerWeapon checkbox */
+	UFUNCTION()
+	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
 };
