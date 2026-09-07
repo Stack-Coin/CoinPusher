@@ -48,6 +48,9 @@ public:
 
 	bool IsDead() const { return bIsDead; }
 
+	// 월드에 있는 Nexus 중 파괴되지 않은 것을 대상으로
+	static ACPNexus* FindClosestLivingNexus(const UObject* WorldContextObject, const FVector& FromLocation);
+
 	//static void ResetGlobalRespawnBudget() { GlobalRemainingRespawns = 2; }
 
 protected:
