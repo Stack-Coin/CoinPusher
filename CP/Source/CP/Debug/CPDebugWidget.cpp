@@ -4,10 +4,14 @@
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "Components/TextBlock.h"
 #include "Components/CheckBox.h"
+#include "Components/EditableText.h"
+#include "Components/Button.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/CPStatInterface.h"
 #include "Player/CPWeaponEquipper.h"
 #include "Weapon/CPWeaponBase.h"
+#include "Player/CPGameMode.h"
+#include "Player/CPPlayerCharacter.h"
 
 void UCPDebugWidget::NativeConstruct()
 {
@@ -53,6 +57,22 @@ void UCPDebugWidget::NativeConstruct()
 	if (ItemPickupCheckBox)
 	{
 		ItemPickupCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandleItemPickupCheckChanged);
+	}
+	if (SetTeamCoinButton)
+	{
+		SetTeamCoinButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleSetTeamCoinClicked);
+	}
+	if (SetTeamTicketButton)
+	{
+		SetTeamTicketButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleSetTeamTicketClicked);
+	}
+	if (Player1InvincibleCheckBox)
+	{
+		Player1InvincibleCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayer1InvincibleCheckChanged);
+	}
+	if (Player2InvincibleCheckBox)
+	{
+		Player2InvincibleCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayer2InvincibleCheckChanged);
 	}
 
 	RefreshPlayerInfo();
@@ -177,4 +197,51 @@ void UCPDebugWidget::HandleCoinNexusCheckChanged(bool bIsChecked)
 void UCPDebugWidget::HandleItemPickupCheckChanged(bool bIsChecked)
 {
 	SetCategoryVisible(ECPDebugCollisionCategory::ItemPickup, bIsChecked);
+}
+
+void UCPDebugWidget::HandleSetTeamCoinClicked()
+{
+	if (!TeamCoinInputText)
+	{
+		return;
+	}
+
+	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+	{
+		// Adds to the current count rather than replacing it - this is an "add N coins" button, not a
+		// "set the count to N" one, so clicking it repeatedly with the same input keeps incrementing
+		GameMode->AddCoin(FCString::Atoi(*TeamCoinInputText->GetText().ToString()));
+	}
+}
+
+void UCPDebugWidget::HandleSetTeamTicketClicked()
+{
+	if (!TeamTicketInputText)
+	{
+		return;
+	}
+
+	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+	{
+		// Adds to the current count rather than replacing it - see HandleSetTeamCoinClicked
+		GameMode->AddTeamTickets(FCString::Atoi(*TeamTicketInputText->GetText().ToString()));
+	}
+}
+
+void UCPDebugWidget::HandlePlayer1InvincibleCheckChanged(bool bIsChecked)
+{
+	SetPlayerDebugInvincible(0, bIsChecked);
+}
+
+void UCPDebugWidget::HandlePlayer2InvincibleCheckChanged(bool bIsChecked)
+{
+	SetPlayerDebugInvincible(1, bIsChecked);
+}
+
+void UCPDebugWidget::SetPlayerDebugInvincible(int32 PlayerIndex, bool bEnabled)
+{
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), PlayerIndex)))
+	{
+		PlayerCharacter->SetDebugInvincible(bEnabled);
+	}
 }
