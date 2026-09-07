@@ -302,7 +302,7 @@ void ACPPlayerCharacter::DoDash()
 	DashDirection = GetLastMovementWorldDirection();
 
 	bIsDashing = true;
-	bIsInvincible = true;
+	BeginInvincibility();
 
 	const float DashSpeed = DashDuration > 0.0f ? (DashDistance / DashDuration) : DashDistance;
 	LaunchCharacter(DashDirection * DashSpeed, true, true);
@@ -465,12 +465,41 @@ void ACPPlayerCharacter::PerformAttack()
 void ACPPlayerCharacter::EndDash()
 {
 	bIsDashing = false;
-	bIsInvincible = false;
+	EndInvincibilityRequest();
+}
+
+void ACPPlayerCharacter::BeginInvincibility()
+{
+	++InvincibilityRequestCount;
+}
+
+void ACPPlayerCharacter::EndInvincibilityRequest()
+{
+	InvincibilityRequestCount = FMath::Max(InvincibilityRequestCount - 1, 0);
+}
+
+void ACPPlayerCharacter::SetDebugInvincible(bool bEnabled)
+{
+	if (bIsDebugInvincible == bEnabled)
+	{
+		return;
+	}
+
+	bIsDebugInvincible = bEnabled;
+
+	if (bEnabled)
+	{
+		BeginInvincibility();
+	}
+	else
+	{
+		EndInvincibilityRequest();
+	}
 }
 
 float ACPPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	if (bIsInvincible || bIsDowned)
+	if (IsInvincible() || bIsDowned)
 	{
 		return 0.0f;
 	}
@@ -487,7 +516,7 @@ float ACPPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 
 void ACPPlayerCharacter::ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor)
 {
-	if (bIsInvincible || bIsDowned)
+	if (IsInvincible() || bIsDowned)
 	{
 		return;
 	}
@@ -600,6 +629,14 @@ void ACPPlayerCharacter::Revive()
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 
 	SetStat(ECPStatType::Health, HealthRange.Max * ReviveHealthPercent);
+
+	// Brief invincibility window right after coming back up, so a nearby monster can't immediately
+	// down the character again before they can react
+	if (PostReviveInvincibilityDuration > 0.0f)
+	{
+		BeginInvincibility();
+		GetWorldTimerManager().SetTimer(PostReviveInvincibilityTimerHandle, this, &ACPPlayerCharacter::EndInvincibilityRequest, PostReviveInvincibilityDuration, false);
+	}
 
 	OnPlayerRevived.Broadcast();
 }

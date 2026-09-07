@@ -9,6 +9,8 @@
 
 class UTextBlock;
 class UCheckBox;
+class UEditableText;
+class UButton;
 
 /**
  *  UCPDebugWidget
@@ -67,6 +69,30 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* ItemPickupCheckBox;
 
+	/** Amount added to the team coin count when SetTeamCoinButton is clicked (see ACPGameMode::AddCoin) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* TeamCoinInputText;
+
+	/** Adds TeamCoinInputText's value to the team coin count via ACPGameMode::AddCoin */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* SetTeamCoinButton;
+
+	/** Amount added to the team ticket count when SetTeamTicketButton is clicked (see ACPGameMode::AddTeamTickets) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* TeamTicketInputText;
+
+	/** Adds TeamTicketInputText's value to the team ticket count via ACPGameMode::AddTeamTickets */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* SetTeamTicketButton;
+
+	/** Toggles invincibility for local player 0 (see ACPPlayerCharacter::SetDebugInvincible) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UCheckBox* Player1InvincibleCheckBox;
+
+	/** Toggles invincibility for local player 1 (see ACPPlayerCharacter::SetDebugInvincible) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UCheckBox* Player2InvincibleCheckBox;
+
 protected:
 
 	/** Binds every checkbox and applies UCPDebugCollisionSubsystem's current state to them */
@@ -110,4 +136,22 @@ protected:
 
 	UFUNCTION()
 	void HandleItemPickupCheckChanged(bool bIsChecked);
+
+	/** Bound to SetTeamCoinButton. Parses TeamCoinInputText and adds it via ACPGameMode::AddCoin */
+	UFUNCTION()
+	void HandleSetTeamCoinClicked();
+
+	/** Bound to SetTeamTicketButton. Parses TeamTicketInputText and adds it via ACPGameMode::AddTeamTickets */
+	UFUNCTION()
+	void HandleSetTeamTicketClicked();
+
+	UFUNCTION()
+	void HandlePlayer1InvincibleCheckChanged(bool bIsChecked);
+
+	UFUNCTION()
+	void HandlePlayer2InvincibleCheckChanged(bool bIsChecked);
+
+	/** Casts UGameplayStatics::GetPlayerPawn(GetWorld(), PlayerIndex) to ACPPlayerCharacter and calls
+	 *  SetDebugInvincible(bEnabled) on it, if valid. Shared by HandlePlayer1/2InvincibleCheckChanged */
+	void SetPlayerDebugInvincible(int32 PlayerIndex, bool bEnabled);
 };
