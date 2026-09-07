@@ -31,6 +31,13 @@ void UCPMonsterStatComponent::ResetStat()
 
 void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InWave)
 {
+	// 기획자가 디테일 패널에서 넣어둔 값을 그대로 테스트하고 싶을 때 사용. DataTable 조회를 아예 건너뜀
+	if (bOverrideStat)
+	{
+		CurrentHealth = MaxHealth;
+		return;
+	}
+
 	if (!BaseStatTable)
 	{
 		ResetStat();
