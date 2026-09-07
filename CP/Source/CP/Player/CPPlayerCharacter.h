@@ -16,6 +16,7 @@
 #include "Weapon/CPAimDirectionInterface.h"
 #include "Player/CPWeaponEquipper.h"
 #include "Weapon/CPKnockbackInterface.h"
+#include "Debug/CPDebugTypes.h"
 #include "CPPlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -27,6 +28,7 @@ struct FInputActionValue;
 class UCPWeaponManagerComponent;
 class ACPWeaponBase;
 class ACPRoulette;
+class UCPDebugCollisionShapeComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -71,6 +73,10 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	 *  timer. Always overlap-active; the overlap handlers no-op unless bIsDowned is true */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	USphereComponent* ReviveDetectionRange;
+
+	/** Draws GetCapsuleComponent()'s wireframe while the F1 debug widget's PlayerHitbox checkbox is on */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UCPDebugCollisionShapeComponent* DebugHitboxShape;
 
 protected:
 
@@ -206,6 +212,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Revive", meta = (ClampMin = 0, ClampMax = 1))
 	float ReviveHealthPercent = 0.5f;
 
+	/** How long this character stays invincible immediately after being revived */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Revive", meta = (ClampMin = 0, Units = "s"))
+	float PostReviveInvincibilityDuration = 1.5f;
+
 	/** If true, redraws ReviveDetectionRange's sphere at its current location on a short repeating timer.
 	 *  Uses DebugReviveRangeColor normally, and turns red automatically while a character is downed */
 	UPROPERTY(EditAnywhere, Category="Stats|Revive|Debug")
@@ -219,8 +229,16 @@ protected:
 	/** True while the dash movement is in progress */
 	bool bIsDashing = false;
 
-	/** True while the character cannot take damage (driven by the dash) */
-	bool bIsInvincible = false;
+	/** Number of active invincibility sources (dash, the post-revive window, a debug override via
+	 *  SetDebugInvincible). Damage/knockback are ignored whenever this is > 0. Use BeginInvincibility()/
+	 *  EndInvincibilityRequest() to add/remove a source instead of tracking a single bool directly, so
+	 *  overlapping windows (e.g. a dash ending while a post-revive window is still active) don't cancel
+	 *  each other out */
+	int32 InvincibilityRequestCount = 0;
+
+	/** True while SetDebugInvincible(true) is active - tracked separately so a redundant call doesn't
+	 *  double up (or a mismatched call double-remove) an InvincibilityRequestCount entry */
+	bool bIsDebugInvincible = false;
 
 	/** Game time the last attack was performed */
 	float LastAttackTime = -1000.0f;
@@ -254,6 +272,9 @@ protected:
 	/** Redraws ReviveDetectionRange's sphere at its current location. Bound to DebugReviveRangeTimerHandle
 	 *  when bDrawDebugReviveRange is true */
 	FTimerHandle DebugReviveRangeTimerHandle;
+
+	/** Ends the post-revive invincibility window (see PostReviveInvincibilityDuration). Started in Revive() */
+	FTimerHandle PostReviveInvincibilityTimerHandle;
 
 	/** Items the player has picked up. Never modify directly - go through AddOwnedItem/ICPItemInventory */
 	UPROPERTY(BlueprintReadOnly, Category="Item")
@@ -352,6 +373,15 @@ protected:
 	 *  while bDrawDebugReviveRange is true */
 	void DrawDebugReviveRangeShape() const;
 
+	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Reacts to PlayerWeapon (the legacy
+	 *  unarmed attack box) and PlayerRevive (ReviveDetectionRange) - the other categories are handled by
+	 *  DebugHitboxShape directly */
+	UFUNCTION()
+	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
+
+	/** Starts/stops DebugReviveRangeTimerHandle and updates bDrawDebugReviveRange to match */
+	void SetReviveRangeDebugDrawEnabled(bool bEnabled);
+
 	/** Pushes current revive progress (elapsed time out of ReviveDuration) to ReviveGaugeComponent. Bound
 	 *  to ReviveGaugeUpdateTimerHandle while a revive attempt is in progress */
 	void UpdateReviveGaugeDisplay();
@@ -415,6 +445,12 @@ protected:
 
 	/** Ends the dash movement and invincibility window */
 	void EndDash();
+
+	/** Adds one invincibility source (dash starting, a post-revive window, a debug override) */
+	void BeginInvincibility();
+
+	/** Removes one invincibility source. Clamped at 0, so a mismatched extra call is harmless */
+	void EndInvincibilityRequest();
 
 	/** Pushes current stat values onto the systems that use them (e.g. MoveSpeed -> MaxWalkSpeed) */
 	void ApplyStatsToGameplay();
@@ -523,9 +559,15 @@ public:
 	UFUNCTION(BlueprintPure, Category="Combat")
 	bool IsAttackLocked() const { return bIsAttackLocked; }
 
-	/** Returns true while the character is invincible */
+	/** Returns true while the character is invincible, for any reason (dash, post-revive window, or a
+	 *  debug override) */
 	UFUNCTION(BlueprintPure, Category="Dash")
-	bool IsInvincible() const { return bIsInvincible; }
+	bool IsInvincible() const { return InvincibilityRequestCount > 0; }
+
+	/** Debug-only: force this character invincible (or not) regardless of dash/revive state, until
+	 *  toggled off again. Used by the F1 debug widget's per-player invincibility checkbox */
+	UFUNCTION(BlueprintCallable, Category="Dash")
+	void SetDebugInvincible(bool bEnabled);
 
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }

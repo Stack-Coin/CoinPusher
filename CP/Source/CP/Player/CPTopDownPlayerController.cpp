@@ -2,9 +2,13 @@
 
 #include "Player/CPTopDownPlayerController.h"
 #include "EnhancedInputSubsystems.h"
+#include "EnhancedInputComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
+#include "InputActionValue.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "Blueprint/UserWidget.h"
+#include "Debug/CPDebugWidget.h"
 
 ACPTopDownPlayerController::ACPTopDownPlayerController()
 {
@@ -45,6 +49,37 @@ void ACPTopDownPlayerController::SetupInputComponent()
 			Subsystem->AddMappingContext(CurrentContext, 0);
 		}
 	}
+
+	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
+	{
+		EnhancedInputComponent->BindAction(ToggleDebugWidgetAction, ETriggerEvent::Started, this, &ACPTopDownPlayerController::ToggleDebugWidget);
+	}
+}
+
+void ACPTopDownPlayerController::ToggleDebugWidget(const FInputActionValue& Value)
+{
+	if (!IsUsingKeyboardAndMouse() || !DebugWidgetClass)
+	{
+		return;
+	}
+
+	if (!DebugWidgetInstance)
+	{
+		DebugWidgetInstance = CreateWidget<UCPDebugWidget>(this, DebugWidgetClass);
+		if (DebugWidgetInstance)
+		{
+			DebugWidgetInstance->AddToViewport(10);
+			DebugWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+
+	if (!DebugWidgetInstance)
+	{
+		return;
+	}
+
+	const bool bIsVisible = DebugWidgetInstance->GetVisibility() == ESlateVisibility::Visible;
+	DebugWidgetInstance->SetVisibility(bIsVisible ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 }
 
 bool ACPTopDownPlayerController::GetCursorWorldLocation(FVector& OutWorldLocation) const

@@ -6,10 +6,12 @@
 #include "GameFramework/Actor.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPItemTypes.h"
+#include "Debug/CPDebugTypes.h"
 #include "CPWorldItem.generated.h"
 
 class USphereComponent;
 class UStaticMeshComponent;
+class UCPDebugCollisionShapeComponent;
 
 /**
  *  A pickup an ICPInteractor (the player) must walk up to and press the Interact key to collect.
@@ -28,6 +30,10 @@ class CP_API ACPWorldItem : public AActor, public ICPInteractable
 	/** Purely visual, no collision */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* ItemMesh;
+
+	/** Draws InteractionRange's wireframe while the F1 debug widget's ItemPickup checkbox is on */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UCPDebugCollisionShapeComponent* DebugPickupShape;
 
 protected:
 

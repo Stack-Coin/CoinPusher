@@ -293,7 +293,12 @@ void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter
 		return;
 	}
 
-	HealthBarWidget->AddToPlayerScreen();
+	// AddToPlayerScreen ties the widget to that player's own split-screen viewport slot, which
+	// ToggleCameraMode's SetForceDisableSplitscreen(true) collapses away entirely for every player but the
+	// first - so 2P's health bar would vanish in single-camera mode. AddToViewport instead renders across
+	// the whole (shared) game viewport regardless of split-screen state, same as every other HUD widget
+	// here (ticket/coin/etc.) - the WBP's own left/right screen anchor still positions it correctly either way
+	HealthBarWidget->AddToViewport();
 
 	PlayerCharacter->OnHealthChanged.AddDynamic(HealthBarWidget, &UCPHealthBarWidget::UpdateHealth);
 	HealthBarWidget->UpdateHealth(PlayerCharacter->GetStat(ECPStatType::Health), PlayerCharacter->GetMaxHealth());

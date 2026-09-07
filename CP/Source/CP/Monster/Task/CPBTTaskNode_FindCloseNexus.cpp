@@ -6,7 +6,7 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "CPAI.h"
 #include "AIController.h"
-#include "Nexus/CPNexus.h"
+#include "Monster/CPMonsterWaypointArea.h"
 
 UCPBTTaskNode_FindCloseNexus::UCPBTTaskNode_FindCloseNexus()
 {
@@ -21,56 +21,35 @@ EBTNodeResult::Type UCPBTTaskNode_FindCloseNexus::ExecuteTask(UBehaviorTreeCompo
         return EBTNodeResult::Failed;
     }
 
-    TArray<AActor*> NexusActors;
-    UGameplayStatics::GetAllActorsOfClass(
-        GetWorld(),
-        ACPNexus::StaticClass(),
-        NexusActors
-    );
-
-    ACPNexus* ClosestNexus = nullptr;
-    float MinDistance = TNumericLimits<float>::Max();
-
-    for (AActor* Actor : NexusActors)
-    {
-        ACPNexus* Nexus = Cast<ACPNexus>(Actor);
-        if (!Nexus)
-        {
-            continue;
-        }
-
-        // ㅍㅏㄱㅗㅣㄷㅚㄴ 넥서스는 후보에서 제외
-        if (Nexus->IsDead())
-        {
-            continue;
-        }
-
-        const float Distance = FVector::Distance(ControllingPawn->GetActorLocation(), Nexus->GetActorLocation());
-
-        if (Distance < MinDistance)
-        {
-            MinDistance = Distance;
-            ClosestNexus = Nexus;
-        }
-    }
-
-    if (!ClosestNexus)
-    {
-        return EBTNodeResult::Failed;
-    }
-
     UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
     if (!Blackboard)
     {
         return EBTNodeResult::Failed;
     }
 
-    Blackboard->SetValueAsObject(BBKEY_NEXUS, ClosestNexus);
+    // Nexus가 파괴됐을 경우, 웨이포인트로 이동
+    // Nexus를 다시 찾는 건 UCPBTService_FindCloseNexus
+    return FindRandomWaypoint(ControllingPawn, *Blackboard);
+}
 
-    FVector PatrolPos = ClosestNexus->GetActorLocation();
-    PatrolPos.Z = 0.0f;
+EBTNodeResult::Type UCPBTTaskNode_FindCloseNexus::FindRandomWaypoint(APawn* ControllingPawn, UBlackboardComponent& Blackboard) const
+{
+    ACPMonsterWaypointArea* Area = Cast<ACPMonsterWaypointArea>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPMonsterWaypointArea::StaticClass()));
 
-    Blackboard->SetValueAsVector(BBKEY_PATROLPOS, PatrolPos);
+    if (!Area)
+    {
+        return EBTNodeResult::Failed;
+    }
+
+    FVector RandomPoint;
+    if (!Area->GetRandomPointInArea(RandomPoint, ControllingPawn))
+    {
+        return EBTNodeResult::Failed;
+    }
+
+    // 더 이상 노릴 Nexus가 없으니 타겟 정보도 비워줌
+    Blackboard.SetValueAsObject(BBKEY_NEXUS, nullptr);
+    Blackboard.SetValueAsVector(BBKEY_PATROLPOS, RandomPoint);
 
     return EBTNodeResult::Succeeded;
 }

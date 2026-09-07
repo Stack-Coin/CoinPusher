@@ -13,6 +13,7 @@
 #include "Monster/Task/CPAI.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "Debug/CPDebugCollisionShapeComponent.h"
 
 int32 ACPNexus::GlobalRemainingRespawns = 2;
 
@@ -25,7 +26,10 @@ ACPNexus::ACPNexus()
 	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
 	RootComponent = CollisionSphere;
 	CollisionSphere->InitSphereRadius(150.0f);
-	CollisionSphere->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+
+	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CollisionSphere->SetCollisionObjectType(ECollisionChannel::ECC_GameTraceChannel5); // Damageable
+	CollisionSphere->SetCollisionResponseToAllChannels(ECR_Overlap);
 
 	// ACPMonsterBase::AttackHitCheck()가 ECC_GameTraceChannel1로 SweepSingleByChannel로 검사
 	CollisionSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_GameTraceChannel1, ECR_Block);
@@ -35,6 +39,11 @@ ACPNexus::ACPNexus()
 
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	Mesh->SetupAttachment(CollisionSphere);
+
+	DebugCollisionShape = CreateDefaultSubobject<UCPDebugCollisionShapeComponent>(TEXT("DebugCollisionShape"));
+	DebugCollisionShape->Category = ECPDebugCollisionCategory::CoinNexus;
+	DebugCollisionShape->ShapeColor = FColor::Yellow;
+	DebugCollisionShape->SetTargetComponent(CollisionSphere);
 
 	HpBar = CreateDefaultSubobject<UWidgetComponent>(TEXT("HpBar"));
 	HpBar->SetupAttachment(CollisionSphere);
@@ -161,6 +170,39 @@ void ACPNexus::Dead()
 
 		GetWorld()->SpawnActor<ACPNexus>(GetClass(), FTransform(GetActorRotation(), SpawnLocation), SpawnParams);*/
 	}
+}
+
+ACPNexus* ACPNexus::FindClosestLivingNexus(const UObject* WorldContextObject, const FVector& FromLocation)
+{
+	UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull) : nullptr;
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	TArray<AActor*> NexusActors;
+	UGameplayStatics::GetAllActorsOfClass(World, ACPNexus::StaticClass(), NexusActors);
+
+	ACPNexus* ClosestNexus = nullptr;
+	float MinDistance = TNumericLimits<float>::Max();
+
+	for (AActor* Actor : NexusActors)
+	{
+		ACPNexus* Nexus = Cast<ACPNexus>(Actor);
+		if (!Nexus || Nexus->IsDead())
+		{
+			continue;
+		}
+
+		const float Distance = FVector::Distance(FromLocation, Nexus->GetActorLocation());
+		if (Distance < MinDistance)
+		{
+			MinDistance = Distance;
+			ClosestNexus = Nexus;
+		}
+	}
+
+	return ClosestNexus;
 }
 
 float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
