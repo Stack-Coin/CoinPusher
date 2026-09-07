@@ -12,6 +12,7 @@
 #include "BrainComponent.h"
 #include "Engine/OverlapResult.h"
 #include "DrawDebugHelpers.h"
+#include "TimerManager.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
 
@@ -119,12 +120,6 @@ void ACPMonsterBase::AttackHitCheck()
 		if (HitActor && HitActor->IsValidLowLevel())
 		{
 			UGameplayStatics::ApplyDamage(HitActor, GetAIAttackPower(), GetController(), this, UDamageType::StaticClass());
-
-			// KnockbackPower 스탯만큼 맞은 대상을 밀어냄 (ICPKnockbackable을 구현한 대상만)
-			if (ICPKnockbackable* KnockbackTarget = Cast<ICPKnockbackable>(HitActor))
-			{
-				KnockbackTarget->ApplyKnockback(GetActorForwardVector(), GetAIKnockbackDistance(), this);
-			}
 		}
 	}
 }
@@ -258,14 +253,89 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 
 void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor)
 {
+	const float CurrentHealth = GetAICurrentHealth();
+
 	if (bIsDead)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Blocked (dead) | Health=%.1f Distance(param)=%.1f"), *GetName(), CurrentHealth, Distance);
 		return;
 	}
 
-	// KnockbackDuration/KnockbackLaunchStrength 프로퍼티가 제거되어, 기존에 쓰던 기본값을 그대로 리터럴로 사용
-	// (필요하면 나중에 별도 프로퍼티나 DefaultStat 쪽으로 다시 옮길 수 있음)
-	ApplyCPKnockbackToCharacter(this, Direction, Distance, 0.2f, 1000.0f);
+	// 수평 방향만 사용
+	FVector FlatDirection = Direction;
+	FlatDirection.Z = 0.0f;
+
+	if (!FlatDirection.Normalize())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Blocked (direction) | Health=%.1f Distance(param)=%.1f"), *GetName(), CurrentHealth, Distance);
+		return;
+	}
+
+	// 몬스터 타입별로 조절 가능
+	const float KnockbackDuration = GetAIKnockbackDuration();
+	const float Speed = KnockbackDuration > 0.0f ? (Distance / KnockbackDuration) : Distance;
+
+	// TEST
+	//constexpr float TestKnockbackDistance = 300.0f;
+	//const float Speed = KnockbackDuration > 0.0f ? (TestKnockbackDistance / KnockbackDuration) : TestKnockbackDistance;
+
+	// 이중 넉백 방지는 Z(수직)에만 적용
+	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	const bool bWithinZCooldown = LastKnockbackTime >= 0.f && CurrentTime - LastKnockbackTime < KnockbackReapplyCooldown;
+
+	const float CurrentZVelocity = GetVelocity().Z;
+	float NewZVelocity = CurrentZVelocity;
+
+	if (bWithinZCooldown)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Z Blocked (cooldown) | Health=%.1f Distance(param)=%.1f"), *GetName(), CurrentHealth, Distance);
+	}
+	else
+	{
+		LastKnockbackTime = CurrentTime;
+		// 지금 갖고 있는 수직 속도 위에 KnockbackPower만큼 얹되, MaxKnockbackZVelocity를 넘지 않게 clamp
+		// (이미 공중에 떠 있는 상태에서 또 맞아도 무한정 높이 올라가지 않도록)
+		NewZVelocity = FMath::Min(CurrentZVelocity + GetAIKnockbackPower(), MaxKnockbackZVelocity);
+
+		UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Z Applied | Health=%.1f Distance(param)=%.1f NewZ=%.1f"), *GetName(), CurrentHealth, Distance, NewZVelocity);
+	}
+
+	// LaunchCharacter는 호출 즉시 MovementMode를 바꾸는 게 아니라, PendingLaunchVelocity를 예약만 해두고
+	// 실제 속도 적용 + MOVE_Falling 강제 전환은 "다음 무브먼트 틱"에 HandlePendingLaunch()가 처리함.
+	// 그래서 호출 전에 미리 Flying 여부를 저장해두고, 한 틱 늦춰서(SetTimerForNextTick) 복구해야 함
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	const bool bWasFlying = MoveComp && MoveComp->MovementMode == MOVE_Flying;
+
+	const FVector LaunchVelocity = FlatDirection * Speed + FVector(0.f, 0.f, NewZVelocity);
+
+	UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Launch | Health=%.1f Distance(param)=%.1f Speed=%.1f Launch=%s | MoveMode=%d Flying=%d"),
+		*GetName(), CurrentHealth, Distance, Speed,
+		*LaunchVelocity.ToString(),
+		MoveComp ? (int32)MoveComp->MovementMode.GetValue() : -1, bWasFlying ? 1 : 0);
+
+	LaunchCharacter(LaunchVelocity, true, true);
+
+	if (bWasFlying)
+	{
+		TWeakObjectPtr<ACPMonsterBase> WeakThis(this);
+		GetWorldTimerManager().SetTimerForNextTick([WeakThis]()
+			{
+				ACPMonsterBase* Monster = WeakThis.Get();
+				if (!Monster || Monster->bIsDead)
+				{
+					return;
+				}
+
+				if (UCharacterMovementComponent* MC = Monster->GetCharacterMovement())
+				{
+					// HandlePendingLaunch가 이 시점에는 이미 Falling으로 바꿔놓은 상태이므로, 그걸 다시 Flying으로 되돌림
+					if (MC->MovementMode == MOVE_Falling)
+					{
+						MC->SetMovementMode(MOVE_Flying);
+					}
+				}
+			});
+	}
 }
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
@@ -364,6 +434,16 @@ float ACPMonsterBase::GetAIAttackPower()
 float ACPMonsterBase::GetAIAttackSpeed()
 {
 	return StatComponent ? StatComponent->DefaultStat.AttackSpeed : 1.0f;
+}
+
+float ACPMonsterBase::GetAIKnockbackPower()
+{
+	return StatComponent ? StatComponent->DefaultStat.KnockbackPower : 250.0f;
+}
+
+float ACPMonsterBase::GetAIKnockbackDuration()
+{
+	return StatComponent ? StatComponent->DefaultStat.KnockbackDuration : 0.2f;
 }
 
 float ACPMonsterBase::GetAIKnockbackDistance()

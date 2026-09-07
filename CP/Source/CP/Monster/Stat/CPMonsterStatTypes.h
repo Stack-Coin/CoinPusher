@@ -22,6 +22,14 @@ struct FCPMonsterDefaultStat
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float AttackSpeed = 0.f;
 
+	/** 피격 시 위로 뜨는 정도 (LaunchCharacter의 수직 속도, cm/s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float KnockbackPower = 250.f;
+
+	/** 피격 시 밀려나는 데 걸리는 시간(초). KnockbackDistance를 이 시간 동안 이동할 속도로 환산해서 사용함 (Speed = Distance / Duration) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float KnockbackDuration = 0.2f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float KnockbackDistance = 0.f;
 

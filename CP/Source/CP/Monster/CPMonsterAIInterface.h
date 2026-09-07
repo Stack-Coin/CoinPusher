@@ -35,6 +35,8 @@ public:
 
 	// Default
 	virtual float GetAIAttackSpeed() = 0;
+	virtual float GetAIKnockbackPower() = 0;
+	virtual float GetAIKnockbackDuration() = 0;
 	virtual float GetAIKnockbackDistance() = 0;
 	virtual float GetAIDetectRange() = 0;
 	virtual float GetAICollisionRadius() = 0;
