@@ -12,6 +12,7 @@ enum class ECPMonsterType : uint8
 	Normal   UMETA(DisplayName = "일반형"),
 	Tanker   UMETA(DisplayName = "탱커형"),
 	Ranged   UMETA(DisplayName = "원거리형"),
+	Boss     UMETA(DisplayName = "보스"),
 };
 
 USTRUCT(BlueprintType)
@@ -57,6 +58,7 @@ struct FCPMonsterDefaultStat
 	float MoveAcceptableRadius = 0.f;
 };
 
+// 엑셀에서 작업하기 편하도록 구조체 수정
 USTRUCT(BlueprintType)
 struct FCPMonsterStatRow : public FTableRowBase
 {
@@ -72,16 +74,56 @@ struct FCPMonsterStatRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Wave")
 	float AttackPower = 0.f;
 
-	// 웨이브에 따른 수치 변화 없음
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Deafult")
-	FCPMonsterDefaultStat DefaultStat;
+	// 웨이브에 따른 수치 변화 없음 (기존 FCPMonsterDefaultStat 필드를 그대로 평탄화)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float AttackSpeed = 0.f;
+
+	/** 피격 시 위로 뜨는 정도 (LaunchCharacter의 수직 속도, cm/s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float KnockbackPower = 250.f;
+
+	/** 피격 시 밀려나는 데 걸리는 시간(초) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float KnockbackDuration = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float KnockbackDistance = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float DetectRange = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float CollisionRadius = 0.f;
+
+	/** 정찰 반경 (cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float PatrolRadius = 0.f;
+
+	/** 공격 사거리 (cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float AttackRange = 0.f;
+
+	/** 타겟을 향해 회전하는 속도 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float TurnSpeed = 0.f;
+
+	/** MoveTo(BT) 목표 지점 도착 판정 반경 (cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float MoveAcceptableRadius = 0.f;
 };
 
-// 웨이브 1개에 대한 증가치
+/**
+ * 웨이브 1개에 대한 증가치. RowName은 자유롭게(예: "Normal_W1") 넣고, 실제 조회는
+ * MonsterType+Wave 컬럼으로 합니다. 엑셀에서 한 줄 = 특정 타입의 특정 웨이브 증가치입니다.
+ */
 USTRUCT(BlueprintType)
-struct FCPMonsterWaveStat
+struct FCPMonsterWaveStatRow : public FTableRowBase
 {
 	GENERATED_BODY()
+
+	// BaseStatTable과 동일한 타입
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
+	ECPMonsterType MonsterType = ECPMonsterType::Normal;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
 	int32 Wave = 1;
@@ -94,15 +136,4 @@ struct FCPMonsterWaveStat
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
 	float AddAttackPower = 0.f;
-};
-
-// RowName은 BaseStatTable과 동일하게 MonsterType(Normal/Tanker/Ranged)을 사용하고,
-// 그 안에서 웨이브별 증가치를 배열로 관리
-USTRUCT(BlueprintType)
-struct FCPMonsterWaveStatRow : public FTableRowBase
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
-	TArray<FCPMonsterWaveStat> WaveStats;
 };

@@ -78,6 +78,20 @@ void ACPMonsterBase::Tick(float DeltaSeconds)
 	}
 }
 
+void ACPMonsterBase::ApplyWaveStat(int32 InWave)
+{
+	if (StatComponent)
+	{
+		StatComponent->InitStat(MonsterType, InWave);
+	}
+
+	// StatComponent가 갱신한 MoveSpeed를 실제 이동 속도에도 반영
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->MaxWalkSpeed = GetAIMoveSpeed();
+	}
+}
+
 void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
 {
 	if (Category == ECPDebugCollisionCategory::MonsterAttackRange)

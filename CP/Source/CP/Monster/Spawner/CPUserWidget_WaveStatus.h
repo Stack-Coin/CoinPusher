@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Monster/Spawner/CPMonsterSpawner.h"
+#include "Monster/Spawner/CPMonsterSpawnTypes.h"
 #include "CPUserWidget_WaveStatus.generated.h"
 
 /**
