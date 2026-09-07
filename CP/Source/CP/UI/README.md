@@ -82,9 +82,22 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 
 ### UI 전환
 
-- `UCPPressAnyKeyWidget` : 포커스를 가진 동안 아무 키/마우스/게임패드 입력이나 감지해
-  `OnAnyKeyPressed`(BlueprintAssignable)를 Broadcast. `NextWidgetClass`를 지정해두면 BP 작업
-  없이도 자동으로 그 위젯으로 전환됨 (타이틀 화면 "Press Any Button" 등)
+- `FCPAnyInputProcessor`(`CPAnyInputProcessor.h`, 헤더 온리) : 포커스/히트테스트와 완전히 무관하게
+  키보드/마우스/게임패드 입력을 가로채는 전역 `IInputProcessor`. 생성자에 키/마우스 콜백을
+  넘기면 그대로 호출해주는 얇은 래퍼
+- `UCPPressAnyKeyWidget` : `FCPAnyInputProcessor`를 `NativeConstruct`에서 등록(`NativeDestruct`
+  에서 해제)해서 아무 키/마우스/게임패드 입력이든 감지해 `OnAnyKeyPressed`(BlueprintAssignable)
+  를 Broadcast. `NextWidgetClass`를 지정해두면 BP 작업 없이도 자동으로 그 위젯으로 전환됨
+  (타이틀 화면 "Press Any Button" 등)
+
+  > **왜 `NativeOnKeyDown`/`SetUserFocus` 대신 `IInputProcessor`인가**: 처음엔
+  > `NativeOnKeyDown`/`NativeOnMouseButtonDown` + `SetUserFocus`로 구현했었는데, 실제로
+  > 테스트해보니 두 가지 이유로 신뢰할 수 없었다 - (1) 마우스 클릭이 위젯의 히트테스트 가능한
+  > 영역을 못 맞히면 클릭 자체가 포커스를 날려버림(`NativeOnFocusLost` Cause=Mouse), (2)
+  > 게임패드 입력은 `SetUserFocus`가 쓰는 레거시 `ControllerId` 기반 Slate User와 실제 게임패드
+  > 키 이벤트가 라우팅되는 Slate User가 서로 어긋나 포커스가 있어도 이벤트가 전달되지 않음.
+  > `IInputProcessor`는 Slate가 포커스/히트테스트로 이벤트를 어디로 보낼지 정하기 이전 단계에서
+  > 가로채므로 이 두 문제 모두와 무관하게 항상 동작한다
 
 ### 게임 종료 화면
 
@@ -101,10 +114,21 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   기존 `ACPGameMode::TryAssignGamepadToSecondPlayer`가 쓰는 것과 동일한
   `IPlatformInputDeviceMapper::Internal_ChangeInputDeviceUserMapping` API로 장치를 새 로컬
   플레이어에 리매핑한다. 배정할 때마다 `UCPPlayerRegistrySubsystem`에도 등록해서 다음 레벨에서
-  조회할 수 있게 한다
-- `UCPPlayerJoinWidget` : "아무 버튼이나 눌러 참가하세요" 화면에 놓는 위젯. 감지한 입력을
-  `ACPLobbyGameMode::RegisterPlayerInput`으로 전달하고, `OnPlayerJoined`를 구독해 배정 결과를
-  `OnPlayerSlotAssigned(PlayerIndex)`(BP 이벤트)로 알려준다
+  조회할 수 있게 한다. 생성자에서 `PlayerControllerClass`를 `ACPLobbyPlayerController`로
+  지정하고, `BeginPlay`에서 `StartWidgetClass`(보통 `UCPPressAnyKeyWidget` 상속 WBP)를 자동으로
+  `CreateWidget` + `AddToViewport`해준다 - 레벨 블루프린트 등에서 위젯을 따로 만들어 띄울
+  필요가 없다
+- `ACPLobbyPlayerController`(`CP/GameMode/`) : 로비 화면 전용 최소 구성 PlayerController.
+  `ACPTopDownPlayerController`처럼 Input Mapping Context를 추가하지 않는다 - 이 화면의 입력은
+  `UCPPressAnyKeyWidget`/`UCPPlayerJoinWidget`이 각자 `FCPAnyInputProcessor`로 직접 가로채므로
+  PlayerController가 입력 모드/포커스를 따로 관리해줄 필요가 없다
+- `UCPPlayerJoinWidget` : "아무 버튼이나 눌러 참가하세요" 화면에 놓는 위젯. `FCPAnyInputProcessor`
+  로 감지한 입력 장치를 `ACPLobbyGameMode::RegisterPlayerInput`으로 전달하고, `OnPlayerJoined`를
+  구독해 배정 결과를 `OnPlayerSlotAssigned(PlayerIndex)`(`BlueprintNativeEvent`)로 알려준다.
+  기본 구현이 `Player1Square`/`Player2Square`(둘 다 `BindWidgetOptional` `Image`)를 각각
+  `Player1Color`(기본 빨강)/`Player2Color`(기본 파랑)로 칠해준다 - 먼저 입력한 사람은 빨간
+  네모, 나중에 입력한 사람은 파란 네모로 표시됨. WBP에서 오버라이드해서 다른 연출(애니메이션,
+  텍스트 등)을 추가할 수도 있음
 - `UCPPlayerRegistrySubsystem`(`CP/GameMode/`, `UGameInstanceSubsystem`) : GameInstance에 붙어
   있어 `OpenLevel`로 레벨이 바뀌어도 살아남는다. 로비에서 배정된 "PlayerIndex(0=1P, 1=2P, ...) ↔
   PlatformUserId" 순서를 들고 있다가, 다음(실제 게임플레이) 레벨에서
@@ -112,29 +136,24 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   로 "이 플레이어/이 입력 장치가 지금 조종하는 Actor(Pawn)가 무엇인지"를 질의할 수 있게 해준다.
   Project Settings에 등록할 필요 없이 자동으로 생성됨
 
-#### 포커스/입력 모드 관련 참고 (게임패드 대응)
+#### 게임패드/마우스 대응 관련 히스토리 (왜 IInputProcessor 방식인가)
 
-`UCPPressAnyKeyWidget`/`UCPPlayerJoinWidget`은 게임패드 입력도 문제없이 받는다 - UMG는 포커스를
-가진 위젯에 게임패드 디지털 버튼(면 버튼, 숄더, 트리거 클릭 등)도 키보드 키와 동일하게
-`FKeyEvent`로 전달해준다(스틱을 기울이는 것 자체는 "버튼"이 아니라 감지되지 않음, L3/R3처럼
-스틱을 누르는 클릭 입력은 버튼이라 감지됨). 다만 두 가지가 반드시 갖춰져야 실제로 입력이
-위젯까지 도달한다:
+`UCPPressAnyKeyWidget`/`UCPPlayerJoinWidget`은 처음엔 `NativeOnKeyDown`/`NativeOnMouseButtonDown`
++ `SetInputMode(FInputModeUIOnly)` + `SetUserFocus`로 구현했었다. 실제 테스트(로그로 확인)에서
+두 가지 문제가 드러나 지금의 `FCPAnyInputProcessor` 방식으로 바꿨다:
 
-1. **PlayerController가 UI 입력 모드여야 함** - 기본 Game Only 모드에서는 UMG가 키/게임패드
-   입력을 아예 받지 못한다. 그래서 두 위젯 모두 `NativeConstruct`에서 자신을 소유한
-   PlayerController(`GetOwningPlayer()`, 없으면 `GetFirstPlayerController()`로 폴백)에
-   `SetInputMode(FInputModeUIOnly)`를 걸어준다
-2. **위젯이 실제로 키보드 포커스를 가지고 있어야 함** - `SetIsFocusable(true)` + `SetUserFocus(OwningController)`로 명시적으로 포커스를 준다 (`SetFocus()`는 내부적으로
-   `GetOwningPlayer()`만 쓰는데, World Context만으로 `CreateWidget`한 경우 등엔 이게 비어있어
-   조용히 실패할 수 있어 폴백을 직접 처리)
+1. **마우스**: 클릭이 위젯의 히트테스트 가능한 영역을 못 맞히면(위젯이 화면 전체를 덮지 않거나
+   Hit Test Invisible인 배경 등), 그 클릭 자체가 위젯의 포커스를 날려버린다
+   (`NativeOnFocusLost` `Cause=Mouse`) - 포커스가 없으니 당연히 `NativeOnKeyDown`도 안 불림
+2. **게임패드**: `SetUserFocus`는 내부적으로 `ULocalPlayer::GetControllerId()`(레거시 컨트롤러
+   ID)로 Slate User를 결정하는데, 실제 게임패드 키 이벤트는 최신 `FPlatformUserId`/
+   `FInputDeviceId` 체계로 라우팅된다. 이 둘이 어긋나면 포커스는 있는 것처럼 보여도
+   (`HasKeyboardFocus`가 true) 게임패드 이벤트는 그 포커스와 무관한 경로로 흘러가버려
+   `NativeOnKeyDown`이 끝내 호출되지 않는다
 
-`OnPlayerSlotAssigned`가 Blueprint에서 호출되지 않는 것처럼 보인다면 대부분 이 두 가지 중
-하나가 안 되어 있어서(예: 위젯을 띄운 후 다른 코드가 다시 `SetInputMode(FInputModeGameOnly)`를
-걸어버렸거나, 포커스가 다른 위젯으로 넘어간 경우) `NativeOnKeyDown` 자체가 안 불려서 그 뒤의
-`RegisterPlayerInput → OnPlayerJoined → HandlePlayerJoined → OnPlayerSlotAssigned`로 이어지는
-호출 체인이 통째로 실행되지 않는 것이다. 위 수정 이후에도 재현되면, 로비 레벨의 다른
-로직(레벨 블루프린트, 다른 위젯 등)이 이후에 입력 모드/포커스를 다시 바꾸고 있지 않은지
-확인해볼 것
+`IInputProcessor`는 Slate가 포커스/히트테스트를 기준으로 이벤트를 어디로 보낼지 정하기
+"이전" 단계에서 이벤트를 가로채므로 위 두 문제 모두와 무관하게 항상 동작한다. 그래서 두
+위젯 모두 포커스/입력 모드를 전혀 건드리지 않고, `FCPAnyInputProcessor`만으로 입력을 감지한다.
 
 ## 에디터에서 준비해야 할 것
 
@@ -149,9 +168,14 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 3. 실제 값을 들고 있는 쪽의 `BlueprintAssignable` 델리게이트(`ACPGameMode::OnTeamCoinCountChanged`
    / `OnTeamTicketCountChanged`, 직접 만든 체력 변경 델리게이트 등)를 BeginPlay에서 위 위젯/
    컴포넌트의 `Update*` 함수에 Bind Event로 연결
-4. 로컬 2인 참가 화면은 `ACPLobbyGameMode`를 상속하는 BP GameMode를 만들어 로비 레벨에 지정하고,
-   `NextLevelName`에 실제 게임플레이 레벨을 지정. `UCPPlayerJoinWidget` 상속 WBP를 로비 레벨에
-   띄워두면 첫 입력이 1P, 다음 입력이 2P로 배정되고 자동으로 다음 레벨이 열린다
+4. 로컬 2인 참가 화면(StartLevel 등)은 `ACPLobbyGameMode`를 상속하는 BP GameMode를 만들어
+   `StartWidgetClass`에 `UCPPressAnyKeyWidget` 상속 WBP를, `NextLevelName`에 실제 게임플레이
+   레벨을 지정한 뒤, 로비 레벨의 World Settings → GameMode Override에 그 BP를 지정한다.
+   `UCPPressAnyKeyWidget` 상속 WBP의 `NextWidgetClass`에는 `UCPPlayerJoinWidget` 상속 WBP를
+   지정 - 그러면 레벨 블루프린트 등에서 위젯을 직접 만들 필요 없이, 레벨을 열면 자동으로
+   Press Any Key 화면이 뜨고, 아무 키나 누르면 참가 화면으로 전환되고, 첫 입력이 1P, 다음
+   입력이 2P로 배정되면서 자동으로 다음 레벨이 열린다. `PlayerControllerClass`는
+   `ACPLobbyGameMode` 생성자가 `ACPLobbyPlayerController`로 자동 지정해주므로 별도 설정 불필요
 5. 게임플레이 레벨에서 "이 PlayerController/입력 장치가 조종하는 Actor가 뭔지" 알고 싶으면
    `GetGameInstance()->GetSubsystem<UCPPlayerRegistrySubsystem>()`으로 가져와
    `GetControlledActorForPlayerIndex(0)`(1P) / `GetControlledActorForPlayerIndex(1)`(2P) 등을
