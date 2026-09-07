@@ -107,17 +107,18 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 
 ### 로컬 2인 플레이 참가
 
-- `ACPLobbyGameMode`(`CP/GameMode/`) : 처음 입력한 장치(키보드/마우스든 게임패드든)를 1P로,
-  그 다음 처음 보는 장치를 2P로 순서대로 배정하는 GameMode. `RegisterPlayerInput(DeviceId)`가
-  호출될 때마다 처리하며, 지정한 인원수(`NumberOfPlayersToJoin`)가 모두 배정되면
-  `OnAllPlayersJoined`를 Broadcast하고 `LevelLoadDelay`초 후 `NextLevelName`을 연다.
-  기존 `ACPGameMode::TryAssignGamepadToSecondPlayer`가 쓰는 것과 동일한
-  `IPlatformInputDeviceMapper::Internal_ChangeInputDeviceUserMapping` API로 장치를 새 로컬
-  플레이어에 리매핑한다. 배정할 때마다 `UCPPlayerRegistrySubsystem`에도 등록해서 다음 레벨에서
-  조회할 수 있게 한다. 생성자에서 `PlayerControllerClass`를 `ACPLobbyPlayerController`로
-  지정하고, `BeginPlay`에서 `StartWidgetClass`(보통 `UCPPressAnyKeyWidget` 상속 WBP)를 자동으로
-  `CreateWidget` + `AddToViewport`해준다 - 레벨 블루프린트 등에서 위젯을 따로 만들어 띄울
-  필요가 없다
+- `ACPLobbyGameMode`(`CP/GameMode/`) : `UCPPlayerJoinWidget`이 뜬 뒤 처음 입력을 발생시킨 장치
+  (키보드/마우스든 게임패드든)를 1P(PlayerIndex 0)로, 그 다음 처음 보는 장치를 2P(PlayerIndex 1)로
+  "누른 순서" 그대로 배정하는 GameMode - 이미 존재하는 Player 0 컨트롤러를 재사용하는 게 아니라,
+  실제로 가장 먼저 입력한 장치가 PlayerIndex 0을 차지한다. `RegisterPlayerInput(DeviceId)`가
+  호출될 때마다 처리하며, 이 단계에서는 새 로컬 플레이어를 만들거나 장치를 리매핑하지 않고
+  "이 장치가 몇 번째 플레이어인지" 정보만 `UCPPlayerRegistrySubsystem`에 등록해 다음 레벨로
+  넘긴다(실제 로컬 플레이어 생성/장치 리매핑은 그 정보를 바탕으로 다음 레벨에서 처리). 지정한
+  인원수(`NumberOfPlayersToJoin`)가 모두 배정되면 `OnAllPlayersJoined`를 Broadcast하고
+  `LevelLoadDelay`초 후 `NextLevelName`을 연다. 생성자에서 `PlayerControllerClass`를
+  `ACPLobbyPlayerController`로 지정하고, `BeginPlay`에서 `StartWidgetClass`(보통
+  `UCPPressAnyKeyWidget` 상속 WBP)를 자동으로 `CreateWidget` + `AddToViewport`해준다 - 레벨
+  블루프린트 등에서 위젯을 따로 만들어 띄울 필요가 없다
 - `ACPLobbyPlayerController`(`CP/GameMode/`) : 로비 화면 전용 최소 구성 PlayerController.
   `ACPTopDownPlayerController`처럼 Input Mapping Context를 추가하지 않는다 - 이 화면의 입력은
   `UCPPressAnyKeyWidget`/`UCPPlayerJoinWidget`이 각자 `FCPAnyInputProcessor`로 직접 가로채므로
@@ -131,10 +132,11 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   텍스트 등)을 추가할 수도 있음
 - `UCPPlayerRegistrySubsystem`(`CP/GameMode/`, `UGameInstanceSubsystem`) : GameInstance에 붙어
   있어 `OpenLevel`로 레벨이 바뀌어도 살아남는다. 로비에서 배정된 "PlayerIndex(0=1P, 1=2P, ...) ↔
-  PlatformUserId" 순서를 들고 있다가, 다음(실제 게임플레이) 레벨에서
-  `GetControlledActorForPlayerIndex(PlayerIndex)` / `GetControlledActorForInputDevice(DeviceId)`
-  로 "이 플레이어/이 입력 장치가 지금 조종하는 Actor(Pawn)가 무엇인지"를 질의할 수 있게 해준다.
-  Project Settings에 등록할 필요 없이 자동으로 생성됨
+  입력 장치(FInputDeviceId)" 순서만 들고 있다가, 다음(실제 게임플레이) 레벨에서
+  `GetPlayerIndexForInputDevice(DeviceId)` / `GetInputDeviceForPlayerIndex(PlayerIndex)`로
+  "이 입력 장치가 몇 번째 플레이어인지"를 질의할 수 있게 해준다. 로컬 플레이어 생성이나 장치
+  리매핑은 이 정보를 바탕으로 다음 레벨에서 직접 처리해야 한다. Project Settings에 등록할 필요
+  없이 자동으로 생성됨
 
 #### 게임패드/마우스 대응 관련 히스토리 (왜 IInputProcessor 방식인가)
 
@@ -176,10 +178,11 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
    Press Any Key 화면이 뜨고, 아무 키나 누르면 참가 화면으로 전환되고, 첫 입력이 1P, 다음
    입력이 2P로 배정되면서 자동으로 다음 레벨이 열린다. `PlayerControllerClass`는
    `ACPLobbyGameMode` 생성자가 `ACPLobbyPlayerController`로 자동 지정해주므로 별도 설정 불필요
-5. 게임플레이 레벨에서 "이 PlayerController/입력 장치가 조종하는 Actor가 뭔지" 알고 싶으면
+5. 게임플레이 레벨에서 "이 입력 장치가 1P/2P 중 무엇인지" 알고 싶으면
    `GetGameInstance()->GetSubsystem<UCPPlayerRegistrySubsystem>()`으로 가져와
-   `GetControlledActorForPlayerIndex(0)`(1P) / `GetControlledActorForPlayerIndex(1)`(2P) 등을
-   호출 (`GetPlayerIndexForController`로 반대 방향 조회도 가능)
+   `GetPlayerIndexForInputDevice(DeviceId)`를 호출 (`GetInputDeviceForPlayerIndex(0/1)`로
+   반대 방향 조회도 가능). 이 레벨에서 실제로 몇 명분의 로컬 플레이어/컨트롤러를 만들지, 각
+   장치를 어느 로컬 플레이어에 리매핑할지는 이 정보를 바탕으로 직접 구현해야 한다
 6. 게임 오버/클리어는 `UCPGameOverWidget`/`UCPGameClearWidget`을 부모로 WBP를 만들고, 게임
    종료 조건이 발생하는 지점(GameMode, 체력 0 등)에서 `CreateWidget` + `AddToViewport`로 띄운다.
    `UCPGameClearWidget`의 `NextLevelName`은 WBP Class Defaults에서 지정
