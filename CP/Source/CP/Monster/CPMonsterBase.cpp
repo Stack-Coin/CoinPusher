@@ -139,6 +139,33 @@ void ACPMonsterBase::Dead()
 
 	bIsDead = true;
 
+	// 사망 후에는 다른 액터와 전혀 부딪히지 않도록 콜리전을 완전히 끔
+	if (Collider)
+	{
+		Collider->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
+	{
+		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	if (MonsterMesh)
+	{
+		MonsterMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	// 콜리전이 사라지면 무브먼트가 바닥 참조를 잃어 사망 모션 중 파묻힐 수 있어 무브먼트도 함께 정지
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->DisableMovement();
+	}
+
 	// 사망 후 BT가 공격 몽타주를 다시 재생하지 못하게 정지
 	if (ACPMonsterAIController* AIController = GetController<ACPMonsterAIController>())
 	{
@@ -180,7 +207,7 @@ void ACPMonsterBase::Dead()
 			EndDelegate.BindLambda(
 				[this](UAnimMontage*, bool)
 				{
-					SetLifeSpan(2.0f);
+					SetLifeSpan(1.0f);
 				});
 
 			AnimInstance->Montage_SetEndDelegate(EndDelegate, DeadMontage);

@@ -116,7 +116,7 @@ protected:
 	TSubclassOf<ACPCoinItem> CoinItem;
 
 protected:
-	int8 bIsDead : 1 = false;
+	bool bIsDead = false;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Separation")
