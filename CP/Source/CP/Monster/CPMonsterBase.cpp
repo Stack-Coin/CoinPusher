@@ -41,22 +41,6 @@ void ACPMonsterBase::BeginPlay()
 	{
 		StatComponent->InitStat(MonsterType, 1);
 	}
-	GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
-
-	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
-	{
-		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPMonsterBase::HandleDebugCollisionVisibilityChanged);
-		bDrawDebugAttackRange = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::MonsterAttackRange);
-	}
-}
-
-void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
-{
-	if (Category == ECPDebugCollisionCategory::MonsterAttackRange)
-	{
-		bDrawDebugAttackRange = bVisible;
-	}
-}
 
 	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
 
@@ -75,6 +59,12 @@ void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCate
 		MoveComp->SetAvoidanceGroup(1);
 		MoveComp->SetGroupsToAvoid(1);
 	}
+
+	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
+	{
+		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPMonsterBase::HandleDebugCollisionVisibilityChanged);
+		bDrawDebugAttackRange = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::MonsterAttackRange);
+	}
 }
 
 void ACPMonsterBase::Tick(float DeltaSeconds)
@@ -84,6 +74,14 @@ void ACPMonsterBase::Tick(float DeltaSeconds)
 	if (!bIsDead)
 	{
 		SeparateFromOtherMonsters(DeltaSeconds);
+	}
+}
+
+void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
+{
+	if (Category == ECPDebugCollisionCategory::MonsterAttackRange)
+	{
+		bDrawDebugAttackRange = bVisible;
 	}
 }
 
