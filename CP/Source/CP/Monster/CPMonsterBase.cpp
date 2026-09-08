@@ -53,8 +53,8 @@ void ACPMonsterBase::BeginPlay()
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
 		MoveComp->bUseRVOAvoidance = true;
-		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * 3.f;
-		MoveComp->AvoidanceWeight = 0.5f;
+		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * GetAIAvoidanceRadiusMultiplier();
+		MoveComp->AvoidanceWeight = GetAIAvoidanceWeight();
 
 		// 몬스터끼리만 서로 피하도록 그룹 마스크 설정
 		MoveComp->SetAvoidanceGroup(1);
@@ -114,7 +114,7 @@ void ACPMonsterBase::AttackHitCheck()
 		SweepStart,
 		SweepEnd,
 		FQuat::Identity,
-		ECollisionChannel::ECC_GameTraceChannel1, // todo. 코인 푸셔 및 캐릭터 채널 파기
+		ECollisionChannel::ECC_GameTraceChannel1,
 		FCollisionShape::MakeSphere(SweepRadius),
 		Params
 	);
@@ -365,8 +365,10 @@ void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 		return;
 	}
 
+	const float MySeparationPadding = GetAISeparationPadding();
+
 	// 콜리전 반경 + 여유 간격보다 살짝 넓게 잡아서 그 범위 안에 있는 다른 몬스터를 찾음
-	const float SearchRadius = (MyRadius + SeparationPadding) * 2.5f;
+	const float SearchRadius = (MyRadius + MySeparationPadding) * 2.5f;
 
 	TArray<FOverlapResult> Overlaps;
 	FCollisionQueryParams Params(NAME_None, false, this);
@@ -397,7 +399,7 @@ void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 		const float Distance = Delta.Size();
 
 		// 콜리전 반경끼리 딱 닿기 전에 SeparationPadding만큼 여유를 두고 몬스터 간의 거리 판단
-		const float MinDistance = MyRadius + Other->GetAICollisionRadius() + SeparationPadding;
+		const float MinDistance = MyRadius + Other->GetAICollisionRadius() + MySeparationPadding;
 
 		if (Distance < MinDistance && Distance > KINDA_SMALL_NUMBER)
 		{
@@ -413,7 +415,7 @@ void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 		//정규화하면 항상 같은 세기로만 밀려나서, 몬스터 군집에서는 힘이 서로 상쇄됨. 
 		// 정규화하지 않고 최대 1.5배로만 클램프로, 많이 겹칠수록 더 세게 밀려나도록 함.
 		const FVector PushVector = PushDirection.GetClampedToMaxSize(1.5f);
-		AddActorWorldOffset(PushVector * SeparationSpeed * DeltaSeconds, true);
+		AddActorWorldOffset(PushVector * GetAISeparationSpeed() * DeltaSeconds, true);
 	}
 }
 
@@ -493,4 +495,25 @@ float ACPMonsterBase::GetAITurnSpeed()
 float ACPMonsterBase::GetAIMoveAcceptableRadius()
 {
 	return StatComponent ? StatComponent->DefaultStat.MoveAcceptableRadius : 0.0f;
+}
+
+// 군중 제어(RVO 회피 / 몬스터 간 분리)
+float ACPMonsterBase::GetAIAvoidanceRadiusMultiplier()
+{
+	return StatComponent ? StatComponent->DefaultStat.AvoidanceRadiusMultiplier : 3.0f;
+}
+
+float ACPMonsterBase::GetAIAvoidanceWeight()
+{
+	return StatComponent ? StatComponent->DefaultStat.AvoidanceWeight : 0.5f;
+}
+
+float ACPMonsterBase::GetAISeparationPadding()
+{
+	return StatComponent ? StatComponent->DefaultStat.SeparationPadding : 70.0f;
+}
+
+float ACPMonsterBase::GetAISeparationSpeed()
+{
+	return StatComponent ? StatComponent->DefaultStat.SeparationSpeed : 400.0f;
 }

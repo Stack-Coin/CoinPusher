@@ -91,4 +91,8 @@ void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InWav
 	DefaultStat.AttackRange = BaseRow->AttackRange;
 	DefaultStat.TurnSpeed = BaseRow->TurnSpeed;
 	DefaultStat.MoveAcceptableRadius = BaseRow->MoveAcceptableRadius;
+	DefaultStat.AvoidanceRadiusMultiplier = BaseRow->AvoidanceRadiusMultiplier;
+	DefaultStat.AvoidanceWeight = BaseRow->AvoidanceWeight;
+	DefaultStat.SeparationPadding = BaseRow->SeparationPadding;
+	DefaultStat.SeparationSpeed = BaseRow->SeparationSpeed;
 }

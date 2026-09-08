@@ -56,6 +56,22 @@ struct FCPMonsterDefaultStat
 	 * 근접형은 작게, 원거리형은 공격 사거리만큼 크게 잡아서 너무 가까이 붙지 않고 멈추도록 함 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float MoveAcceptableRadius = 0.f;
+
+	/** RVO 회피가 다른 에이전트를 의식하기 시작하는 반경 배율 (AvoidanceConsiderationRadius = CollisionRadius * 이 값) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float AvoidanceRadiusMultiplier = 3.f;
+
+	/** RVO 회피 시 이 몬스터가 부담하는 회피 비중 (0~1, 같은 값끼리는 절반씩 나눠서 피함) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float AvoidanceWeight = 0.5f;
+
+	/** 다른 몬스터와 겹치지 않게 유지할 최소 여유 간격 (콜리전 반경 합에 추가로 더하는 값, cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float SeparationPadding = 70.f;
+
+	/** 겹쳤을 때 밀어내는 최대 속도 (cm/s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float SeparationSpeed = 400.f;
 };
 
 // 엑셀에서 작업하기 편하도록 구조체 수정
@@ -110,6 +126,22 @@ struct FCPMonsterStatRow : public FTableRowBase
 	/** MoveTo(BT) 목표 지점 도착 판정 반경 (cm) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
 	float MoveAcceptableRadius = 0.f;
+
+	/** RVO 회피 감지 반경 배율 (AvoidanceConsiderationRadius = CollisionRadius * 이 값) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float AvoidanceRadiusMultiplier = 3.f;
+
+	/** RVO 회피 비중 (0~1) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float AvoidanceWeight = 0.5f;
+
+	/** 다른 몬스터와 유지할 최소 여유 간격 (cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float SeparationPadding = 70.f;
+
+	/** 겹쳤을 때 밀어내는 최대 속도 (cm/s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float SeparationSpeed = 400.f;
 };
 
 /**

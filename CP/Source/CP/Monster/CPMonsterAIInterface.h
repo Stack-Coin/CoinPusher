@@ -45,6 +45,12 @@ public:
 	virtual float GetAITurnSpeed() = 0;
 	virtual float GetAIMoveAcceptableRadius() = 0;
 
+	// 군중 제어(RVO 회피 / 몬스터 간 분리)
+	virtual float GetAIAvoidanceRadiusMultiplier() = 0;
+	virtual float GetAIAvoidanceWeight() = 0;
+	virtual float GetAISeparationPadding() = 0;
+	virtual float GetAISeparationSpeed() = 0;
+
 	/**
 	 * 최대체력 / 공격력 / 공격속도 / 넉백 / 콜리전 등,
 	 * 값이 늘어날 때마다 인터페이스 함수를 추가하는 대신 StatComponent 전체를 한 번에 참조하기 위한 통로.

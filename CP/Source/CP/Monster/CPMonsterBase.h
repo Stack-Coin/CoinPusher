@@ -74,6 +74,12 @@ public:
 	virtual float GetAITurnSpeed() override;
 	virtual float GetAIMoveAcceptableRadius() override;
 
+	// 군중 제어(RVO 회피 / 몬스터 간 분리) - 전부 StatComponent->DefaultStat 기반
+	virtual float GetAIAvoidanceRadiusMultiplier() override;
+	virtual float GetAIAvoidanceWeight() override;
+	virtual float GetAISeparationPadding() override;
+	virtual float GetAISeparationSpeed() override;
+
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
 
@@ -137,11 +143,4 @@ protected:
 
 	/** 마지막으로 ApplyKnockback이 적용된 월드 시간(초). 초기값 -1은 "아직 한 번도 적용된 적 없음"을 의미 */
 	float LastKnockbackTime = -1.f;
-
-protected:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Separation")
-	float SeparationPadding = 70.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Separation")
-	float SeparationSpeed = 400.f;
 };
