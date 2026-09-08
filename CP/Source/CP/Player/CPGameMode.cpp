@@ -5,9 +5,11 @@
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "GameMode/CPPlayerRegistrySubsystem.h"
 #include "Nexus/CPGoddess.h"
 #include "Nexus/CPNexus.h"
 #include "Monster/Spawner/CPMonsterSpawnManager.h"
@@ -36,12 +38,19 @@ void ACPGameMode::BeginPlay()
 		UGameplayStatics::CreatePlayer(GetWorld(), -1, true);
 	}
 
-	// A gamepad plugged in before launch is often already detected by now - try right away...
-	TryAssignGamepadToSecondPlayer();
+	// Prefer the device <-> PlayerIndex assignment recorded by ACPLobbyGameMode in the previous level.
+	// Only fall back to the legacy "first connected gamepad -> 2P" behavior (and its late-connection
+	// watcher) when there's nothing recorded - i.e. this level was opened directly, without going
+	// through the lobby
+	if (!AssignInputDevicesFromPlayerRegistry())
+	{
+		// A gamepad plugged in before launch is often already detected by now - try right away...
+		TryAssignGamepadToSecondPlayer();
 
-	// ...but device detection (XInput/RawInput polling) can still lag a frame or more past BeginPlay,
-	// so keep watching for one to show up later too
-	InputDeviceConnectionChangeHandle = IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().AddUObject(this, &ACPGameMode::HandleInputDeviceConnectionChange);
+		// ...but device detection (XInput/RawInput polling) can still lag a frame or more past
+		// BeginPlay, so keep watching for one to show up later too
+		InputDeviceConnectionChangeHandle = IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().AddUObject(this, &ACPGameMode::HandleInputDeviceConnectionChange);
+	}
 
 	// KohMs // Goddess가 죽으면 패배
 	if (ACPGoddess* Goddess = Cast<ACPGoddess>(UGameplayStatics::GetActorOfClass(this, ACPGoddess::StaticClass())))
@@ -141,6 +150,49 @@ void ACPGameMode::TryAssignGamepadToSecondPlayer()
 		DeviceMapper.Internal_ChangeInputDeviceUserMapping(DeviceId, SecondPlayerUserId, OldUserId);
 		break;
 	}
+}
+
+bool ACPGameMode::AssignInputDevicesFromPlayerRegistry()
+{
+	UGameInstance* GameInstance = GetGameInstance();
+	UCPPlayerRegistrySubsystem* PlayerRegistry = GameInstance ? GameInstance->GetSubsystem<UCPPlayerRegistrySubsystem>() : nullptr;
+	if (!PlayerRegistry)
+	{
+		return false;
+	}
+
+	IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
+	const TArray<ULocalPlayer*>& LocalPlayers = GameInstance->GetLocalPlayers();
+
+	// Registry index = PlayerIndex from the lobby (0 = P1, 1 = P2, ...), same order LocalPlayers were
+	// created in (Player 0 always exists first, additional ones via CreatePlayer above) - so
+	// PlayerIndex N here lines up with LocalPlayers[N]
+	bool bAssignedAny = false;
+
+	for (int32 PlayerIndex = 0; PlayerIndex < LocalPlayers.Num(); ++PlayerIndex)
+	{
+		ULocalPlayer* LocalPlayer = LocalPlayers[PlayerIndex];
+		const FInputDeviceId DeviceId = PlayerRegistry->GetInputDeviceForPlayerIndex(PlayerIndex);
+		if (!LocalPlayer || !DeviceId.IsValid())
+		{
+			continue;
+		}
+
+		// Works the same whether DeviceId is a gamepad or the keyboard/mouse (default) device, and
+		// regardless of which PlayerIndex it's assigned to - handles both players using gamepads,
+		// or the keyboard/mouse ending up on either player
+		const FPlatformUserId TargetUserId = LocalPlayer->GetPlatformUserId();
+		const FPlatformUserId CurrentUserId = DeviceMapper.GetUserForInputDevice(DeviceId);
+
+		if (CurrentUserId != TargetUserId)
+		{
+			DeviceMapper.Internal_ChangeInputDeviceUserMapping(DeviceId, TargetUserId, CurrentUserId);
+		}
+
+		bAssignedAny = true;
+	}
+
+	return bAssignedAny;
 }
 
 AActor* ACPGameMode::ChoosePlayerStart_Implementation(AController* Player)

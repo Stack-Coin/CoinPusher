@@ -135,8 +135,20 @@ protected:
 
 	/** If the second local player doesn't already own an input device, assigns it the first currently
 	 *  connected non-default device (a gamepad). No-ops if there's no second local player, it already
-	 *  has a device, or no gamepad is connected yet */
+	 *  has a device, or no gamepad is connected yet. Legacy fallback used only when this level is
+	 *  played without going through ACPLobbyGameMode first (see AssignInputDevicesFromPlayerRegistry) */
 	void TryAssignGamepadToSecondPlayer();
+
+	/** Uses UCPPlayerRegistrySubsystem (populated by ACPLobbyGameMode in the previous/lobby level) to
+	 *  remap each local player's input device - keyboard/mouse or gamepad, including the case where
+	 *  both players use a gamepad - so that PlayerIndex 0 (from the lobby) ends up controlling
+	 *  LocalPlayer 0 and PlayerIndex 1 controls LocalPlayer 1. Combined with the project's
+	 *  TwoPlayerSplitscreenLayout=Vertical setting (DefaultEngine.ini), LocalPlayer 0 always renders
+	 *  in the left split-screen viewport and LocalPlayer 1 in the right one, so this keeps "who
+	 *  joined first in the lobby" playing on the left. Returns false (and remaps nothing) if the
+	 *  registry doesn't exist or has no recorded devices - e.g. this level was opened directly
+	 *  without going through the lobby */
+	bool AssignInputDevicesFromPlayerRegistry();
 
 	/** Creates the team-wide ticket/coin HUD widgets (see TicketWidgetClass/CoinWidgetClass) and binds
 	 *  them directly to OnTeamTicketCountChanged/OnTeamCoinCountChanged. Called once from BeginPlay */

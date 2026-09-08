@@ -26,8 +26,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input|Input Mappings")
 	TArray<UInputMappingContext*> DefaultMappingContexts;
 
-	/** Shows/hides the F1 debug widget (player stats + collision visualization checkboxes). Only takes
-	 *  effect for the local player who owns the keyboard/mouse - see IsUsingKeyboardAndMouse() */
+	/** Shows/hides the F1 debug widget (player stats + collision visualization checkboxes). Works for
+	 *  whichever local player triggers it, regardless of input device - each player gets their own
+	 *  DebugWidgetInstance */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* ToggleDebugWidgetAction;
 
@@ -53,7 +54,7 @@ protected:
 	virtual void SetupInputComponent() override;
 
 	/** Bound to ToggleDebugWidgetAction. Creates DebugWidgetInstance on first use, then shows/hides it.
-	 *  No-ops for a player not on keyboard/mouse, or if DebugWidgetClass is unset */
+	 *  Works regardless of which player/input device triggers it - only no-ops if DebugWidgetClass is unset */
 	void ToggleDebugWidget(const FInputActionValue& Value);
 
 public:

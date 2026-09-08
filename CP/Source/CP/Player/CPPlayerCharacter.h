@@ -143,7 +143,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
 	float AttackHeight = 100.0f;
 
-	/** Distance the attack hitbox is offset in front of the character */
+	/** Distance the 
+	hitbox is offset in front of the character */
 	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (Units = "cm"))
 	float AttackOffset = 50.0f;
 

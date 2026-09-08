@@ -97,6 +97,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	float CurrentHp = 100.f;
 
+	/** 코인 투입(Interact) 1회당 소모할 팀 코인 수. 팀 코인이 이 값보다 적으면 상호작용이
+	 *  무시되고(OnInteracted/BP_OnInteracted도 호출되지 않음) 아무 일도 일어나지 않는다.
+	 *  0이면 코인 소모 없이 항상 상호작용됨 (기존 동작) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Coin", meta = (ClampMin = 0))
+	int32 CoinCostPerInteract = 1;
+
 	static int32 GlobalRemainingRespawns;
 	bool bIsDead = false;
 };

@@ -2,72 +2,26 @@
 
 
 #include "GameMode/CPPlayerRegistrySubsystem.h"
-#include "Engine/GameInstance.h"
-#include "Engine/LocalPlayer.h"
-#include "GameFramework/PlayerController.h"
-#include "GameFramework/Pawn.h"
 
-void UCPPlayerRegistrySubsystem::RegisterJoinedPlayer(FPlatformUserId PlatformUserId)
+void UCPPlayerRegistrySubsystem::RegisterJoinedPlayer(FInputDeviceId DeviceId)
 {
-	JoinedPlayerOrder.AddUnique(PlatformUserId);
+	if (DeviceId.IsValid())
+	{
+		JoinedPlayerDeviceIds.AddUnique(DeviceId);
+	}
 }
 
 void UCPPlayerRegistrySubsystem::ResetRegistry()
 {
-	JoinedPlayerOrder.Reset();
+	JoinedPlayerDeviceIds.Reset();
 }
 
-FPlatformUserId UCPPlayerRegistrySubsystem::GetPlatformUserIdForPlayerIndex(int32 PlayerIndex) const
+int32 UCPPlayerRegistrySubsystem::GetPlayerIndexForInputDevice(FInputDeviceId DeviceId) const
 {
-	return JoinedPlayerOrder.IsValidIndex(PlayerIndex) ? JoinedPlayerOrder[PlayerIndex] : PLATFORMUSERID_NONE;
+	return JoinedPlayerDeviceIds.IndexOfByKey(DeviceId);
 }
 
-int32 UCPPlayerRegistrySubsystem::GetPlayerIndexForController(APlayerController* PlayerController) const
+FInputDeviceId UCPPlayerRegistrySubsystem::GetInputDeviceForPlayerIndex(int32 PlayerIndex) const
 {
-	if (!PlayerController || !PlayerController->GetLocalPlayer())
-	{
-		return -1;
-	}
-
-	return JoinedPlayerOrder.IndexOfByKey(PlayerController->GetLocalPlayer()->GetPlatformUserId());
-}
-
-AActor* UCPPlayerRegistrySubsystem::GetControlledActorForPlayerIndex(int32 PlayerIndex) const
-{
-	const FPlatformUserId TargetUserId = GetPlatformUserIdForPlayerIndex(PlayerIndex);
-	if (TargetUserId == PLATFORMUSERID_NONE)
-	{
-		return nullptr;
-	}
-
-	for (ULocalPlayer* LocalPlayer : GetGameInstance()->GetLocalPlayers())
-	{
-		if (LocalPlayer && LocalPlayer->GetPlatformUserId() == TargetUserId)
-		{
-			if (APlayerController* PC = LocalPlayer->GetPlayerController(GetGameInstance()->GetWorld()))
-			{
-				return PC->GetPawn();
-			}
-		}
-	}
-
-	return nullptr;
-}
-
-AActor* UCPPlayerRegistrySubsystem::GetControlledActorForInputDevice(FInputDeviceId DeviceId) const
-{
-	const FPlatformUserId TargetUserId = IPlatformInputDeviceMapper::Get().GetUserForInputDevice(DeviceId);
-
-	for (ULocalPlayer* LocalPlayer : GetGameInstance()->GetLocalPlayers())
-	{
-		if (LocalPlayer && LocalPlayer->GetPlatformUserId() == TargetUserId)
-		{
-			if (APlayerController* PC = LocalPlayer->GetPlayerController(GetGameInstance()->GetWorld()))
-			{
-				return PC->GetPawn();
-			}
-		}
-	}
-
-	return nullptr;
+	return JoinedPlayerDeviceIds.IsValidIndex(PlayerIndex) ? JoinedPlayerDeviceIds[PlayerIndex] : INPUTDEVICEID_NONE;
 }
