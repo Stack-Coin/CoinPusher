@@ -15,6 +15,8 @@
 #include "TimerManager.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
+#include "AIController.h"
+#include "Navigation/PathFollowingComponent.h"
 
 // Sets default values
 ACPMonsterBase::ACPMonsterBase()
@@ -152,6 +154,7 @@ void ACPMonsterBase::Dead()
 	}
 
 	bIsDead = true;
+	AddCCState(ECPMonsterCCState::Dead);
 
 	// 사망 후에는 다른 액터와 전혀 부딪히지 않도록 콜리전을 완전히 끔
 	if (Collider)
@@ -243,6 +246,8 @@ void ACPMonsterBase::AttackByAI()
 	TObjectPtr<UAnimInstance> AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && AttackMontage)
 	{
+		AddCCState(ECPMonsterCCState::Attacking);
+
 		AnimInstance->StopAllMontages(0.0f);
 		AnimInstance->Montage_Play(AttackMontage, 1.0f);
 
@@ -261,9 +266,21 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	{
 		StatComponent->CurrentHealth -= DamageAmount;
 
-		if (StatComponent->CurrentHealth <= 0.0f)
+		// 체력이 0 이하여도 바로 죽이지 않고, 공격자가 TakeDamage 직후 별도로 거는 ApplyKnockback이
+		// 먼저 재생될 시간(KnockbackDuration)을 준 다음에 실제 Dead()를 호출함
+		if (!bIsDead && !bPendingDeath && StatComponent->CurrentHealth <= 0.0f)
 		{
-			Dead();
+			bPendingDeath = true;
+
+			TWeakObjectPtr<ACPMonsterBase> WeakThis(this);
+			FTimerHandle DeathTimerHandle;
+			GetWorldTimerManager().SetTimer(DeathTimerHandle, [WeakThis]()
+			{
+				if (ACPMonsterBase* StrongThis = WeakThis.Get())
+				{
+					StrongThis->Dead();
+				}
+			}, KnockbackDuration, false);
 		}
 	}
 
@@ -277,8 +294,9 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 		return;
 	}
 
-	// Z(수직)는 건드리지 않고 XY(수평)로만 Distance만큼 밀어냄. LaunchCharacter/속도 기반이 아니라 위치를
-	// 직접 옮기는 방식이라 별도 쿨다운 없이 연속으로 맞아도 그때그때 계속 적용됨
+	// Z(수직)는 건드리지 않고 XY(수평)로만 밀어냄. LaunchCharacter(속도 기반)라서 자연스럽게 밀려나고,
+	// bZOverride=false라 기존 Z 속도(중력/Flying 등)는 그대로 유지됨. 매 호출마다 속도를 새로 덮어쓰므로
+	// 별도 쿨다운 없이 연속으로 맞아도 그때그때 계속 적용됨
 	FVector FlatDirection = Direction;
 	FlatDirection.Z = 0.0f;
 
@@ -287,11 +305,74 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 		return;
 	}
 
-	AddActorWorldOffset(FlatDirection * Distance, true);
+	// CC 상태 비트에 Knockback 추가
+	AddCCState(ECPMonsterCCState::Knockback);
+
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	const bool bWasFlying = MoveComp && MoveComp->MovementMode == MOVE_Flying;
+
+	// Distance(밀려나는 거리)를 KnockbackDuration(밀려나는 데 걸리는 시간) 안에 이동하도록 속도로 환산
+	const float Speed = Distance / KnockbackDuration;
+	const FVector LaunchVelocity = FlatDirection * Speed;
+
+	// bUseRVOAvoidance가 켜져 있으면 매 틱 CalcAvoidanceVelocity가 Velocity를 "AI가 원래 가려던 방향"으로
+	// 다시 덮어써서, LaunchCharacter로 준 속도가 같은 프레임 안에 씹혀버림. 넉백이 재생되는 동안만
+	// RVO를 잠깐 꺼서 launch 속도가 실제로 유지되게 함
+	if (MoveComp)
+	{
+		MoveComp->bUseRVOAvoidance = false;
+	}
+
+	// Flying/Ranged 몬스터는 RVO를 꺼도 BT의 MoveTo가 매 틱 계속 이동 명령을 내려서 velocity가 되돌아감.
+	// 넉백이 재생되는 동안은 AI의 이동 명령 자체를 PauseMove로 잠깐 멈추고, 끝나면 같은 요청을
+	// ResumeMove로 이어서 재개함(BT 태스크를 중단/재시작하지 않음)
+	FAIRequestID PausedMoveRequestID = FAIRequestID::InvalidRequest;
+	if (AAIController* AICon = Cast<AAIController>(GetController()))
+	{
+		if (UPathFollowingComponent* PFC = AICon->GetPathFollowingComponent())
+		{
+			PausedMoveRequestID = PFC->GetCurrentRequestId();
+			PFC->PauseMove(PausedMoveRequestID);
+		}
+	}
+
+	LaunchCharacter(LaunchVelocity, /*bXYOverride=*/true, /*bZOverride=*/false);
+
+	// KnockbackDuration 후 RVO 회피와 AI 이동 명령을 복구하고(원래 Flying이었다면 Flying도 함께 복구)
+	TWeakObjectPtr<ACPMonsterBase> WeakThis(this);
+	FTimerHandle RestoreHandle;
+	GetWorldTimerManager().SetTimer(RestoreHandle, [WeakThis, bWasFlying, PausedMoveRequestID]()
+	{
+		if (ACPMonsterBase* StrongThis = WeakThis.Get())
+		{
+			if (UCharacterMovementComponent* InnerMoveComp = StrongThis->GetCharacterMovement())
+			{
+				InnerMoveComp->bUseRVOAvoidance = true;
+				if (bWasFlying)
+				{
+					InnerMoveComp->SetMovementMode(MOVE_Flying);
+				}
+			}
+
+			// 넉백 동안 멈춰뒀던 AI 이동 명령(PathFollowing)을 같은 요청 그대로 재개함
+			if (AAIController* InnerAICon = Cast<AAIController>(StrongThis->GetController()))
+			{
+				if (UPathFollowingComponent* InnerPFC = InnerAICon->GetPathFollowingComponent())
+				{
+					InnerPFC->ResumeMove(PausedMoveRequestID);
+				}
+			}
+
+			// CC 상태 비트에서 Knockback 해제
+			StrongThis->RemoveCCState(ECPMonsterCCState::Knockback);
+		}
+	}, KnockbackDuration, false);
 }
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
 {
+	RemoveCCState(ECPMonsterCCState::Attacking);
+
 	OnAttackFinished.ExecuteIfBound();
 }
 

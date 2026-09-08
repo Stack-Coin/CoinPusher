@@ -14,6 +14,18 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMonsterDied);
 
+UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+enum class ECPMonsterCCState : uint8
+{
+	None      = 0,
+	Knockback = 1 << 0,
+	Stunned   = 1 << 1,
+	Rooted    = 1 << 2,
+	Attacking = 1 << 3,
+	Dead      = 1 << 4,
+};
+ENUM_CLASS_FLAGS(ECPMonsterCCState);
+
 UCLASS()
 class CP_API ACPMonsterBase : public ACharacter, public ICPMonsterAttackInterface, public ICPMonsterAIInterface, public ICPKnockbackable
 {
@@ -46,6 +58,16 @@ public:
 	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 	// 넉백 함수 // 협업용
 	virtual void ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor) override;
+
+public:
+	/** 특정 CC 상태(들)가 하나라도 걸려있는지 */
+	bool HasCCState(ECPMonsterCCState State) const { return EnumHasAnyFlags(CurrentCCState, State); }
+
+protected:
+	/** CC 상태 비트를 추가. 매 틱이 아니라 상태가 실제로 바뀌는 시점(부여/해제)에만 호출됨 */
+	void AddCCState(ECPMonsterCCState State) { EnumAddFlags(CurrentCCState, State); }
+	/** CC 상태 비트를 해제 */
+	void RemoveCCState(ECPMonsterCCState State) { EnumRemoveFlags(CurrentCCState, State); }
 
 public:
 	// StatComponent의 값을 참조
@@ -122,5 +144,17 @@ protected:
 	TSubclassOf<ACPCoinItem> CoinItem;
 
 protected:
+	/** 넉백이 밀려나는 데 걸리는 시간(초). ApplyKnockback의 LaunchCharacter 속도 계산(Distance/KnockbackDuration)과,
+	 *  TakeDamage에서 사망을 유예하는 시간(넉백이 먼저 보이게) 양쪽에 공통으로 사용함 */
+	static constexpr float KnockbackDuration = 0.2f;
+
 	bool bIsDead = false;
+
+	/** 체력이 0 이하가 된 순간부터, 실제 Dead()가 호출되기(KnockbackDuration 후) 전까지 true.
+	 *  넉백은 공격자가 TakeDamage 직후 별도로 호출하는 구조라 Dead() 안에서 직접 틀 수 없어서,
+	 *  대신 Dead() 호출 자체를 넉백 재생 시간만큼 미루는 방식으로 우회함 */
+	bool bPendingDeath = false;
+
+	/** 현재 걸려있는 CC 상태 비트마스크. HasCCState/AddCCState/RemoveCCState로만 건드릴 것 */
+	ECPMonsterCCState CurrentCCState = ECPMonsterCCState::None;
 };
