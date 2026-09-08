@@ -2,13 +2,11 @@
 
 
 #include "Monster/Spawner/CPMonsterSpawner.h"
-#include "Engine/World.h"
 #include "Components/SceneComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/ArrowComponent.h"
-#include "TimerManager.h"
-#include "../CPMonsterBase.h"
-#include "GameFramework/CharacterMovementComponent.h"
+#include "Monster/CPMonsterBase.h"
+#include "Engine/World.h"
 
 // Sets default values
 ACPMonsterSpawner::ACPMonsterSpawner()
@@ -28,152 +26,35 @@ ACPMonsterSpawner::ACPMonsterSpawner()
 	SpawnDirection->SetupAttachment(RootComponent);
 }
 
-// Called when the game starts or when spawned
-void ACPMonsterSpawner::BeginPlay()
+ACPMonsterBase* ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount, float InRowSpacingY, int32 InWave)
 {
-	Super::BeginPlay();
-
-	CurrentWaveIndex = 0;
-	StartWave();
-}
-
-void ACPMonsterSpawner::EndPlay(EEndPlayReason::Type EndPlayReason)
-{
-	Super::EndPlay(EndPlayReason);
-
-	GetWorld()->GetTimerManager().ClearTimer(SpawnTimer);
-	GetWorld()->GetTimerManager().ClearTimer(WaveTimer);
-	GetWorld()->GetTimerManager().ClearTimer(RoundEndTimer);
-}
-
-void ACPMonsterSpawner::StartWave()
-{
-	// 정해진 웨이브(WaveCount)를 모두 마쳤다면, 기획서의 "라운드 대기시간"으로 넘어갑니다.
-	if (CurrentWaveIndex >= WaveCount)
+	if (!IsValid(MonsterClass) || InCount <= 0 || !GetWorld())
 	{
-		StartRoundEndWait();
-		return;
+		return nullptr;
 	}
 
-	CurrentPhase = ECPWavePhase::Spawning;
-	BurstsSpawnedThisWave = 0;
+	const FTransform BaseTransform = SpawnCapsule->GetComponentTransform();
+	const FVector RightAxis = FVector::YAxisVector; // 스포너 회전과 무관하게 항상 월드 Y축 기준으로 나란히 배치
 
-	// 즉시 첫 무리를 스폰한 뒤, SpawnInterval 간격으로 BurstsPerWave번 반복 스폰합니다.
-	// 매번 MonstersPerBurst마리가 한꺼번에 나오기 때문에 "군집(클러스터) 스폰"이 됩니다.
-	GetWorld()->GetTimerManager().SetTimer(SpawnTimer, this, &ACPMonsterSpawner::SpawnBurst, SpawnInterval, true, 0.f);
-}
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-void ACPMonsterSpawner::SpawnBurst()
-{
-	if (IsValid(EnemyClass))
+	ACPMonsterBase* LastSpawned = nullptr;
+
+	for (int32 i = 0; i < InCount; ++i)
 	{
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		// (현재 인덱스 - 가운데 인덱스) 떨어진 만큼 옆으로
+		const float Offset = (i - (InCount - 1) / 2.0f) * InRowSpacingY;
 
-		// MonstersPerBurst마리를 같은 위치에서 한꺼번에 스폰합니다.
-		// AdjustIfPossibleButAlwaysSpawn 덕분에 서로 겹치지 않도록 엔진이 알아서 살짝 밀어서 배치해줍니다.
-		for (int32 i = 0; i < MonstersPerBurst; ++i)
+		FTransform SpawnTransform = BaseTransform;
+		SpawnTransform.AddToTranslation(RightAxis * Offset);
+
+		if (ACPMonsterBase* SpawnedMonster = GetWorld()->SpawnActor<ACPMonsterBase>(MonsterClass, SpawnTransform, SpawnParams))
 		{
-			//AActor* actor = GetWorld()->SpawnActor<ACPMonsterBase>(EnemyClass, SpawnCapsule->GetComponentTransform(), SpawnParams);
-			//actor->GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
-
-			ACPMonsterBase* SpawnedMonster = GetWorld()->SpawnActor<ACPMonsterBase>(EnemyClass, SpawnCapsule->GetComponentTransform(), SpawnParams);
-
-			// 2. nullptr 체크 후 무브먼트 컴포넌트의 속도를 수정합니다.
-			if (SpawnedMonster)
-			{
-				if (SpawnedMonster->GetCharacterMovement())
-				{
-					SpawnedMonster->GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
-				}
-			}
+			SpawnedMonster->ApplyWaveStat(InWave);
+			LastSpawned = SpawnedMonster;
 		}
 	}
 
-	++BurstsSpawnedThisWave;
-
-	if (BurstsSpawnedThisWave >= BurstsPerWave)
-	{
-		GetWorld()->GetTimerManager().ClearTimer(SpawnTimer);
-		EndWave();
-	}
-}
-
-void ACPMonsterSpawner::EndWave()
-{
-	++CurrentWaveIndex;
-
-	if (CurrentWaveIndex >= WaveCount)
-	{
-		// 마지막 일반 몬스터 웨이브까지 종료. 보스 웨이브는 아직 미구현이라, 라운드 대기시간으로 넘어갑니다.
-		StartRoundEndWait();
-		return;
-	}
-
-	CurrentPhase = ECPWavePhase::WaveWait;
-	GetWorld()->GetTimerManager().SetTimer(WaveTimer, this, &ACPMonsterSpawner::StartWave, WaveInterval, false);
-}
-
-void ACPMonsterSpawner::StartRoundEndWait()
-{
-	CurrentPhase = ECPWavePhase::RoundWait;
-	GetWorld()->GetTimerManager().SetTimer(RoundEndTimer, this, &ACPMonsterSpawner::FinishRound, RoundEndWaitTime, false);
-}
-
-void ACPMonsterSpawner::FinishRound()
-{
-	CurrentPhase = ECPWavePhase::Finished;
-
-	UE_LOG(LogTemp, Warning, TEXT("[%s] FinishRound called. BossClass=%s"),
-		*GetName(), IsValid(BossClass) ? *BossClass->GetName() : TEXT("None"));
-
-	// 일반 몬스터 웨이브(WaveCount) + 라운드 대기시간(RoundEndWaitTime)이 모두 끝났으므로 보스 몬스터를 소환합니다.
-	if (IsValid(BossClass))
-	{
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-		ACPMonsterBase* SpawnedBoss = GetWorld()->SpawnActor<ACPMonsterBase>(BossClass, SpawnCapsule->GetComponentTransform(), SpawnParams);
-
-		if (SpawnedBoss)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[%s] Boss spawned: %s"), *GetName(), *SpawnedBoss->GetName());
-
-			if (SpawnedBoss->GetCharacterMovement())
-			{
-				SpawnedBoss->GetCharacterMovement()->MaxWalkSpeed = CurrentSpeed;
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[%s] SpawnActor failed for BossClass=%s"), *GetName(), *BossClass->GetName());
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[%s] BossClass is not set on this spawner instance (Details panel > Wave > Boss Class)."), *GetName());
-	}
-
-	// 프로토타입: 라운드가 1개뿐이라 보스 소환 후 여기서 그냥 멈춥니다.
-	// (추후 라운드가 여러 개가 되면, 여기서 다음 라운드를 시작하면 됩니다)
-}
-
-float ACPMonsterSpawner::GetWaveWaitSecondsRemaining() const
-{
-	if (!GetWorld())
-	{
-		return 0.f;
-	}
-
-	return FMath::Max(0.f, GetWorld()->GetTimerManager().GetTimerRemaining(WaveTimer));
-}
-
-float ACPMonsterSpawner::GetRoundWaitSecondsRemaining() const
-{
-	if (!GetWorld())
-	{
-		return 0.f;
-	}
-
-	return FMath::Max(0.f, GetWorld()->GetTimerManager().GetTimerRemaining(RoundEndTimer));
+	return LastSpawned;
 }

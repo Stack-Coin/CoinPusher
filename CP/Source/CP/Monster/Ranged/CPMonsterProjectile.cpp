@@ -94,11 +94,5 @@ void ACPMonsterProjectile::ProcessHit(AActor* OtherActor, const FVector& HitLoca
 
 	UGameplayStatics::ApplyDamage(OtherActor, DamageAmount, InstigatorController.Get(), DamageCauserActor.Get(), UDamageType::StaticClass());
 
-	if (ICPKnockbackable* KnockbackTarget = Cast<ICPKnockbackable>(OtherActor))
-	{
-		const FVector Direction = ProjectileMovement ? ProjectileMovement->Velocity.GetSafeNormal() : GetActorForwardVector();
-		KnockbackTarget->ApplyKnockback(Direction, KnockbackDistance, DamageCauserActor.Get());
-	}
-
 	Destroy();
 }

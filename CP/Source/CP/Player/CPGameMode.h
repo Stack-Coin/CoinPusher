@@ -235,7 +235,7 @@ protected:
 protected:
 	// KohMS // 화면에 웨이브 진행 상황(웨이브 번호 / 다음 이벤트까지 남은 시간) 표시
 	UPROPERTY()
-	TObjectPtr<class ACPMonsterSpawner> WaveStatusSourceSpawner;
+	TObjectPtr<class ACPMonsterSpawnManager> WaveStatusSourceManager;
 
 	UPROPERTY()
 	TObjectPtr<class UCPUserWidget_WaveStatus> WaveStatusWidget;
