@@ -61,10 +61,9 @@ void ACPMonsterProjectile::BeginPlay()
 	}
 }
 
-void ACPMonsterProjectile::Init(float InDamageAmount, float InKnockbackDistance, AController* InInstigatorController, AActor* InDamageCauser)
+void ACPMonsterProjectile::Init(float InDamageAmount, AController* InInstigatorController, AActor* InDamageCauser)
 {
 	DamageAmount = InDamageAmount;
-	KnockbackDistance = InKnockbackDistance;
 	InstigatorController = InInstigatorController;
 	DamageCauserActor = InDamageCauser;
 }

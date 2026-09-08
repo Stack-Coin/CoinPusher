@@ -35,19 +35,12 @@ public:
 
 	// Default
 	virtual float GetAIAttackSpeed() = 0;
-	virtual float GetAIKnockbackPower() = 0;
-	virtual float GetAIKnockbackDuration() = 0;
-	virtual float GetAIKnockbackDistance() = 0;
-	virtual float GetAIDetectRange() = 0;
 	virtual float GetAICollisionRadius() = 0;
-	virtual float GetAIPatrolRadius() = 0;
 	virtual float GetAIAttackRange() = 0;
 	virtual float GetAITurnSpeed() = 0;
 	virtual float GetAIMoveAcceptableRadius() = 0;
 
-	// 군중 제어(RVO 회피 / 몬스터 간 분리)
-	virtual float GetAIAvoidanceRadiusMultiplier() = 0;
-	virtual float GetAIAvoidanceWeight() = 0;
+	// 몬스터 간 분리 (RVO 회피 자체는 몬스터마다 다르게 줄 이유가 없어 코드 상 상수로 고정함 - ACPMonsterBase::BeginPlay 참고)
 	virtual float GetAISeparationPadding() = 0;
 	virtual float GetAISeparationSpeed() = 0;
 

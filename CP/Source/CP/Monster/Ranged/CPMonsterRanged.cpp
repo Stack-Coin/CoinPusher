@@ -58,6 +58,6 @@ void ACPMonsterRanged::Fire()
 
 	if (ACPMonsterProjectile* Projectile = GetWorld()->SpawnActor<ACPMonsterProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, SpawnParams))
 	{
-		Projectile->Init(GetAIAttackPower(), GetAIKnockbackDistance(), GetController(), this);
+		Projectile->Init(GetAIAttackPower(), GetController(), this);
 	}
 }

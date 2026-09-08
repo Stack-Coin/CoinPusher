@@ -52,9 +52,14 @@ void ACPMonsterBase::BeginPlay()
 
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
+		// RVO 회피 반경 배율 / 비중은 몬스터마다 다르게 줄 이유가 없어서 데이터테이블에서 빼고
+		// 코드 상 권장값으로 고정함 (AvoidanceWeight는 0~1 사이 값이어야 함)
+		constexpr float RVOAvoidanceRadiusMultiplier = 3.f;
+		constexpr float RVOAvoidanceWeight = 0.5f;
+
 		MoveComp->bUseRVOAvoidance = true;
-		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * GetAIAvoidanceRadiusMultiplier();
-		MoveComp->AvoidanceWeight = GetAIAvoidanceWeight();
+		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * RVOAvoidanceRadiusMultiplier;
+		MoveComp->AvoidanceWeight = RVOAvoidanceWeight;
 
 		// 몬스터끼리만 서로 피하도록 그룹 마스크 설정
 		MoveComp->SetAvoidanceGroup(1);
@@ -267,89 +272,22 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 
 void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor)
 {
-	const float CurrentHealth = GetAICurrentHealth();
-
 	if (bIsDead)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Blocked (dead) | Health=%.1f Distance(param)=%.1f"), *GetName(), CurrentHealth, Distance);
 		return;
 	}
 
-	// 수평 방향만 사용
+	// Z(수직)는 건드리지 않고 XY(수평)로만 Distance만큼 밀어냄. LaunchCharacter/속도 기반이 아니라 위치를
+	// 직접 옮기는 방식이라 별도 쿨다운 없이 연속으로 맞아도 그때그때 계속 적용됨
 	FVector FlatDirection = Direction;
 	FlatDirection.Z = 0.0f;
 
 	if (!FlatDirection.Normalize())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Blocked (direction) | Health=%.1f Distance(param)=%.1f"), *GetName(), CurrentHealth, Distance);
 		return;
 	}
 
-	// 몬스터 타입별로 조절 가능
-	const float KnockbackDuration = GetAIKnockbackDuration();
-	const float Speed = KnockbackDuration > 0.0f ? (Distance / KnockbackDuration) : Distance;
-
-	// TEST
-	//constexpr float TestKnockbackDistance = 300.0f;
-	//const float Speed = KnockbackDuration > 0.0f ? (TestKnockbackDistance / KnockbackDuration) : TestKnockbackDistance;
-
-	// 이중 넉백 방지는 Z(수직)에만 적용
-	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
-	const bool bWithinZCooldown = LastKnockbackTime >= 0.f && CurrentTime - LastKnockbackTime < KnockbackReapplyCooldown;
-
-	const float CurrentZVelocity = GetVelocity().Z;
-	float NewZVelocity = CurrentZVelocity;
-
-	if (bWithinZCooldown)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Z Blocked (cooldown) | Health=%.1f Distance(param)=%.1f"), *GetName(), CurrentHealth, Distance);
-	}
-	else
-	{
-		LastKnockbackTime = CurrentTime;
-		// 지금 갖고 있는 수직 속도 위에 KnockbackPower만큼 얹되, MaxKnockbackZVelocity를 넘지 않게 clamp
-		// (이미 공중에 떠 있는 상태에서 또 맞아도 무한정 높이 올라가지 않도록)
-		NewZVelocity = FMath::Min(CurrentZVelocity + GetAIKnockbackPower(), MaxKnockbackZVelocity);
-
-		UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Z Applied | Health=%.1f Distance(param)=%.1f NewZ=%.1f"), *GetName(), CurrentHealth, Distance, NewZVelocity);
-	}
-
-	// LaunchCharacter는 호출 즉시 MovementMode를 바꾸는 게 아니라, PendingLaunchVelocity를 예약만 해두고
-	// 실제 속도 적용 + MOVE_Falling 강제 전환은 "다음 무브먼트 틱"에 HandlePendingLaunch()가 처리함.
-	// 그래서 호출 전에 미리 Flying 여부를 저장해두고, 한 틱 늦춰서(SetTimerForNextTick) 복구해야 함
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	const bool bWasFlying = MoveComp && MoveComp->MovementMode == MOVE_Flying;
-
-	const FVector LaunchVelocity = FlatDirection * Speed + FVector(0.f, 0.f, NewZVelocity);
-
-	UE_LOG(LogTemp, Warning, TEXT("[%s] Knockback Launch | Health=%.1f Distance(param)=%.1f Speed=%.1f Launch=%s | MoveMode=%d Flying=%d"),
-		*GetName(), CurrentHealth, Distance, Speed,
-		*LaunchVelocity.ToString(),
-		MoveComp ? (int32)MoveComp->MovementMode.GetValue() : -1, bWasFlying ? 1 : 0);
-
-	LaunchCharacter(LaunchVelocity, true, true);
-
-	if (bWasFlying)
-	{
-		TWeakObjectPtr<ACPMonsterBase> WeakThis(this);
-		GetWorldTimerManager().SetTimerForNextTick([WeakThis]()
-			{
-				ACPMonsterBase* Monster = WeakThis.Get();
-				if (!Monster || Monster->bIsDead)
-				{
-					return;
-				}
-
-				if (UCharacterMovementComponent* MC = Monster->GetCharacterMovement())
-				{
-					// HandlePendingLaunch가 이 시점에는 이미 Falling으로 바꿔놓은 상태이므로, 그걸 다시 Flying으로 되돌림
-					if (MC->MovementMode == MOVE_Falling)
-					{
-						MC->SetMovementMode(MOVE_Flying);
-					}
-				}
-			});
-	}
+	AddActorWorldOffset(FlatDirection * Distance, true);
 }
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
@@ -452,34 +390,9 @@ float ACPMonsterBase::GetAIAttackSpeed()
 	return StatComponent ? StatComponent->DefaultStat.AttackSpeed : 1.0f;
 }
 
-float ACPMonsterBase::GetAIKnockbackPower()
-{
-	return StatComponent ? StatComponent->DefaultStat.KnockbackPower : 250.0f;
-}
-
-float ACPMonsterBase::GetAIKnockbackDuration()
-{
-	return StatComponent ? StatComponent->DefaultStat.KnockbackDuration : 0.2f;
-}
-
-float ACPMonsterBase::GetAIKnockbackDistance()
-{
-	return StatComponent ? StatComponent->DefaultStat.KnockbackDistance : 0.0f;
-}
-
-float ACPMonsterBase::GetAIDetectRange()
-{
-	return StatComponent ? StatComponent->DefaultStat.DetectRange : 0.0f;
-}
-
 float ACPMonsterBase::GetAICollisionRadius()
 {
 	return StatComponent ? StatComponent->DefaultStat.CollisionRadius : 0.0f;
-}
-
-float ACPMonsterBase::GetAIPatrolRadius()
-{
-	return StatComponent ? StatComponent->DefaultStat.PatrolRadius : 0.0f;
 }
 
 float ACPMonsterBase::GetAIAttackRange()
@@ -497,17 +410,7 @@ float ACPMonsterBase::GetAIMoveAcceptableRadius()
 	return StatComponent ? StatComponent->DefaultStat.MoveAcceptableRadius : 0.0f;
 }
 
-// 군중 제어(RVO 회피 / 몬스터 간 분리)
-float ACPMonsterBase::GetAIAvoidanceRadiusMultiplier()
-{
-	return StatComponent ? StatComponent->DefaultStat.AvoidanceRadiusMultiplier : 3.0f;
-}
-
-float ACPMonsterBase::GetAIAvoidanceWeight()
-{
-	return StatComponent ? StatComponent->DefaultStat.AvoidanceWeight : 0.5f;
-}
-
+// 몬스터 간 분리
 float ACPMonsterBase::GetAISeparationPadding()
 {
 	return StatComponent ? StatComponent->DefaultStat.SeparationPadding : 70.0f;

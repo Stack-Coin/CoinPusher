@@ -64,19 +64,12 @@ public:
 
 	// Default
 	virtual float GetAIAttackSpeed() override;
-	virtual float GetAIKnockbackPower() override;
-	virtual float GetAIKnockbackDuration() override;
-	virtual float GetAIKnockbackDistance() override;
-	virtual float GetAIDetectRange() override;
 	virtual float GetAICollisionRadius() override;
-	virtual float GetAIPatrolRadius() override;
 	virtual float GetAIAttackRange() override;
 	virtual float GetAITurnSpeed() override;
 	virtual float GetAIMoveAcceptableRadius() override;
 
-	// 군중 제어(RVO 회피 / 몬스터 간 분리) - 전부 StatComponent->DefaultStat 기반
-	virtual float GetAIAvoidanceRadiusMultiplier() override;
-	virtual float GetAIAvoidanceWeight() override;
+	// 몬스터 간 분리 - StatComponent->DefaultStat 기반 (RVO 회피 값 자체는 코드 상수로 고정 - BeginPlay 참고)
 	virtual float GetAISeparationPadding() override;
 	virtual float GetAISeparationSpeed() override;
 
@@ -130,17 +123,4 @@ protected:
 
 protected:
 	bool bIsDead = false;
-
-protected:
-	/** 넉백으로 뜨는 최종 수직 속도가 이 값을 넘지 않도록 clamp (현재 Z 속도 + KnockbackPower 위에 적용) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Knockback")
-	float MaxKnockbackZVelocity = 500.f;
-
-	/** ApplyKnockback이 아주 짧은 시간 안에 다시 들어와도(예: 근접 공격 + 그 후속 폭발 모듈처럼 한 번의
-	 *  공격에 넉백 판정이 여러 번 발생하는 경우) 다시 위로 붕 뜨지 않도록 무시하는 최소 재적용 간격(초) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Knockback")
-	float KnockbackReapplyCooldown = 0.15f;
-
-	/** 마지막으로 ApplyKnockback이 적용된 월드 시간(초). 초기값 -1은 "아직 한 번도 적용된 적 없음"을 의미 */
-	float LastKnockbackTime = -1.f;
 };
