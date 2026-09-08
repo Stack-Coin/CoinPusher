@@ -19,9 +19,8 @@ void ACPTopDownPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// A gamepad-mapped player (see ACPGameMode::BeginPlay) has no meaningful cursor position, so only
-	// show/aim-with the mouse cursor for the player who still owns the keyboard/mouse device
-	bShowMouseCursor = IsUsingKeyboardAndMouse();
+	// Always show the mouse pointer in-game (regardless of which input device this player uses)
+	bShowMouseCursor = true;
 
 	FInputModeGameAndUI InputMode;
 	InputMode.SetHideCursorDuringCapture(false);
@@ -58,7 +57,9 @@ void ACPTopDownPlayerController::SetupInputComponent()
 
 void ACPTopDownPlayerController::ToggleDebugWidget(const FInputActionValue& Value)
 {
-	if (!IsUsingKeyboardAndMouse() || !DebugWidgetClass)
+	// 디버그용 기능이라 어떤 플레이어(장치)가 눌렀는지와 무관하게 항상 동작해야 함 - 예전에는
+	// IsUsingKeyboardAndMouse()로 막아서 키보드/마우스를 소유하지 않은 플레이어는 토글이 안 됐음
+	if (!DebugWidgetClass)
 	{
 		return;
 	}

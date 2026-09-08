@@ -14,6 +14,8 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
+#include "Player/CPCoinWallet.h"
+#include "GameFramework/GameModeBase.h"
 
 int32 ACPNexus::GlobalRemainingRespawns = 2;
 
@@ -90,6 +92,17 @@ void ACPNexus::UpdateHpBar()
 
 void ACPNexus::Interact(AActor* Interactor)
 {
+	// 코인 투입: 팀 코인이 부족하면 상호작용 자체를 무시 (버그 수정 - 기존에는 팀 코인을 전혀
+	// 소모하지 않아 UI(OnTeamCoinCountChanged)도 갱신되지 않았음)
+	if (CoinCostPerInteract > 0)
+	{
+		ICPCoinWallet* Wallet = GetWorld() ? Cast<ICPCoinWallet>(GetWorld()->GetAuthGameMode()) : nullptr;
+		if (!Wallet || !Wallet->TrySpendCoin(CoinCostPerInteract))
+		{
+			return;
+		}
+	}
+
 	OnInteracted.Broadcast(Interactor);
 
 	BP_OnInteracted(Interactor);

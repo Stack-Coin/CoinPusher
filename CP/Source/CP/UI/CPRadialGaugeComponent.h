@@ -35,6 +35,11 @@ protected:
 
 	virtual void BeginPlay() override;
 
+	/** 매 틱마다 이 컴포넌트가 카메라를 향하도록 월드 회전을 갱신한다 - 부착된 Actor(캐릭터 등)가
+	 *  회전해도 게이지 자체는 항상 카메라를 바라봄. 소유자가 로컬 플레이어가 조종하는 Pawn이면
+	 *  그 플레이어 자신의 카메라를, 아니면(테스트 액터 등) 0번 로컬 플레이어의 카메라를 기준으로 삼는다 */
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 	/** Cached UserWidgetObject, cast once in BeginPlay. BlueprintReadWrite라 BP 그래프에서 직접
 	 *  읽거나(커스텀 로직에 위젯 인스턴스 필요할 때) 다른 위젯 인스턴스로 바꿔 끼울 수 있다 */
 	UPROPERTY(BlueprintReadWrite, Category="Gauge")
