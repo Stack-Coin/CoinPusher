@@ -6,23 +6,16 @@
 #include "CPDropZone.h"
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
+#include "CPCoinPusherViewCaptureComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "TimerManager.h"
 
 ACPCoinPusher::ACPCoinPusher()
 {
 	PrimaryActorTick.bCanEverTick = false;
-
-	// 추가 박스 콜리전 + 그 자식으로 붙는 비주얼 메시. 용도는 BP에서 확장
-	/*ExtraBox = CreateDefaultSubobject<UBoxComponent>(TEXT("ExtraBox"));
-	RootComponent = ExtraBox;
-
-	ExtraBox->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f));
-	ExtraBox->SetCollisionProfileName(FName("Custom"));
-	*/
-
 
 	// 코인이 놓이는 바닥. RootComponent로 지정해 실제 충돌의 기준이 되도록 함.
 	Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
@@ -31,11 +24,18 @@ ACPCoinPusher::ACPCoinPusher()
 
 	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
 	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
-	//Floor->SetupAttachment(ExtraBoxMesh);
 
-	//ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
-	//ExtraBoxMesh->SetupAttachment(Floor);
-	//ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// 추가 박스 콜리전 (Floor에 부착). 코인이 실제로 얹혀서 멈출 수 있도록 콜리전을 가진다.
+	// 크기/위치는 BP에서 자유롭게 조정
+	ExtraBox = CreateDefaultSubobject<UBoxComponent>(TEXT("ExtraBox"));
+	ExtraBox->SetupAttachment(Floor);
+	ExtraBox->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f));
+	ExtraBox->SetCollisionProfileName(FName("BlockAllDynamic"));
+
+	// ExtraBox에 부착되는 비주얼 메시 (콜리전 없음 - 실제 충돌은 ExtraBox가 담당)
+	ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
+	ExtraBoxMesh->SetupAttachment(ExtraBox);
+	ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
 	Body->SetupAttachment(Floor);
@@ -82,6 +82,21 @@ ACPCoinPusher::ACPCoinPusher()
 
 	DropZoneComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("DropZoneComponent"));
 	DropZoneComponent->SetupAttachment(Floor);
+
+	// ViewCaptureComponent를 SpringArm 소켓에 붙여서 동작. 기본값은 위에서 내려다보는 구도이고,
+	// ArmLength/각도는 ViewCaptureBoom을 통해 BP에서 조정.
+	// ACPPartyCamera의 CameraBoom과 달리 이 Boom은 CoinPusher 자신(Floor)의 회전을 그대로 따라가야
+	// 한다 - bInherit*를 꺼두면 레벨에 배치된 CoinPusher의 실제 회전과 무관하게 캡처 카메라가 항상
+	// 고정된 월드 방향만 보게 되어, 배치 각도에 따라 엉뚱한 곳(바닥 밑, 허공 등)을 비출 수 있다
+	ViewCaptureBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("ViewCaptureBoom"));
+	ViewCaptureBoom->SetupAttachment(Floor);
+	ViewCaptureBoom->TargetArmLength = 400.0f;
+	ViewCaptureBoom->SetRelativeRotation(FRotator(-70.0f, 0.0f, 0.0f));
+	ViewCaptureBoom->bUsePawnControlRotation = false;
+	ViewCaptureBoom->bDoCollisionTest = false;
+
+	ViewCaptureComponent = CreateDefaultSubobject<UCPCoinPusherViewCaptureComponent>(TEXT("ViewCaptureComponent"));
+	ViewCaptureComponent->SetupAttachment(ViewCaptureBoom, USpringArmComponent::SocketName);
 }
 
 void ACPCoinPusher::PostInitializeComponents()

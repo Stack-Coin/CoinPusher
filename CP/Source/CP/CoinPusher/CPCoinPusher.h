@@ -9,6 +9,8 @@
 class UStaticMeshComponent;
 class UBoxComponent;
 class UChildActorComponent;
+class USpringArmComponent;
+class UCPCoinPusherViewCaptureComponent;
 class ACPDispenser;
 class ACPDropZone;
 class ACPNexus;
@@ -74,6 +76,18 @@ class CP_API ACPCoinPusher : public AActor
 	//DropZone ActorComponent (컴포넌트를 통한 Has-a)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* DropZoneComponent;
+
+	//ViewCaptureComponent를 붙여서 위치/각도를 잡아주는 SpringArm. ArmLength/각도를 BP나 디테일
+	//패널에서 바로 조정할 수 있고, bDoCollisionTest를 켜면 벽 등에 캡처 카메라가 파묻히는 것도 방지 가능
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* ViewCaptureBoom;
+
+	//이 CoinPusher를 비추는 SceneCaptureComponent2D. ViewCaptureBoom 끝(소켓)에 붙어서 동작하며,
+	//자체 RenderTarget을 만든다. 화면에 실제로 띄우는 건 PlayerController가 이 RenderTarget을
+	//UCPCoinPusherCaptureWidget에 연결해줘야 한다 (UCPCoinPusherViewportClient가 Player 카메라를
+	//오른쪽으로 축소해서 왼쪽 자리를 비워둔다). 위치/회전은 ViewCaptureBoom을 통해 BP에서 조정
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UCPCoinPusherViewCaptureComponent* ViewCaptureComponent;
 
 public:
 	ACPCoinPusher();
@@ -180,6 +194,8 @@ public:
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }
 	FORCEINLINE UChildActorComponent* GetDropZoneComponent() const { return DropZoneComponent; }
 	FORCEINLINE const TArray<TObjectPtr<UChildActorComponent>>& GetCeilingDispenserComponents() const { return CeilingDispenserComponents; }
+	FORCEINLINE USpringArmComponent* GetViewCaptureBoom() const { return ViewCaptureBoom; }
+	FORCEINLINE UCPCoinPusherViewCaptureComponent* GetViewCaptureComponent() const { return ViewCaptureComponent; }
 
 	//ChildActorComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
