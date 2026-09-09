@@ -23,6 +23,11 @@ class CP_API ACPMonsterBoss : public ACPMonsterBase
 public:
 	ACPMonsterBoss();
 
+	/** 스포너가 SpawnBoss()에서 BossWaveTable(FCPBossWaveRow)의 해당 Round 행을 찾은 직후 호출:
+	 *  그 행의 RoarHealthPercentThreshold/SlamCooldown 값으로 덮어씀. 호출되지 않으면(레벨에 직접
+	 *  배치해서 테스트하는 경우 등) 아래 Blueprint 디테일 패널에 넣어둔 기본값을 그대로 사용함 */
+	void ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown);
+
 protected:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void AttackByAI() override;

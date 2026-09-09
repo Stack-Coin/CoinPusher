@@ -81,7 +81,7 @@ void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InWav
 	AttackPower = BaseRow->AttackPower + AddAttackPower;
 
 	// 웨이브에 따른 수치 변화 없음 (평탄화된 BaseRow 필드를 DefaultStat 캐시로 복사)
-	DefaultStat.AttackSpeed = BaseRow->AttackSpeed;
+	DefaultStat.AttackInterval = BaseRow->AttackInterval;
 	DefaultStat.CollisionRadius = BaseRow->CollisionRadius;
 	DefaultStat.AttackRange = BaseRow->AttackRange;
 	DefaultStat.TurnSpeed = BaseRow->TurnSpeed;

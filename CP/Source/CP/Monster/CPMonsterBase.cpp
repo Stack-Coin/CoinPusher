@@ -481,9 +481,9 @@ float ACPMonsterBase::GetAIAttackPower()
 }
 
 // 웨이브에 따른 수치 변화 없음
-float ACPMonsterBase::GetAIAttackSpeed()
+float ACPMonsterBase::GetAIAttackInterval()
 {
-	return StatComponent ? StatComponent->DefaultStat.AttackSpeed : 1.0f;
+	return StatComponent ? StatComponent->DefaultStat.AttackInterval : 1.0f;
 }
 
 float ACPMonsterBase::GetAICollisionRadius()

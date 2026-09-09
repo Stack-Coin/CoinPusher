@@ -34,7 +34,9 @@ public:
 	virtual float GetAIAttackPower() = 0;
 
 	// Default
-	virtual float GetAIAttackSpeed() = 0;
+	/** 공격 사이 간격 (초). 낮을수록 더 자주 공격함 - 예전 이름 GetAIAttackSpeed()는 "높을수록 빠름"으로
+	 *  오해하기 쉬워서 실제 의미(주기/간격)에 맞게 변경됨 */
+	virtual float GetAIAttackInterval() = 0;
 	virtual float GetAICollisionRadius() = 0;
 	virtual float GetAIAttackRange() = 0;
 	virtual float GetAITurnSpeed() = 0;

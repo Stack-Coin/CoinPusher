@@ -20,8 +20,9 @@ struct FCPMonsterDefaultStat
 {
 	GENERATED_BODY()
 
+	/** 공격 사이 간격 (초). "Speed"라는 이름과 달리 낮을수록 더 자주(빠르게) 공격함 - 실제로는 쿨타임/주기 값 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float AttackSpeed = 0.f;
+	float AttackInterval = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float CollisionRadius = 0.f;
@@ -65,8 +66,9 @@ struct FCPMonsterStatRow : public FTableRowBase
 	float AttackPower = 0.f;
 
 	// 웨이브에 따른 수치 변화 없음 (기존 FCPMonsterDefaultStat 필드를 그대로 평탄화)
+	/** 공격 사이 간격 (초). 낮을수록 더 자주 공격함 (예전 이름 AttackSpeed는 오해 소지가 있어 변경됨) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float AttackSpeed = 0.f;
+	float AttackInterval = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
 	float CollisionRadius = 0.f;

@@ -8,6 +8,12 @@ ACPMonsterBoss::ACPMonsterBoss()
 	MonsterType = ECPMonsterType::Boss;
 }
 
+void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown)
+{
+	RoarHealthPercentThreshold = InRoarHealthPercentThreshold;
+	SlamCooldown = InSlamCooldown;
+}
+
 void ACPMonsterBoss::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);

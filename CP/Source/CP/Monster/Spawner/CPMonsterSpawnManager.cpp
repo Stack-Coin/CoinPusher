@@ -4,6 +4,7 @@
 #include "Monster/Spawner/CPMonsterSpawnManager.h"
 #include "Monster/Spawner/CPMonsterSpawner.h"
 #include "Monster/CPMonsterBase.h"
+#include "Monster/Boss/CPMonsterBoss.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DataTable.h"
 #include "Engine/World.h"
@@ -282,6 +283,12 @@ void ACPMonsterSpawnManager::SpawnBoss()
 	{
 		ActiveBoss = SpawnedBoss;
 		SpawnedBoss->OnMonsterDied.AddUniqueDynamic(this, &ACPMonsterSpawnManager::HandleBossDied);
+
+		// BossWaveTable 행에 담긴 Boss 전용 값(포효 임계치/슬램 쿨타임)을 스폰된 인스턴스에 적용
+		if (ACPMonsterBoss* Boss = Cast<ACPMonsterBoss>(SpawnedBoss))
+		{
+			Boss->ApplyBossWaveStat(BossRow->RoarHealthPercentThreshold, BossRow->SlamCooldown);
+		}
 	}
 	else
 	{

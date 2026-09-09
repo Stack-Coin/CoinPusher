@@ -86,7 +86,7 @@ public:
 	virtual float GetAIAttackPower() override;
 
 	// Default
-	virtual float GetAIAttackSpeed() override;
+	virtual float GetAIAttackInterval() override;
 	virtual float GetAICollisionRadius() override;
 	virtual float GetAIAttackRange() override;
 	virtual float GetAITurnSpeed() override;

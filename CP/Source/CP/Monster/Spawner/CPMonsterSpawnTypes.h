@@ -81,4 +81,12 @@ struct FCPBossWaveRow : public FTableRowBase
 	/** 마지막 웨이브 종료 후, 보스 등장까지 대기시간(초) - 기획서의 "라운드 대기시간" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
 	float RoundEndWaitTime = 10.0f;
+
+	/** 체력이 이 비율 밑으로 떨어지면 포효(무적) 발동 - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float RoarHealthPercentThreshold = 0.5f;
+
+	/** 슬램(내려찍기) 공격 쿨타임(초) - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
+	float SlamCooldown = 4.0f;
 };

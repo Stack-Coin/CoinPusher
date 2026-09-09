@@ -25,7 +25,7 @@ void ACPMonsterRanged::Tick(float DeltaSeconds)
 void ACPMonsterRanged::AttackHitCheck()
 {
 	const float Now = GetWorld()->GetTimeSeconds();
-	const float Duration = GetAIAttackSpeed();
+	const float Duration = GetAIAttackInterval();
 	
 	if (Duration > 0.f && Now - LastFireTime < Duration)
 	{
