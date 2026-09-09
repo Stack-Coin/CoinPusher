@@ -232,28 +232,4 @@ public:
 	virtual bool TrySpendCoin(int32 Amount) override;
 
 	// ~end ICPCoinWallet
-
-protected:
-	// KohMS
-	UPROPERTY(BlueprintReadOnly, Category = "Game")
-	bool bIsGameOver = false;
-
-	UFUNCTION(BlueprintPure, Category = "Game")
-	bool IsGameOver() const { return bIsGameOver; }
-
-	UFUNCTION()
-	void HandleGoddessDead();
-
-protected:
-	// KohMS // 화면에 웨이브 진행 상황(웨이브 번호 / 다음 이벤트까지 남은 시간) 표시
-	UPROPERTY()
-	TObjectPtr<class ACPMonsterSpawnManager> WaveStatusSourceManager;
-
-	UPROPERTY()
-	TObjectPtr<class UCPUserWidget_WaveStatus> WaveStatusWidget;
-
-	FTimerHandle WaveStatusUpdateTimer;
-
-	UFUNCTION()
-	void UpdateWaveStatusDisplay();
 };

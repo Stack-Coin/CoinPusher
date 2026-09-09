@@ -61,15 +61,25 @@ struct FCPSpawnWaveEntryRow : public FTableRowBase
 };
 
 /**
- * 라운드의 마지막(보스) 설정. 라운드 1개당 1행입니다.
+ * 라운드 단위 설정. 라운드 1개당 1행입니다.
+ * (스포너 링 구성값 + 보스 설정을 함께 담습니다 - 어차피 라운드 전환 시점에 한 번에 적용되는 값들이라
+ *  별도 테이블로 쪼개지 않고 여기 모아뒀습니다.)
  */
 USTRUCT(BlueprintType)
-struct FCPBossWaveRow : public FTableRowBase
+struct FCPRoundInfoRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round")
 	int32 Round = 1;
+
+	/** 이 라운드에서 오너(플레이어)를 중심으로 생성할 스포너 개수 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round", meta = (ClampMin = 0))
+	int32 SpawnerCount = 8;
+
+	/** 이 라운드에서 스포너들을 배치할 반경(cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round", meta = (ClampMin = 0))
+	float SpawnerRadius = 1500.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss")
 	ECPMonsterType BossMonsterType = ECPMonsterType::Boss;

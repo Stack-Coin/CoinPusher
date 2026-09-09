@@ -24,6 +24,7 @@
 #include "UI/CPRadialGaugeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
+#include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -85,6 +86,10 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	DebugHitboxShape = CreateDefaultSubobject<UCPDebugCollisionShapeComponent>(TEXT("DebugHitboxShape"));
 	DebugHitboxShape->Category = ECPDebugCollisionCategory::PlayerHitbox;
 	DebugHitboxShape->SetTargetComponent(GetCapsuleComponent());
+
+	// 뱀서류 몬스터 웨이브/라운드/보스 스폰 담당. 부착 대상이 없는 순수 로직 컴포넌트라
+	// SetupAttachment 불필요 (WeaponManager와 동일한 패턴)
+	MonsterSpawnManager = CreateDefaultSubobject<UCPMonsterSpawnManagerComponent>(TEXT("MonsterSpawnManager"));
 }
 
 void ACPPlayerCharacter::BeginPlay()
