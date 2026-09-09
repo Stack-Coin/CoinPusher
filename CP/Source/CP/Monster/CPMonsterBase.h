@@ -19,10 +19,11 @@ enum class ECPMonsterCCState : uint8
 {
 	None      = 0,
 	Knockback = 1 << 0,
-	Stunned   = 1 << 1,
-	Rooted    = 1 << 2,
+	Stunned   = 1 << 1, // 기절
+	Rooted    = 1 << 2, // 속박
 	Attacking = 1 << 3,
 	Dead      = 1 << 4,
+	Invulnerable = 1 << 5, // 무적
 };
 ENUM_CLASS_FLAGS(ECPMonsterCCState);
 
@@ -98,6 +99,11 @@ public:
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
 
+	/** 몽타주 재생 + Attacking CC 상태 부여 + 종료 시 NotifyAttackActionEnd 호출을 하나로 묶은 헬퍼.
+	 *  기본 AttackByAI()는 AttackMontage로 이걸 호출하고, 보스처럼 상황에 따라 여러 몽타주 중
+	 *  골라야 하는 경우 AttackByAI()를 오버라이드해서 원하는 몽타주로 이 헬퍼를 재사용하면 됨 */
+	void PlayAttackMontage(UAnimMontage* Montage);
+
 protected:
 	void SeparateFromOtherMonsters(float DeltaSeconds);
 
@@ -106,22 +112,6 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnMonsterDied OnMonsterDied;
-
-protected:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
-	TObjectPtr<UCapsuleComponent> Collider;
-
-	/** Draws GetCapsuleComponent()'s wireframe while the F1 debug widget's EnemyHitbox checkbox is on */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCPDebugCollisionShapeComponent> DebugHitboxShape;
-
-	/** If true, AttackHitCheck draws its sweep shape. Driven by the F1 debug widget's MonsterAttackRange checkbox */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
-	bool bDrawDebugAttackRange = false;
-
-	// todo. Data Asset 형태로
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterMesh")
-	TObjectPtr<USkeletalMeshComponent> MonsterMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<UAnimMontage> AttackMontage;
@@ -144,8 +134,6 @@ protected:
 	TSubclassOf<ACPCoinItem> CoinItem;
 
 protected:
-	/** 넉백이 밀려나는 데 걸리는 시간(초). ApplyKnockback의 LaunchCharacter 속도 계산(Distance/KnockbackDuration)과,
-	 *  TakeDamage에서 사망을 유예하는 시간(넉백이 먼저 보이게) 양쪽에 공통으로 사용함 */
 	static constexpr float KnockbackDuration = 0.2f;
 
 	bool bIsDead = false;
@@ -155,6 +143,14 @@ protected:
 	 *  대신 Dead() 호출 자체를 넉백 재생 시간만큼 미루는 방식으로 우회함 */
 	bool bPendingDeath = false;
 
-	/** 현재 걸려있는 CC 상태 비트마스크. HasCCState/AddCCState/RemoveCCState로만 건드릴 것 */
 	ECPMonsterCCState CurrentCCState = ECPMonsterCCState::None;
+
+protected:
+	/** Draws GetCapsuleComponent()'s wireframe while the F1 debug widget's EnemyHitbox checkbox is on */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCPDebugCollisionShapeComponent> DebugHitboxShape;
+
+	/** If true, AttackHitCheck draws its sweep shape. Driven by the F1 debug widget's MonsterAttackRange checkbox */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
+	bool bDrawDebugAttackRange = false;
 };

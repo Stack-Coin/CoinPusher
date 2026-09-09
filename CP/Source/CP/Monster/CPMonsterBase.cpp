@@ -47,10 +47,8 @@ void ACPMonsterBase::BeginPlay()
 
 	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
 
-	if (Collider)
-	{
-		Collider->SetCapsuleRadius(GetAICollisionRadius());
-	}
+	GetCapsuleComponent()->SetCapsuleRadius(GetAICollisionRadius());
+
 
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
@@ -157,25 +155,8 @@ void ACPMonsterBase::Dead()
 	AddCCState(ECPMonsterCCState::Dead);
 
 	// 사망 후에는 다른 액터와 전혀 부딪히지 않도록 콜리전을 완전히 끔
-	if (Collider)
-	{
-		Collider->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
-
-	if (UCapsuleComponent* CapsuleComp = GetCapsuleComponent())
-	{
-		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
-
-	if (MonsterMesh)
-	{
-		MonsterMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
-
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-	{
-		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	// 콜리전이 사라지면 무브먼트가 바닥 참조를 잃어 사망 모션 중 파묻힐 수 있어 무브먼트도 함께 정지
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
@@ -243,24 +224,39 @@ void ACPMonsterBase::SetAIAttackDelegate(const FAICharacterAttackFinished& InOnA
 
 void ACPMonsterBase::AttackByAI()
 {
+	PlayAttackMontage(AttackMontage);
+}
+
+void ACPMonsterBase::PlayAttackMontage(UAnimMontage* Montage)
+{
 	TObjectPtr<UAnimInstance> AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance && AttackMontage)
+	if (AnimInstance && Montage)
 	{
+
 		AddCCState(ECPMonsterCCState::Attacking);
 
 		AnimInstance->StopAllMontages(0.0f);
-		AnimInstance->Montage_Play(AttackMontage, 1.0f);
+		AnimInstance->Montage_Play(Montage, 1.0f);
 
 		FOnMontageEnded MontageEndDelegate;
 		MontageEndDelegate.BindUObject(this, &ACPMonsterBase::NotifyAttackActionEnd);
 
-		AnimInstance->Montage_SetEndDelegate(MontageEndDelegate, AttackMontage);
+		AnimInstance->Montage_SetEndDelegate(MontageEndDelegate, Montage);
+	}
+	else
+	{
 	}
 }
 
 float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	// 포효 등으로 무적 상태면 데미지 무시
+	if (HasCCState(ECPMonsterCCState::Invulnerable))
+	{
+		return 0.f;
+	}
 
 	if (StatComponent)
 	{
@@ -294,9 +290,6 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 		return;
 	}
 
-	// Z(수직)는 건드리지 않고 XY(수평)로만 밀어냄. LaunchCharacter(속도 기반)라서 자연스럽게 밀려나고,
-	// bZOverride=false라 기존 Z 속도(중력/Flying 등)는 그대로 유지됨. 매 호출마다 속도를 새로 덮어쓰므로
-	// 별도 쿨다운 없이 연속으로 맞아도 그때그때 계속 적용됨
 	FVector FlatDirection = Direction;
 	FlatDirection.Z = 0.0f;
 
@@ -305,7 +298,6 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 		return;
 	}
 
-	// CC 상태 비트에 Knockback 추가
 	AddCCState(ECPMonsterCCState::Knockback);
 
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
@@ -313,19 +305,20 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 	// Distance(밀려나는 거리)를 KnockbackDuration(밀려나는 데 걸리는 시간) 안에 이동하도록 속도로 환산
 	const float Speed = Distance / KnockbackDuration;
+
+	// Test
+	//const float Speed = 1000.f / KnockbackDuration;
+
 	const FVector LaunchVelocity = FlatDirection * Speed;
 
-	// bUseRVOAvoidance가 켜져 있으면 매 틱 CalcAvoidanceVelocity가 Velocity를 "AI가 원래 가려던 방향"으로
-	// 다시 덮어써서, LaunchCharacter로 준 속도가 같은 프레임 안에 씹혀버림. 넉백이 재생되는 동안만
-	// RVO를 잠깐 꺼서 launch 속도가 실제로 유지되게 함
+	// RVO 끄기
 	if (MoveComp)
 	{
 		MoveComp->bUseRVOAvoidance = false;
 	}
 
-	// Flying/Ranged 몬스터는 RVO를 꺼도 BT의 MoveTo가 매 틱 계속 이동 명령을 내려서 velocity가 되돌아감.
-	// 넉백이 재생되는 동안은 AI의 이동 명령 자체를 PauseMove로 잠깐 멈추고, 끝나면 같은 요청을
-	// ResumeMove로 이어서 재개함(BT 태스크를 중단/재시작하지 않음)
+	// Flying/Ranged 몬스터는 RVO를 꺼도 BT의 MoveTo가 매 틱 이동 명령을 내려서 velocity가 되돌아감 ->
+	// 넉백 동안은 AI 이동 명령 자체를 PauseMove로 멈추고, 끝나면 같은 요청을 ResumeMove로 재개
 	FAIRequestID PausedMoveRequestID = FAIRequestID::InvalidRequest;
 	if (AAIController* AICon = Cast<AAIController>(GetController()))
 	{
@@ -338,7 +331,7 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 	LaunchCharacter(LaunchVelocity, /*bXYOverride=*/true, /*bZOverride=*/false);
 
-	// KnockbackDuration 후 RVO 회피와 AI 이동 명령을 복구하고(원래 Flying이었다면 Flying도 함께 복구)
+	// KnockbackDuration 후 RVO 회피를 복구하고 Flying 복구
 	TWeakObjectPtr<ACPMonsterBase> WeakThis(this);
 	FTimerHandle RestoreHandle;
 	GetWorldTimerManager().SetTimer(RestoreHandle, [WeakThis, bWasFlying, PausedMoveRequestID]()

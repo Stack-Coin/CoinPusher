@@ -10,7 +10,6 @@
 #include "Engine/GameViewportClient.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "GameMode/CPPlayerRegistrySubsystem.h"
-#include "Nexus/CPGoddess.h"
 #include "Nexus/CPNexus.h"
 #include "Monster/Spawner/CPMonsterSpawnManager.h"
 #include "Monster/Spawner/CPUserWidget_WaveStatus.h"
@@ -50,12 +49,6 @@ void ACPGameMode::BeginPlay()
 		// ...but device detection (XInput/RawInput polling) can still lag a frame or more past
 		// BeginPlay, so keep watching for one to show up later too
 		InputDeviceConnectionChangeHandle = IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().AddUObject(this, &ACPGameMode::HandleInputDeviceConnectionChange);
-	}
-
-	// KohMs // Goddess가 죽으면 패배
-	if (ACPGoddess* Goddess = Cast<ACPGoddess>(UGameplayStatics::GetActorOfClass(this, ACPGoddess::StaticClass())))
-	{
-		Goddess->OnGoddessDead.AddUniqueDynamic(this, &ACPGameMode::HandleGoddessDead);
 	}
 
 	// KohMS // 웨이브 진행 상황을 화면에 텍스트로 표시 (레벨에 배치된 매니저의 상태를 그대로 보여줍니다)

@@ -39,5 +39,13 @@ bool UCPTDecorator_AttackInRange::CalculateRawConditionValue(UBehaviorTreeCompon
 	float AttackRangeWithRadius = AIPawn->GetAIAttackRange();
 
 	bResult = (DistanceToTarget <= AttackRangeWithRadius);
+
+	static TMap<TWeakObjectPtr<APawn>, bool> LastResultByPawn;
+	bool& LastResult = LastResultByPawn.FindOrAdd(ControllingPawn);
+	if (LastResult != bResult)
+	{
+		LastResult = bResult;
+	}
+
 	return bResult;
 }
