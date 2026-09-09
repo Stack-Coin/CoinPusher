@@ -118,6 +118,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	int32 InitialCoinDropCount = 10;
 
+	//SpawnBigCoin()이 스폰할 코인의 ItemID (ItemRegistry에 Big 코인으로 쓸 CoinPusherItem 클래스가 등록돼 있어야 함)
+	UPROPERTY(EditAnywhere, Category="CoinPusher")
+	FName BigCoinItemID = TEXT("100");
+
 	//게임 시작 후 FrontWall을 제거하기까지 대기하는 시간(초)
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	float FrontWallRemovalDelay = 3.0f;
@@ -241,6 +245,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void ItemSpawn(FName ItemID, int32 SpawnCount);
 
+	//천장 Dispenser 중 하나를 랜덤하게 골라 BigCoinItemID로 지정된 코인 1개를 스폰하고 CoinType을 Big으로 전환한다
+	UFUNCTION(BlueprintCallable, Category="CoinPusher")
+	void SpawnBigCoin();
+
 	//CoinThrowAreaComponents 5개를 WaveThrowInterval 간격으로 순차적으로 ActiveThrow() 시킨다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void ActiveWaveThrow();
@@ -249,4 +257,8 @@ protected:
 
 	//ActiveWaveThrow() 진행 중 WaveThrowTimerHandle에 의해 반복 호출됨 - 다음 CoinThrowArea를 활성화하고 인덱스를 진행
 	void HandleWaveThrowTick();
+
+	//CeilingDispenserComponents 중 실제로 스폰된 ACPDispenser들 가운데 하나를 랜덤하게 골라 반환 (없으면 nullptr).
+	//ItemSpawn()과 SpawnBigCoin()이 공유하는 선택 로직
+	ACPDispenser* PickRandomValidCeilingDispenser() const;
 };

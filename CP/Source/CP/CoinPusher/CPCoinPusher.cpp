@@ -6,6 +6,7 @@
 #include "CPDropZone.h"
 #include "CPPassiveCoinConvertArea.h"
 #include "CPCoinThrowArea.h"
+#include "CPCoin.h"
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
 #include "CPCoinPusherViewCaptureComponent.h"
@@ -247,6 +248,30 @@ void ACPCoinPusher::RemoveFrontWall()
 
 void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 {
+	if (ACPDispenser* Dispenser = PickRandomValidCeilingDispenser())
+	{
+		Dispenser->DispenseItemByID(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::SpawnBigCoin()
+{
+	ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+	if (!Dispenser)
+	{
+		return;
+	}
+
+	if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(BigCoinItemID))
+	{
+		// Big 코인이 CoinPusher의 Collision에 부딪혔을 때 ActiveWaveThrow()를 호출할 대상을 직접 알려줌
+		SpawnedCoin->SetOwningCoinPusher(this);
+		SpawnedCoin->SetCoinType(ECPCoinType::Big);
+	}
+}
+
+ACPDispenser* ACPCoinPusher::PickRandomValidCeilingDispenser() const
+{
 	TArray<ACPDispenser*> ValidCeilingDispensers;
 	ValidCeilingDispensers.Reserve(CeilingDispenserComponents.Num());
 
@@ -265,12 +290,11 @@ void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 
 	if (ValidCeilingDispensers.Num() == 0)
 	{
-		return;
+		return nullptr;
 	}
 
-	//천장 Dispenser 중 하나를 랜덤하게 골라 그쪽에서 Spawn되도록 위임
 	const int32 RandomIndex = FMath::RandRange(0, ValidCeilingDispensers.Num() - 1);
-	ValidCeilingDispensers[RandomIndex]->DispenseItemByID(ItemID, SpawnCount);
+	return ValidCeilingDispensers[RandomIndex];
 }
 
 void ACPCoinPusher::ActiveWaveThrow()

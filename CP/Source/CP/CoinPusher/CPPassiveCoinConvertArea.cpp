@@ -26,7 +26,7 @@ void ACPPassiveCoinConvertArea::ConvertActive(int32 Num)
 	//이미 Passive인 코인은 다시 골라봐야 아무 변화가 없으므로(SetCoinType이 조기 반환) 후보에서 제외
 	TArray<ACPCoin*> Candidates = GatherCandidates([](const ACPCoin& Coin)
 	{
-		return Coin.GetCoinType() != ECPCoinType::Passive;
+			return ((Coin.GetCoinType() != ECPCoinType::Passive) && (Coin.GetCoinType() == ECPCoinType::Normal));
 	});
 
 	ConvertRandomCandidates(MoveTemp(Candidates), Num, ECPCoinType::Passive);
@@ -42,7 +42,7 @@ void ACPPassiveCoinConvertArea::HPConvertActive(int32 Num)
 	//Normal 코인만 HP로 전환 대상이 됨
 	TArray<ACPCoin*> Candidates = GatherCandidates([](const ACPCoin& Coin)
 	{
-		return Coin.GetCoinType() == ECPCoinType::Normal;
+		return ((Coin.GetCoinType() != ECPCoinType::Passive) && (Coin.GetCoinType() == ECPCoinType::Normal));
 	});
 
 	ConvertRandomCandidates(MoveTemp(Candidates), Num, ECPCoinType::HP);

@@ -13,8 +13,9 @@ enum class ECPCoinType : uint8
 	Normal,
 	//패시브 코인 - 전환되는 순간 최소 크기로 줄었다가 최대 크기로 늘어난 뒤 원래 크기로 돌아오는 스케일 연출이 재생됨
 	Passive,
-	//대왕 코인
-	Giant,
+	//Big(대왕) 코인 - 전환되는 순간 지정된 Mesh/Material로 바뀌고 스케일이 BigScaleMultiplier배로 커짐(원상복구 없음).
+	//CoinPusher의 Collision(Floor/Wall)에 처음 부딪히면 그 CoinPusher의 ActiveWaveThrow()를 1회 실행시킴
+	Big,
 	//HP 코인 - 전환되는 순간 Passive와 동일한 스케일 연출(최소→최대→원래 크기)이 재생됨
 	HP
 };

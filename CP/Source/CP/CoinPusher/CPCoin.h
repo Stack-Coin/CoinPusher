@@ -11,10 +11,13 @@
 class UStaticMeshComponent;
 class UStaticMesh;
 class UMaterialInterface;
+class UPhysicalMaterial;
 class UChildActorComponent;
+class UPrimitiveComponent;
 class ACPCoinThrowArea;
+class ACPCoinPusher;
 
-//CoinType별로 지정할 수 있는 Mesh/Material. 둘 다 비워두면(nullptr) 해당 항목은 바꾸지 않는다
+//CoinType별로 지정할 수 있는 Mesh/Material/PhysicsMaterial. 비워두면(nullptr) 해당 항목은 바꾸지 않는다
 USTRUCT(BlueprintType)
 struct FCPCoinTypeVisual
 {
@@ -27,6 +30,10 @@ struct FCPCoinTypeVisual
 	//지정 시 해당 CoinType으로 전환될 때 Mesh 슬롯 0에 SetMaterial()로 적용
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Coin")
 	TObjectPtr<UMaterialInterface> Material = nullptr;
+
+	//지정 시 해당 CoinType으로 전환될 때 Mesh에 SetPhysMaterialOverride()로 적용 (마찰/반발 등 물리 충돌 속성)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Coin")
+	TObjectPtr<UPhysicalMaterial> PhysicsMaterial = nullptr;
 };
 
 UCLASS(abstract)
@@ -112,6 +119,32 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Coin", meta = (AllowPrivateAccess = "true"))
 	float CoinThrowAreaOffsetX = 150.0f;
 
+	//Big 코인으로 전환될 때 곱해지는 스케일 배율 (전환 시점의 원본 스케일 대비). Passive/HP와 달리 원상복구되지 않는다
+	UPROPERTY(EditAnywhere, Category="Coin|Big", meta = (ClampMin = 0))
+	float BigScaleMultiplier = 3.0f;
+
+	//스폰(BeginPlay) 후 이 시간(초)이 지나야 Big 코인의 WaveThrow 트리거가 활성화된다 - 스폰 직후 SpawnPoint/
+	//Dispenser 등과의 초기 접촉으로 곧바로 오발동하는 것을 방지하기 위한 유예 시간
+	UPROPERTY(EditAnywhere, Category="Coin|Big", meta = (ClampMin = 0))
+	float BigWaveThrowArmDelay = 0.05f;
+
+	//BigWaveThrowArmDelay가 지나 Big 코인의 WaveThrow 트리거가 활성화되면 true
+	bool bBigWaveThrowArmed = false;
+
+	//bBigWaveThrowArmed를 true로 바꾸는 타이머 핸들
+	FTimerHandle BigWaveThrowArmTimerHandle;
+
+	//Big 코인이 무엇과든(어떤 충돌이든) 처음 부딪혔을 때 true로 설정 - ActiveWaveThrow()가 중복 호출되지
+	//않도록 한 번만 트리거되게 막는 가드
+	bool bHasTriggeredBigWaveThrow = false;
+
+	//이 코인을 스폰한 CoinPusher (Big 코인이 부딪혔을 때 ActiveWaveThrow()를 호출할 대상).
+	//ChildActorComponent로 스폰된 Dispenser가 낳은 Coin은 Owner 체인(GetOwner())이 신뢰할 수 없어서
+	//(UChildActorComponent가 스폰한 액터에 Owner를 설정해주지 않음) Owner 체인 탐색 대신, 스폰한
+	//쪽(ACPCoinPusher::SpawnBigCoin())이 SetOwningCoinPusher()로 직접 알려준다
+	UPROPERTY()
+	TObjectPtr<ACPCoinPusher> OwningCoinPusher = nullptr;
+
 public:
 
 	//Coin 가치 반환
@@ -147,10 +180,13 @@ public:
 
 protected:
 
+	//BigWaveThrowArmDelay 경과 후 bBigWaveThrowArmed가 true가 되도록 타이머를 예약
+	virtual void BeginPlay() override;
+
 	UFUNCTION(BlueprintImplementableEvent, Category="Coin", meta = (DisplayName = "On Collected"))
 	void BP_OnCollected();
 
-	//CoinType이 실제로 바뀔 때마다 호출 (SetCoinType 참고). Normal/Giant 등 추가 타입별 연출은 BP에서 이 이벤트로 확장
+	//CoinType이 실제로 바뀔 때마다 호출 (SetCoinType 참고). 추가 타입별 연출은 BP에서 이 이벤트로 확장 가능
 	UFUNCTION(BlueprintImplementableEvent, Category="Coin", meta = (DisplayName = "On Coin Type Changed"))
 	void BP_OnCoinTypeChanged(ECPCoinType OldType, ECPCoinType NewType);
 
@@ -170,6 +206,14 @@ protected:
 	//LaunchCooldownTimerHandle 만료 시 호출되어 bIsLaunched를 다시 false로 되돌림 (재발사 가능 상태로 복귀)
 	void ClearLaunchedState();
 
+	//BigWaveThrowArmTimerHandle 만료 시 호출되어 bBigWaveThrowArmed를 true로 설정
+	void ArmBigWaveThrow();
+
+	//Mesh->OnComponentHit에 바인딩 - Big 코인이 무엇과든 처음 부딪히면(단, bBigWaveThrowArmed가 true인 이후)
+	//OwningCoinPusher의 ActiveWaveThrow()를 1회 실행시킨다
+	UFUNCTION()
+	void HandleMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
 public:
 
 	FORCEINLINE UStaticMeshComponent* GetMesh() const { return Mesh; }
@@ -178,4 +222,9 @@ public:
 	//CoinThrowAreaComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
 	UFUNCTION(BlueprintPure, Category="Coin")
 	ACPCoinThrowArea* GetCoinThrowArea() const;
+
+	//이 코인을 스폰한 CoinPusher를 설정 (Big 코인이 부딪혔을 때 ActiveWaveThrow()를 호출할 대상).
+	//현재는 ACPCoinPusher::SpawnBigCoin()이 스폰 직후 호출
+	UFUNCTION(BlueprintCallable, Category="Coin")
+	void SetOwningCoinPusher(ACPCoinPusher* NewOwningCoinPusher) { OwningCoinPusher = NewOwningCoinPusher; }
 };

@@ -45,10 +45,13 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - `Launch(LaunchVelocity)` : `Mesh`에 물리 속도를 부여해 날림 (`ACPCoinThrowArea::ActiveThrow()`가 호출). 이미 `bIsLaunched`가 true(=날아가고 있는 중)면 아무것도 하지 않고 무시 — 여러 CoinThrowArea가 짧은 시간 안에 같은 코인을 중복으로 발사해 속도가 비정상적으로 누적되는 것을 방지. `LaunchCooldown`(EditAnywhere, 기본 1초) 경과 후 자동으로 `bIsLaunched`가 다시 false로 돌아와 재발사 가능해짐 (참고: `ACPDispenser::SpawnItemClass()`의 초기 스폰 발사는 이 함수를 거치지 않고 RootComponent에 직접 속도를 부여하므로 이 쿨다운의 영향을 받지 않음)
 - `Collect()` : `BP_OnCollected` 이벤트 후 자신을 Destroy
 - `OnDroppedInZone(DropZone)` : `DropZone->AddCollectedCoins(1)` 호출 후 `Collect()`
-- `CoinType`(`ECPCoinType`: Normal/Passive/Giant/HP) : `SetCoinType(NewType)`으로 변경. 실제로 값이 바뀔 때만 아래 동작들을 트리거하고 `BP_OnCoinTypeChanged(OldType, NewType)` BP 이벤트를 호출
+- `CoinType`(`ECPCoinType`: Normal/Passive/Big/HP) : `SetCoinType(NewType)`으로 변경. 실제로 값이 바뀔 때만 아래 동작들을 트리거하고 `BP_OnCoinTypeChanged(OldType, NewType)` BP 이벤트를 호출
   - Passive 또는 HP로 전환 시 동일한 스케일 연출 재생(공용 로직): 원본 스케일 → `ScaleAnimMinScale`로 축소 → `ScaleAnimMaxScale`로 확대 → 원본 스케일로 복귀 (속도는 `ScaleAnimSpeed`, 세 값 모두 EditAnywhere, `Coin|ScaleAnim` 카테고리). 다른 타입으로 다시 바뀌면 진행 중이던 연출은 즉시 취소되고 원본 스케일로 복귀
   - 최대 크기(`ScaleAnimMaxScale`)에 도달하는 순간 `CoinThrowAreaComponent`가 스폰한 `ACPCoinThrowArea`(`GetCoinThrowArea()`)를 이 코인 위치 기준 월드 X방향으로 `CoinThrowAreaOffsetX`만큼 떨어뜨려 옮기고 `ActiveThrow()`를 호출 — "커졌을 때 주변 코인을 날려보내는" 연출
-  - `CoinTypeVisuals`(`TMap<ECPCoinType, FCPCoinTypeVisual>`, EditAnywhere) : 타입별로 지정한 `Mesh`/`Material`이 있으면 전환 시점에 `Mesh` 컴포넌트에 `SetStaticMesh()`/`SetMaterial(0, ...)`로 적용. 둘 중 비워둔(nullptr) 필드나 맵에 없는 타입은 바꾸지 않음 — 예: Passive만 별도 메시를 쓰고 싶으면 `CoinTypeVisuals`에 `Passive` 항목만 채워두면 됨
+  - Big으로 전환 시에는 애니메이션 없이 즉시 `GetActorScale3D() * BigScaleMultiplier`(EditAnywhere, `Coin|Big` 카테고리, 기본 3배)로 스케일을 키우고 원상복구되지 않음
+  - `CoinTypeVisuals`(`TMap<ECPCoinType, FCPCoinTypeVisual>`, EditAnywhere) : 타입별로 지정한 `Mesh`/`Material`/`PhysicsMaterial`이 있으면 전환 시점에 `Mesh` 컴포넌트에 각각 `SetStaticMesh()`/`SetMaterial(0, ...)`/`SetPhysMaterialOverride(...)`로 적용. 비워둔(nullptr) 필드나 맵에 없는 타입은 바꾸지 않음 — 예: Big 전용 메시/머티리얼/물리 머티리얼(마찰·반발 등)을 쓰고 싶으면 `CoinTypeVisuals`에 `Big` 항목만 채워두면 됨
+- `OwningCoinPusher`(`TObjectPtr<ACPCoinPusher>`) : 이 코인을 스폰한 CoinPusher. `ACPCoinPusher::SpawnBigCoin()`이 스폰 직후 `SetOwningCoinPusher(this)`로 직접 설정해준다 — ChildActorComponent가 스폰한 Dispenser/Coin에는 `Owner`가 채워지지 않아 `GetOwner()` 체인을 타고 올라가는 방식은 쓸 수 없었음(항상 nullptr을 반환하는 버그가 있었음)
+- `CoinType == Big`이고 `bBigWaveThrowArmed`가 true(스폰 후 `BigWaveThrowArmDelay`, 기본 0.2초 경과)이며 아직 `bHasTriggeredBigWaveThrow`가 false인 상태에서 `Mesh`가 무엇과든(`OnComponentHit` → `HandleMeshHit`, Floor/Wall뿐 아니라 다른 코인 등 어떤 대상이든) 처음 부딪히면, `OwningCoinPusher->ActiveWaveThrow()`를 호출하고 `bHasTriggeredBigWaveThrow`를 true로 설정해 한 번만 실행되도록 함 — "Big 코인이 스폰되고 어떤 충돌이든 한 번 부딪히면 WaveThrow가 한 번(스폰 0.2초 뒤부터 유효) 터진다" 연출. `BeginPlay()`에서 `BigWaveThrowArmTimerHandle`을 통해 `BigWaveThrowArmDelay` 뒤 `bBigWaveThrowArmed`를 true로 설정 — 스폰 직후 SpawnPoint/Dispenser와의 초기 접촉으로 곧바로 오발동하는 것을 방지
 
 ### ACPCoinThrowArea
 - `ThrowVolume`(UBoxComponent, RootComponent, Overlap 전용 — `OverlapAllDynamic`) : 충돌하지 않고 겹침만 감지. 크기는 BP/디테일 패널에서 자유롭게 조정
@@ -98,7 +101,8 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - Input이 상호작용되면 `HandleInputInteracted` → `DispenseItem()`이 호출되어 "Input과 상호작용 시 연결된 Dispenser가 코인을 발사" 요구사항을 만족
 - `ItemRegistry`(`TObjectPtr<UCPItemRegistry>`, EditAnywhere) : ItemID → 클래스 조회에 사용하는 공용 데이터 에셋 참조. 여러 Dispenser가 같은 에셋을 공유해서 지정할 수 있음
 - `DispenseItemByID(ItemID, SpawnCount, SpawnType = CoinPusherItem, bLaunch = true)` : `ItemRegistry->GetItemClass(ItemID, SpawnType)`로 클래스를 찾아 `SpawnCount`개 생성. `CoinPusherItem` 타입은 `ICPCoinPusherItem` 구현 여부를 검사하고(WorldItem은 검사 안 함), `bLaunch=false`면 발사 속도를 부여하지 않고 그 자리에 둠 — Roulette/DropZone처럼 특정 ItemID를 지정해서 만들어야 하는 경우에 사용 (`DispenseItem()`/`DispenseItems()`는 여전히 단일 `ItemClass`를 쓰는 기존 경로)
-- `SpawnItemClass(ClassToSpawn, bLaunch)`(private) : 실제 스폰 + (옵션) 발사를 수행하는 공용 헬퍼. `DispenseItem()`과 `DispenseItemByID()`가 함께 사용
+- `DispenseCoinByID(ItemID, bLaunch = true)` : `DispenseItemByID`와 같은 방식으로 CoinPusherItem 1개를 스폰하지만, 스폰된 액터를 `ACPCoin*`으로 캐스팅해 반환(실패 시 nullptr)한다는 점이 다름 — 스폰 직후 스폰된 코인에 접근해야 하는 호출부(예: `ACPCoinPusher::SpawnBigCoin()`가 `SetCoinType(Big)`을 호출하기 위해 사용)를 위한 함수
+- `SpawnItemClass(ClassToSpawn, bLaunch)`(protected) : 실제 스폰 + (옵션) 발사를 수행하고 스폰된 액터(실패 시 nullptr)를 반환하는 공용 헬퍼. `DispenseItem()`/`DispenseItemByID()`/`DispenseCoinByID()`가 함께 사용
 
 ### ACPCoinPusher
 - `Floor`(`UBoxComponent`, RootComponent) : 액터의 루트. `BlockAllDynamic` 프로파일로 실제 충돌 기준이 됨. `BoxExtent`로 직접 크기 지정 (예: `150,150,10`)
@@ -115,8 +119,10 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - 체력 시스템: `MaxHealth` / `CurrentHealth`, `ApplyDamage(Damage, DamageCauser)`로 감소
 - `TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser)` 오버라이드 : 표준 엔진 데미지 경로. `Super::TakeDamage(...)`를 호출해 실제 데미지 값을 구한 뒤 `ApplyDamage(ActualDamage, DamageCauser)`로 위임 — 적(또는 다른 무엇이든)이 `UGameplayStatics::ApplyDamage` / `ApplyPointDamage` / `ApplyRadialDamage`를 호출하면 이 경로를 통해 체력이 깎임. 기존에 있던 오버랩 태그 기반 피격 판정(`OnActorOverlapBegin`, `EnemyActorTag`, `EnemyContactDamage`)은 제거하고 이 방식으로 대체함
 - 체력이 0 이하가 되면 `HandleDestroyed()` → `OnCoinPusherDestroyed` 브로드캐스트 + `BP_OnDestroyed` BP 이벤트 호출
-- `ItemSpawn(ItemID, SpawnCount)` : `CeilingDispenserComponents` 5개 중 실제로 스폰된 `ACPDispenser`들 가운데 하나를 랜덤하게 골라 그 Dispenser의 `DispenseItemByID(ItemID, SpawnCount)`를 호출 — Roulette 등 외부 시스템이 "이 ItemID를 이만큼 만들어줘"라고 요청하는 진입점
-- `ActiveWaveThrow()` : `WaveThrowInterval`(기본 0.15초) 간격으로 `CoinThrowAreaComponents` 5개를 인덱스 순서대로 하나씩 `ActiveThrow()` — 첫 번째는 즉시 호출되고 이후 매 인터벌마다 다음 것을 활성화, 5개를 모두 돌면 타이머를 정지. `GetCoinThrowArea(Index)`로 각 ChildActorComponent가 실제로 스폰한 `ACPCoinThrowArea` 인스턴스에 접근
+- `ItemSpawn(ItemID, SpawnCount)` / `SpawnBigCoin()` : 둘 다 `PickRandomValidCeilingDispenser()`(private)로 `CeilingDispenserComponents` 5개 중 실제로 스폰된 `ACPDispenser`를 랜덤하게 하나 고른다는 공통 로직을 공유
+  - `ItemSpawn(ItemID, SpawnCount)` : 고른 Dispenser의 `DispenseItemByID(ItemID, SpawnCount)`를 호출 — Roulette 등 외부 시스템이 "이 ItemID를 이만큼 만들어줘"라고 요청하는 진입점
+  - `SpawnBigCoin()` : 고른 Dispenser의 `DispenseCoinByID(BigCoinItemID)`(EditAnywhere, 기본 `"100"`)로 코인 1개를 스폰하고, 성공하면 `SetOwningCoinPusher(this)`로 이 CoinPusher를 알려준 뒤 `SetCoinType(Big)`을 호출 — "Dispenser에서 Big 타입 코인이 1개 떨어진다" 요구사항의 진입점
+- `ActiveWaveThrow()` : `WaveThrowInterval`(기본 0.15초) 간격으로 `CoinThrowAreaComponents` 5개를 인덱스 순서대로 하나씩 `ActiveThrow()` — 첫 번째는 즉시 호출되고 이후 매 인터벌마다 다음 것을 활성화, 5개를 모두 돌면 타이머를 정지. `GetCoinThrowArea(Index)`로 각 ChildActorComponent가 실제로 스폰한 `ACPCoinThrowArea` 인스턴스에 접근. Big 코인이 스폰 0.2초 뒤부터 무엇과든 처음 부딪히면(`ACPCoin::HandleMeshHit`) 이 함수가 자동으로 한 번 호출됨
 
 ## 화면 캡처(Picture-in-Picture) 시스템
 
@@ -135,6 +141,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   - P키: `TargetCoinPusher->GetPassiveCoinConvertArea()->ConvertActive(PassiveConvertCount)` 호출
   - O키: `TargetCoinPusher->GetPassiveCoinConvertArea()->HPConvertActive(HPConvertCount)` 호출 (기본 5개, Normal 코인만 대상)
   - M키: `TargetCoinPusher->ActiveWaveThrow()` 호출
+  - I키: `TargetCoinPusher->SpawnBigCoin()` 호출
   - `ACPCoinPusherItemSpawnTestGameMode`(위 Pawn을 DefaultPawnClass로)
 
 ## Roulette 연동

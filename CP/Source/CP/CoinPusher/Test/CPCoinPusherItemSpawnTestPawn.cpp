@@ -17,7 +17,7 @@ void ACPCoinPusherItemSpawnTestPawn::BeginPlay()
 
 	if (!TargetCoinPusher)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestPawn] No ACPCoinPusher assigned or found in the level - Space/P/O/M will do nothing."));
+		UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestPawn] No ACPCoinPusher assigned or found in the level - Space/P/O/M/I will do nothing."));
 	}
 }
 
@@ -29,6 +29,7 @@ void ACPCoinPusherItemSpawnTestPawn::SetupPlayerInputComponent(UInputComponent* 
 	PlayerInputComponent->BindKey(EKeys::P, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleConvertActiveInput);
 	PlayerInputComponent->BindKey(EKeys::O, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleHPConvertActiveInput);
 	PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleActiveWaveThrowInput);
+	PlayerInputComponent->BindKey(EKeys::I, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnBigCoinInput);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinInput()
@@ -77,4 +78,15 @@ void ACPCoinPusherItemSpawnTestPawn::HandleActiveWaveThrowInput()
 
 	UE_LOG(LogTemp, Warning, TEXT("Active Wave Throw"));
 	TargetCoinPusher->ActiveWaveThrow();
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleSpawnBigCoinInput()
+{
+	if (!TargetCoinPusher)
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Spawn Big Coin"));
+	TargetCoinPusher->SpawnBigCoin();
 }

@@ -3,6 +3,7 @@
 
 #include "CPDispenser.h"
 #include "CPCoinPusherItem.h"
+#include "CPCoin.h"
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
 #include "Components/StaticMeshComponent.h"
@@ -75,29 +76,50 @@ void ACPDispenser::DispenseItemByID(FName ItemID, int32 SpawnCount, ECPDispenser
 	}
 }
 
-void ACPDispenser::SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLaunch)
+ACPCoin* ACPDispenser::DispenseCoinByID(FName ItemID, bool bLaunch)
+{
+	if (!ItemRegistry)
+	{
+		return nullptr;
+	}
+
+	const TSubclassOf<AActor> ClassToSpawn = ItemRegistry->GetItemClass(ItemID, ECPDispenserSpawnType::CoinPusherItem);
+	if (!ClassToSpawn || !ClassToSpawn->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
+	{
+		return nullptr;
+	}
+
+	return Cast<ACPCoin>(SpawnItemClass(ClassToSpawn, bLaunch));
+}
+
+AActor* ACPDispenser::SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLaunch)
 {
 	if (!ClassToSpawn || !GetWorld())
 	{
-		return;
+		return nullptr;
 	}
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = this;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	if (AActor* SpawnedItem = GetWorld()->SpawnActor<AActor>(ClassToSpawn, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation(), SpawnParams))
+	AActor* SpawnedItem = GetWorld()->SpawnActor<AActor>(ClassToSpawn, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation(), SpawnParams);
+	if (!SpawnedItem)
 	{
-		if (bLaunch)
+		return nullptr;
+	}
+
+	if (bLaunch)
+	{
+		//RootComponent가 물리 시뮬레이션 중인 프리미티브라면 발사 속도를 부여 (ACPCoin, ACPItem 공통)
+		if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(SpawnedItem->GetRootComponent()))
 		{
-			//RootComponent가 물리 시뮬레이션 중인 프리미티브라면 발사 속도를 부여 (ACPCoin, ACPItem 공통)
-			if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(SpawnedItem->GetRootComponent()))
-			{
-				const FVector LaunchVelocity = SpawnPoint->GetForwardVector() * LaunchForwardSpeed + FVector::UpVector * LaunchUpwardSpeed;
-				RootPrimitive->SetPhysicsLinearVelocity(LaunchVelocity);
-			}
+			const FVector LaunchVelocity = SpawnPoint->GetForwardVector() * LaunchForwardSpeed + FVector::UpVector * LaunchUpwardSpeed;
+			RootPrimitive->SetPhysicsLinearVelocity(LaunchVelocity);
 		}
 	}
+
+	return SpawnedItem;
 }
 
 void ACPDispenser::SetLinkedInput(ACPNexus* NewLinkedInput)

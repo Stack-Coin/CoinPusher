@@ -4,6 +4,7 @@
 #include "CPCoin.h"
 #include "CPDropZone.h"
 #include "CPCoinThrowArea.h"
+#include "CPCoinPusher.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "TimerManager.h"
@@ -23,6 +24,19 @@ ACPCoin::ACPCoin()
 	// 컴포넌트를 통한 Has-a - 실제 사용할 BP 서브클래스는 Child Actor Class에서 지정
 	CoinThrowAreaComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("CoinThrowAreaComponent"));
 	CoinThrowAreaComponent->SetupAttachment(Mesh);
+
+	// Big 코인이 CoinPusher의 Floor/Wall과 부딪혔는지 감지하기 위해 Hit 이벤트를 활성화
+	Mesh->SetNotifyRigidBodyCollision(true);
+	Mesh->OnComponentHit.AddDynamic(this, &ACPCoin::HandleMeshHit);
+}
+
+void ACPCoin::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 스폰 직후 SpawnPoint/Dispenser 등과의 초기 접촉으로 Big 코인의 WaveThrow가 곧바로 오발동하지 않도록,
+	// BigWaveThrowArmDelay가 지난 뒤에야 트리거가 활성화되게 함
+	GetWorldTimerManager().SetTimer(BigWaveThrowArmTimerHandle, this, &ACPCoin::ArmBigWaveThrow, BigWaveThrowArmDelay, false);
 }
 
 void ACPCoin::Launch(const FVector& LaunchVelocity)
@@ -89,8 +103,12 @@ void ACPCoin::SetCoinType(ECPCoinType NewType)
 		StartScaleAnimation();
 		break;
 
+	case ECPCoinType::Big:
+		// Passive/HP와 달리 애니메이션 없이 즉시 커지고 원상복구되지 않음
+		SetActorScale3D(GetActorScale3D() * BigScaleMultiplier);
+		break;
+
 	case ECPCoinType::Normal:
-	case ECPCoinType::Giant:
 	default:
 		// 추가 타입별 연출/행동은 BP_OnCoinTypeChanged에서 BP로 확장
 		break;
@@ -141,6 +159,11 @@ void ACPCoin::ApplyCoinTypeVisual(ECPCoinType NewType)
 	if (Visual->Material)
 	{
 		Mesh->SetMaterial(0, Visual->Material);
+	}
+
+	if (Visual->PhysicsMaterial)
+	{
+		Mesh->SetPhysMaterialOverride(Visual->PhysicsMaterial);
 	}
 }
 
@@ -218,4 +241,25 @@ void ACPCoin::ActivateCoinThrowArea()
 ACPCoinThrowArea* ACPCoin::GetCoinThrowArea() const
 {
 	return CoinThrowAreaComponent ? Cast<ACPCoinThrowArea>(CoinThrowAreaComponent->GetChildActor()) : nullptr;
+}
+
+void ACPCoin::ArmBigWaveThrow()
+{
+	bBigWaveThrowArmed = true;
+}
+
+void ACPCoin::HandleMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+	if (CoinType != ECPCoinType::Big || bHasTriggeredBigWaveThrow || !bBigWaveThrowArmed)
+	{
+		return;
+	}
+
+	// 무엇과 부딪히든(Floor/Wall뿐 아니라 다른 코인 등도 포함) 상관없이 트리거 - 대상은 OwningCoinPusher가
+	// 이미 알고 있음 (Owner 체인은 ChildActorComponent가 스폰한 액터에 Owner를 채워주지 않아 신뢰할 수 없다)
+	if (OwningCoinPusher)
+	{
+		bHasTriggeredBigWaveThrow = true;
+		OwningCoinPusher->ActiveWaveThrow();
+	}
 }

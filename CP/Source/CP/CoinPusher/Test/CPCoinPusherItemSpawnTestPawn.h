@@ -11,12 +11,14 @@ class UInputComponent;
 
 /**
  *  Pawn used to test ACPCoinPusher::ItemSpawn(), ACPCoinPusher::GetPassiveCoinConvertArea()->ConvertActive()/
- *  HPConvertActive(), and ACPCoinPusher::ActiveWaveThrow() in isolation. A thin ADefaultPawn subclass - its own
- *  camera and free-fly WASD/mouse movement come from the base class, no project assets required.
+ *  HPConvertActive(), ACPCoinPusher::ActiveWaveThrow(), and ACPCoinPusher::SpawnBigCoin() in isolation.
+ *  A thin ADefaultPawn subclass - its own camera and free-fly WASD/mouse movement come from the base class,
+ *  no project assets required.
  *  Space spawns one coin via TargetCoinPusher->ItemSpawn(CoinItemID, 1);
  *  P converts PassiveConvertCount coins to Passive via ConvertActive();
  *  O converts HPConvertCount Normal coins to HP via HPConvertActive();
- *  M triggers TargetCoinPusher->ActiveWaveThrow().
+ *  M triggers TargetCoinPusher->ActiveWaveThrow();
+ *  I drops one Big-type coin via TargetCoinPusher->SpawnBigCoin().
  *
  *  This pawn only knows about TargetCoinPusher - the convert area is owned by the CoinPusher itself (as a
  *  ChildActorComponent, see ACPCoinPusher::PassiveCoinConvertAreaComponent) and reached through it.
@@ -53,7 +55,7 @@ protected:
 	/** Falls back to finding a level-placed ACPCoinPusher if TargetCoinPusher was left unset */
 	virtual void BeginPlay() override;
 
-	/** Adds the Space/P/O/M bindings on top of ADefaultPawn's own free-fly movement bindings */
+	/** Adds the Space/P/O/M/I bindings on top of ADefaultPawn's own free-fly movement bindings */
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 	/** Bound to Space - spawns one coin via TargetCoinPusher->ItemSpawn() */
@@ -69,4 +71,7 @@ protected:
 
 	/** Bound to M - triggers TargetCoinPusher->ActiveWaveThrow() */
 	void HandleActiveWaveThrowInput();
+
+	/** Bound to I - drops one Big-type coin via TargetCoinPusher->SpawnBigCoin() */
+	void HandleSpawnBigCoinInput();
 };
