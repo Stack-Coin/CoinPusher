@@ -38,6 +38,7 @@ public:
 	 *  오해하기 쉬워서 실제 의미(주기/간격)에 맞게 변경됨 */
 	virtual float GetAIAttackInterval() = 0;
 	virtual float GetAICollisionRadius() = 0;
+	virtual float GetAICollisionHalfHeight() = 0;
 	virtual float GetAIAttackRange() = 0;
 	virtual float GetAITurnSpeed() = 0;
 	virtual float GetAIMoveAcceptableRadius() = 0;
@@ -55,4 +56,9 @@ public:
 
 	virtual void SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished) = 0;
 	virtual void AttackByAI() = 0;
+
+	/** BT의 Attack 태스크가 Abort될 때 호출됨. 재생 중인 공격 몽타주를 멈추고 Attacking CC 상태를 해제해서,
+	 *  몽타주가 자연 종료되지 못하고 강제 중단되는 경우(예: 타겟이 사라져서 상위 데코레이터가 어보트시킬 때)에도
+	 *  애니메이션이 공격 포즈에 멈춰있지 않도록 함 */
+	virtual void CancelAIAttack() = 0;
 };

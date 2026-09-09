@@ -26,14 +26,25 @@ void ACPMonsterRanged::AttackHitCheck()
 {
 	const float Now = GetWorld()->GetTimeSeconds();
 	const float Duration = GetAIAttackInterval();
-	
+
 	if (Duration > 0.f && Now - LastFireTime < Duration)
 	{
+		// [임시 디버그] 발사 간격 쿨다운에 걸려서 스킵된 경우 - 몽타주는 재생되는데 실제 발사는 안 되는
+		// 케이스를 구분하기 위한 로그
+		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s AttackHitCheck 스킵 - Now=%.2f, LastFireTime=%.2f, Duration=%.2f"),
+			*GetName(), Now, LastFireTime, Duration);
 		return;
 	}
 	LastFireTime = Now;
 
+	UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s Fire() 호출 - Now=%.2f, Duration=%.2f"), *GetName(), Now, Duration);
+
 	Fire();
+}
+
+float ACPMonsterRanged::GetSpawnHeightOffset() const
+{
+	return FlightSpawnHeight;
 }
 
 void ACPMonsterRanged::Fire()

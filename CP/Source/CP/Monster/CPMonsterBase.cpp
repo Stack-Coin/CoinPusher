@@ -49,6 +49,22 @@ void ACPMonsterBase::BeginPlay()
 
 	GetCapsuleComponent()->SetCapsuleRadius(GetAICollisionRadius());
 
+	// DataTable에 Half Height 값이 채워져 있으면 그걸로 캡슐 높이도 맞춤 (0이면 아직 데이터가
+	// 안 채워진 것으로 보고 BP에 세팅된 기존 캡슐 Half Height를 그대로 둠)
+	if (GetAICollisionHalfHeight() > 0.f)
+	{
+		GetCapsuleComponent()->SetCapsuleHalfHeight(GetAICollisionHalfHeight());
+	}
+
+	// 몬스터 타입마다 캡슐 Half Height가 달라서, 메쉬가 고정 오프셋으로 붙어있으면 캡슐 바닥과
+	// 안 맞아 스폰 시 붕 뜨거나 파묻힌 것처럼 보일 수 있음 - 메쉬 Z를 캡슐 크기에 맞춰 정렬
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		FVector MeshRelativeLocation = MeshComp->GetRelativeLocation();
+		MeshRelativeLocation.Z = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		MeshComp->SetRelativeLocation(MeshRelativeLocation);
+	}
+
 	// [임시 디버그] 스폰 직후 DataTable에서 실제로 어떤 수치가 들어왔는지 한 번에 확인용
 	UE_LOG(LogTemp, Warning,
 		TEXT("[임시 디버그] %s BeginPlay 스탯 - MonsterType=%d, MaxHealth=%.1f, MoveSpeed=%.1f, AttackPower=%.1f, AttackRange=%.1f, CollisionRadius=%.1f(실제 캡슐=%.1f), MoveAcceptableRadius=%.1f, TurnSpeed=%.1f"),
@@ -89,6 +105,14 @@ void ACPMonsterBase::BeginPlay()
 void ACPMonsterBase::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// [임시 디버그] player 다운 시 몬스터가 실제로 계속 틱되고 있는지 확인용 (1초에 한 번만 출력)
+	DebugTickLogAccum += DeltaSeconds;
+	if (DebugTickLogAccum >= 1.0f)
+	{
+		DebugTickLogAccum = 0.f;
+		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s Tick 살아있음 - CurrentCCState=%d"), *GetName(), static_cast<uint8>(CurrentCCState));
+	}
 
 	if (!bIsDead)
 	{
@@ -203,7 +227,6 @@ void ACPMonsterBase::Dead()
 		}
 	}
 
-
 	OnMonsterDied.Broadcast();
 
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
@@ -218,7 +241,10 @@ void ACPMonsterBase::Dead()
 			EndDelegate.BindLambda(
 				[this](UAnimMontage*, bool)
 				{
-					SetLifeSpan(1.0f);
+					// 몽타주가 끝난 뒤 잠깐이라도 대기하면, 그 사이에 애님 그래프가 베이스 포즈(Idle)로
+					// 블렌드백되면서 몬스터가 다시 일어서는 것처럼 보이는 문제가 있어 지연 없이 바로 파괴함.
+					// (애님 그래프에 "사망 상태 유지"용 스테이트를 추가하는 게 근본적인 해결책이라 추후 필요)
+					Destroy();
 				});
 
 			AnimInstance->Montage_SetEndDelegate(EndDelegate, DeadMontage);
@@ -386,9 +412,29 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s NotifyAttackActionEnd 호출됨 - bInterrupted=%d"), *GetName(), bInterrupted);
+
 	RemoveCCState(ECPMonsterCCState::Attacking);
 
 	OnAttackFinished.ExecuteIfBound();
+}
+
+void ACPMonsterBase::CancelAIAttack()
+{
+	// BT의 Attack 태스크가 Abort된 경우 호출됨(예: 타겟이 사라져서 상위 데코레이터가 강제 중단시킬 때).
+	// 이 경우 몽타주가 자연 종료(NotifyAttackActionEnd)될 기회를 못 얻으므로, 여기서 직접 몽타주를 멈추고
+	// Attacking CC 상태를 해제해줘야 애니메이션이 공격 포즈에 멈춰있지 않고 Idle로 돌아감
+	if (!HasCCState(ECPMonsterCCState::Attacking))
+	{
+		return;
+	}
+
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		AnimInstance->StopAllMontages(0.1f);
+	}
+
+	RemoveCCState(ECPMonsterCCState::Attacking);
 }
 
 void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
@@ -491,6 +537,11 @@ float ACPMonsterBase::GetAICollisionRadius()
 	return StatComponent ? StatComponent->DefaultStat.CollisionRadius : 0.0f;
 }
 
+float ACPMonsterBase::GetAICollisionHalfHeight()
+{
+	return StatComponent ? StatComponent->DefaultStat.CollisionHalfHeight : 0.0f;
+}
+
 float ACPMonsterBase::GetAIAttackRange()
 {
 	return StatComponent ? StatComponent->DefaultStat.AttackRange : 0.0f;
@@ -515,4 +566,9 @@ float ACPMonsterBase::GetAISeparationPadding()
 float ACPMonsterBase::GetAISeparationSpeed()
 {
 	return StatComponent ? StatComponent->DefaultStat.SeparationSpeed : 400.0f;
+}
+
+float ACPMonsterBase::GetSpawnHeightOffset() const
+{
+	return GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 0.f;
 }

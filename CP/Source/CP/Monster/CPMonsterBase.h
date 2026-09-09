@@ -54,6 +54,7 @@ public:
 	// 공격 함수 // BTTask에서 수행
 	virtual void SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished) override;
 	virtual void AttackByAI() override;
+	virtual void CancelAIAttack() override;
 
 	// 피격 함수 // 협업용
 	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
@@ -88,6 +89,7 @@ public:
 	// Default
 	virtual float GetAIAttackInterval() override;
 	virtual float GetAICollisionRadius() override;
+	virtual float GetAICollisionHalfHeight() override;
 	virtual float GetAIAttackRange() override;
 	virtual float GetAITurnSpeed() override;
 	virtual float GetAIMoveAcceptableRadius() override;
@@ -95,6 +97,11 @@ public:
 	// 몬스터 간 분리 - StatComponent->DefaultStat 기반 (RVO 회피 값 자체는 코드 상수로 고정 - BeginPlay 참고)
 	virtual float GetAISeparationPadding() override;
 	virtual float GetAISeparationSpeed() override;
+
+	/** 스포너가 스폰 Z를 계산할 때 참조: 스포너 위치(지면)로부터 이 높이만큼 띄워서 스폰함.
+	 *  기본은 캡슐 Half Height를 반환해서 캡슐 바닥이 지면에 닿게 하고, 날아다니는 몬스터(Ranged)는
+	 *  이걸 오버라이드해서 지면과 무관한 고정 비행 높이를 반환하면 됨 */
+	virtual float GetSpawnHeightOffset() const;
 
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
@@ -124,10 +131,6 @@ protected:
 	/** If true, AttackHitCheck draws its sweep shape. Driven by the F1 debug widget's MonsterAttackRange checkbox */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
 	bool bDrawDebugAttackRange = false;
-
-	// todo. Data Asset 형태로
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterMesh")
-	TObjectPtr<USkeletalMeshComponent> MonsterMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<UAnimMontage> AttackMontage;
@@ -165,4 +168,7 @@ protected:
 	 *  넉백이 연속으로 걸려도 이전 복구 타이머를 취소하고 새로 걸 수 있게 함(안 그러면 먼저 걸린 타이머가
 	 *  나중 넉백을 중간에 취소시켜버림) */
 	FTimerHandle KnockbackRestoreHandle;
+
+	// [임시 디버그] Tick 생존 확인용 로그 스로틀 (인스턴스별로 따로 누적되어야 해서 static 지역변수 대신 멤버로 둠)
+	float DebugTickLogAccum = 0.f;
 };

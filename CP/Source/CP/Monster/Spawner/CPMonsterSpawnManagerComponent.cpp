@@ -135,7 +135,24 @@ void UCPMonsterSpawnManagerComponent::CreateSpawnerRing(int32 InSpawnerCount, fl
 		// 360도를 InSpawnerCount만큼 균등 분할 - 몇 개로 설정하든 항상 고르게 배치됨
 		const float AngleRad = FMath::DegreesToRadians(360.f * Index / InSpawnerCount);
 		const FVector Offset = FVector(FMath::Cos(AngleRad), FMath::Sin(AngleRad), 0.f) * InSpawnerRadius;
-		const FVector SpawnLocation = CenterLocation + Offset;
+		FVector SpawnLocation = CenterLocation + Offset;
+
+		// Z는 일단 플레이어(오너) 기준으로 잡히는데, 지형이 평평하지 않으면 이 위치의 실제 지면 높이랑
+		// 다를 수 있어서(경사/고저차) 스포너를 놓기 전에 바로 아래로 트레이스해서 실제 바닥 높이로 보정함
+		{
+			constexpr float TraceUp = 500.f;
+			constexpr float TraceDown = 2000.f;
+			const FVector TraceStart = SpawnLocation + FVector(0.f, 0.f, TraceUp);
+			const FVector TraceEnd = SpawnLocation - FVector(0.f, 0.f, TraceDown);
+
+			FHitResult GroundHit;
+			FCollisionQueryParams TraceParams(NAME_None, false, Owner);
+			if (GetWorld()->LineTraceSingleByChannel(GroundHit, TraceStart, TraceEnd, ECC_WorldStatic, TraceParams))
+			{
+				SpawnLocation.Z = GroundHit.Location.Z;
+			}
+			// 트레이스가 아무것도 못 맞히면(바닥이 없거나 채널이 안 맞으면) 기존처럼 플레이어 Z를 그대로 씀
+		}
 
 		// 오너(플레이어) 쪽을 바라보도록 회전 - 스폰 즉시 몬스터가 플레이어 방향을 향하게 됨
 		const FRotator SpawnRotation = (CenterLocation - SpawnLocation).Rotation();
