@@ -6,6 +6,8 @@
 #include "CPDropZone.h"
 #include "CPPassiveCoinConvertArea.h"
 #include "CPCoinThrowArea.h"
+#include "CPCoinTowerSpawner.h"
+#include "CPPusher.h"
 #include "CPCoin.h"
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
@@ -92,6 +94,10 @@ ACPCoinPusher::ACPCoinPusher()
 		CoinThrowAreaComponents[Index] = CoinThrowAreaComponent;
 	}
 
+	// SpawnTower()로 원형 코인 타워를 스폰/상승시키는 CoinTowerSpawner (컴포넌트를 통한 Has-a)
+	CoinTowerSpawnerComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("CoinTowerSpawnerComponent"));
+	CoinTowerSpawnerComponent->SetupAttachment(Floor);
+
 	// ViewCaptureComponent를 SpringArm 소켓에 붙여서 동작. 기본값은 위에서 내려다보는 구도이고,
 	// ArmLength/각도는 ViewCaptureBoom을 통해 BP에서 조정.
 	// ACPPartyCamera의 CameraBoom과 달리 이 Boom은 CoinPusher 자신(Floor)의 회전을 그대로 따라가야
@@ -130,6 +136,13 @@ void ACPCoinPusher::PostInitializeComponents()
 	if (ACPDropZone* DropZone = GetDropZone())
 	{
 		DropZone->SetItemRespawnDispenser(ItemRespawnDispenser);
+	}
+
+	//CoinTowerSpawner도 ChildActorComponent로 스폰되는 인스턴스라, 스폰/상승 동안 멈춰야 할 Pusher를
+	//레벨(BP)에서 직접 편집할 수 없다. 같은 CoinPusher가 소유한 Pusher를 대신 전달해 준다
+	if (ACPCoinTowerSpawner* CoinTowerSpawner = GetCoinTowerSpawner())
+	{
+		CoinTowerSpawner->SetTargetPusher(GetPusher());
 	}
 }
 
@@ -197,6 +210,11 @@ void ACPCoinPusher::HandleDestroyed()
 	}
 }
 
+ACPPusher* ACPCoinPusher::GetPusher() const
+{
+	return PusherComponent ? Cast<ACPPusher>(PusherComponent->GetChildActor()) : nullptr;
+}
+
 ACPDispenser* ACPCoinPusher::GetDispenserA() const
 {
 	return DispenserComponentA ? Cast<ACPDispenser>(DispenserComponentA->GetChildActor()) : nullptr;
@@ -225,6 +243,11 @@ ACPDropZone* ACPCoinPusher::GetDropZone() const
 ACPPassiveCoinConvertArea* ACPCoinPusher::GetPassiveCoinConvertArea() const
 {
 	return PassiveCoinConvertAreaComponent ? Cast<ACPPassiveCoinConvertArea>(PassiveCoinConvertAreaComponent->GetChildActor()) : nullptr;
+}
+
+ACPCoinTowerSpawner* ACPCoinPusher::GetCoinTowerSpawner() const
+{
+	return CoinTowerSpawnerComponent ? Cast<ACPCoinTowerSpawner>(CoinTowerSpawnerComponent->GetChildActor()) : nullptr;
 }
 
 ACPCoinThrowArea* ACPCoinPusher::GetCoinThrowArea(int32 Index) const

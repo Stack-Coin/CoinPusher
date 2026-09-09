@@ -145,6 +145,10 @@ protected:
 	UPROPERTY()
 	TObjectPtr<ACPCoinPusher> OwningCoinPusher = nullptr;
 
+	//CoinTowerSpawner 등이 SetTowerLocked(true)로 잠갔으면 true - 이 상태에서는 Launch()와 SetCoinType()이
+	//모두 조기 반환되어 아무 효과가 없다 (타워가 상승하는 동안 발사되거나 타입이 바뀌는 것을 방지)
+	bool bIsTowerLocked = false;
+
 public:
 
 	//Coin 가치 반환
@@ -227,4 +231,15 @@ public:
 	//현재는 ACPCoinPusher::SpawnBigCoin()이 스폰 직후 호출
 	UFUNCTION(BlueprintCallable, Category="Coin")
 	void SetOwningCoinPusher(ACPCoinPusher* NewOwningCoinPusher) { OwningCoinPusher = NewOwningCoinPusher; }
+
+	//true로 설정하면 이 코인을 물리적으로 격리한다: SimulatePhysics를 꺼서(Kinematic) 중력의 영향을 받지
+	//않게 하고(Floor/Wall/Pusher 등 스윕 없는 이동으로는 막히지도 않음), 콜리전 프로파일은 그대로
+	//BlockAllDynamic이라 다른 Simulate 중인 코인과는 여전히 부딪혀 밀어내는 상호작용이 발생한다.
+	//또한 Launch()/SetCoinType()이 아무 효과 없이 무시되게 만든다. false로 되돌리면 SimulatePhysics를
+	//다시 켜서 중력/물리충돌/Launch/SetCoinType이 전부 정상으로 복구된다. CoinTowerSpawner가 사용
+	UFUNCTION(BlueprintCallable, Category="Coin")
+	void SetTowerLocked(bool bLocked);
+
+	UFUNCTION(BlueprintPure, Category="Coin")
+	bool IsTowerLocked() const { return bIsTowerLocked; }
 };

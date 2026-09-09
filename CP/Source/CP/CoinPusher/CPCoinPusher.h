@@ -15,6 +15,8 @@ class ACPDispenser;
 class ACPDropZone;
 class ACPPassiveCoinConvertArea;
 class ACPCoinThrowArea;
+class ACPCoinTowerSpawner;
+class ACPPusher;
 class ACPNexus;
 
 /**Broadcast whenever this CoinPusher's health changes as a result of damage */
@@ -82,6 +84,10 @@ class CP_API ACPCoinPusher : public AActor
 	//CoinThrowArea ActorComponent (컴포넌트를 통한 Has-a) - ActiveWaveThrow()가 순차적으로 활성화시키는 던지기 볼륨 5개
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TArray<TObjectPtr<UChildActorComponent>> CoinThrowAreaComponents;
+
+	//CoinTowerSpawner ActorComponent (컴포넌트를 통한 Has-a) - SpawnTower()로 원형 코인 타워를 스폰/상승시키는 액터
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UChildActorComponent* CoinTowerSpawnerComponent;
 
 	//ViewCaptureComponent를 붙여서 위치/각도를 잡아주는 SpringArm. ArmLength/각도를 BP나 디테일
 	//패널에서 바로 조정할 수 있고, bDoCollisionTest를 켜면 벽 등에 캡처 카메라가 파묻히는 것도 방지 가능
@@ -165,7 +171,7 @@ public:
 public:
 
 	//DispenserComponentA/B가 스폰된 직후 InputA/InputB를 각 Dispenser에 연결하고,
-	//DropZone에 ItemRespawnDispenser를 전달
+	//DropZone에 ItemRespawnDispenser를 전달하고, CoinTowerSpawner에 Pusher를 전달
 	virtual void PostInitializeComponents() override;
 
 	//천장 Dispenser들이 게임 시작 시 코인을 드롭
@@ -209,6 +215,7 @@ public:
 	FORCEINLINE UBoxComponent* GetFrontWall() const { return FrontWall; }
 	FORCEINLINE UStaticMeshComponent* GetExtraBoxMesh() const { return ExtraBoxMesh; }
 	FORCEINLINE UChildActorComponent* GetPusherComponent() const { return PusherComponent; }
+	FORCEINLINE UChildActorComponent* GetCoinTowerSpawnerComponent() const { return CoinTowerSpawnerComponent; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentA() const { return DispenserComponentA; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }
 	FORCEINLINE UChildActorComponent* GetDropZoneComponent() const { return DropZoneComponent; }
@@ -219,6 +226,9 @@ public:
 	FORCEINLINE UCPCoinPusherViewCaptureComponent* GetViewCaptureComponent() const { return ViewCaptureComponent; }
 
 	//ChildActorComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPPusher* GetPusher() const;
+
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDispenser* GetDispenserA() const;
 
@@ -238,6 +248,9 @@ public:
 	//Index번째 CoinThrowArea가 실제로 스폰한 액터 인스턴스 반환
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPCoinThrowArea* GetCoinThrowArea(int32 Index) const;
+
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPCoinTowerSpawner* GetCoinTowerSpawner() const;
 
 	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출.
 	//천장 Dispenser(CeilingDispenserComponents) 중 하나를 랜덤하게 골라 그 Dispenser의

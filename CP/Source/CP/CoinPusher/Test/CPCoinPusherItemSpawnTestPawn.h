@@ -18,7 +18,8 @@ class UInputComponent;
  *  P converts PassiveConvertCount coins to Passive via ConvertActive();
  *  O converts HPConvertCount Normal coins to HP via HPConvertActive();
  *  M triggers TargetCoinPusher->ActiveWaveThrow();
- *  I drops one Big-type coin via TargetCoinPusher->SpawnBigCoin().
+ *  I drops one Big-type coin via TargetCoinPusher->SpawnBigCoin();
+ *  1/2/3/4/5/6 trigger TargetCoinPusher->GetCoinTowerSpawner()->SpawnTower(N) with N = 5/10/15/20/25/30 floors.
  *
  *  This pawn only knows about TargetCoinPusher - the convert area is owned by the CoinPusher itself (as a
  *  ChildActorComponent, see ACPCoinPusher::PassiveCoinConvertAreaComponent) and reached through it.
@@ -55,7 +56,7 @@ protected:
 	/** Falls back to finding a level-placed ACPCoinPusher if TargetCoinPusher was left unset */
 	virtual void BeginPlay() override;
 
-	/** Adds the Space/P/O/M/I bindings on top of ADefaultPawn's own free-fly movement bindings */
+	/** Adds the Space/P/O/M/I/1-6 bindings on top of ADefaultPawn's own free-fly movement bindings */
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 	/** Bound to Space - spawns one coin via TargetCoinPusher->ItemSpawn() */
@@ -74,4 +75,15 @@ protected:
 
 	/** Bound to I - drops one Big-type coin via TargetCoinPusher->SpawnBigCoin() */
 	void HandleSpawnBigCoinInput();
+
+	/** Bound to 1/2/3/4/5/6 - each calls SpawnCoinTower() with a different fixed floor count (5/10/15/20/25/30) */
+	void HandleSpawnCoinTower5Input();
+	void HandleSpawnCoinTower10Input();
+	void HandleSpawnCoinTower15Input();
+	void HandleSpawnCoinTower20Input();
+	void HandleSpawnCoinTower25Input();
+	void HandleSpawnCoinTower30Input();
+
+	/** Shared by the 1-6 handlers above - calls TargetCoinPusher->GetCoinTowerSpawner()->SpawnTower(FloorCount) */
+	void SpawnCoinTower(int32 FloorCount);
 };

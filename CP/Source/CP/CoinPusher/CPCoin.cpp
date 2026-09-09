@@ -41,8 +41,8 @@ void ACPCoin::BeginPlay()
 
 void ACPCoin::Launch(const FVector& LaunchVelocity)
 {
-	// 이미 발사되어 날아가고 있는 중이면 추가 Launch()는 무시 - 속도가 중복으로 누적되는 것을 방지
-	if (bIsLaunched)
+	// 타워 상승 등으로 잠겨 있거나, 이미 발사되어 날아가고 있는 중이면 무시
+	if (bIsTowerLocked || bIsLaunched)
 	{
 		return;
 	}
@@ -82,7 +82,8 @@ void ACPCoin::OnDroppedInZone(ACPDropZone* DropZone)
 
 void ACPCoin::SetCoinType(ECPCoinType NewType)
 {
-	if (CoinType == NewType)
+	// 타워 상승 등으로 잠겨 있으면 타입 변경 자체를 막는다
+	if (bIsTowerLocked || CoinType == NewType)
 	{
 		return;
 	}
@@ -262,4 +263,21 @@ void ACPCoin::HandleMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActo
 		bHasTriggeredBigWaveThrow = true;
 		OwningCoinPusher->ActiveWaveThrow();
 	}
+}
+
+void ACPCoin::SetTowerLocked(bool bLocked)
+{
+	bIsTowerLocked = bLocked;
+
+	if (!Mesh)
+	{
+		return;
+	}
+
+	// SimulatePhysics를 끄면(Kinematic) 그 자체로 중력의 영향을 받지 않게 되고, 이후 스윕 없는 이동(부모
+	// 컴포넌트에 Attach된 채로 AttachToComponent/SetRelativeLocation 등으로 옮기는 방식)에는 Floor/Wall/
+	// Pusher 같은 정적/비-Simulate 콜리전에 막히지 않는다. 콜리전 프로파일 자체는 BlockAllDynamic 그대로
+	// 유지되므로, 여전히 Simulate 중인 다른(일반) 코인과는 밀어내는 물리 상호작용이 발생한다 -
+	// 즉 "Coin을 제외하고는 물리충돌을 하지 않는다"가 별도 콜리전 채널 설정 없이 자연스럽게 만족된다
+	Mesh->SetSimulatePhysics(!bLocked);
 }

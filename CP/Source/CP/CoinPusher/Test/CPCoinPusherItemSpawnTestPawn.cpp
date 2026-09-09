@@ -3,6 +3,7 @@
 #include "CPCoinPusherItemSpawnTestPawn.h"
 #include "CoinPusher/CPCoinPusher.h"
 #include "CoinPusher/CPPassiveCoinConvertArea.h"
+#include "CoinPusher/CPCoinTowerSpawner.h"
 #include "Components/InputComponent.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -17,7 +18,7 @@ void ACPCoinPusherItemSpawnTestPawn::BeginPlay()
 
 	if (!TargetCoinPusher)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestPawn] No ACPCoinPusher assigned or found in the level - Space/P/O/M/I will do nothing."));
+		UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestPawn] No ACPCoinPusher assigned or found in the level - Space/P/O/M/I/1-6 will do nothing."));
 	}
 }
 
@@ -30,6 +31,12 @@ void ACPCoinPusherItemSpawnTestPawn::SetupPlayerInputComponent(UInputComponent* 
 	PlayerInputComponent->BindKey(EKeys::O, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleHPConvertActiveInput);
 	PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleActiveWaveThrowInput);
 	PlayerInputComponent->BindKey(EKeys::I, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnBigCoinInput);
+	PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower5Input);
+	PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower10Input);
+	PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower15Input);
+	PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower20Input);
+	PlayerInputComponent->BindKey(EKeys::Five, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower25Input);
+	PlayerInputComponent->BindKey(EKeys::Six, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower30Input);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinInput()
@@ -89,4 +96,48 @@ void ACPCoinPusherItemSpawnTestPawn::HandleSpawnBigCoinInput()
 
 	UE_LOG(LogTemp, Warning, TEXT("Spawn Big Coin"));
 	TargetCoinPusher->SpawnBigCoin();
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower5Input()
+{
+	SpawnCoinTower(5);
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower10Input()
+{
+	SpawnCoinTower(10);
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower15Input()
+{
+	SpawnCoinTower(15);
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower20Input()
+{
+	SpawnCoinTower(20);
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower25Input()
+{
+	SpawnCoinTower(25);
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower30Input()
+{
+	SpawnCoinTower(30);
+}
+
+void ACPCoinPusherItemSpawnTestPawn::SpawnCoinTower(int32 FloorCount)
+{
+	if (!TargetCoinPusher)
+	{
+		return;
+	}
+
+	if (ACPCoinTowerSpawner* CoinTowerSpawner = TargetCoinPusher->GetCoinTowerSpawner())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Spawn Coin Tower (%d floors)"), FloorCount);
+		CoinTowerSpawner->SpawnTower(FloorCount);
+	}
 }
