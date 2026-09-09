@@ -19,11 +19,11 @@ enum class ECPMonsterCCState : uint8
 {
 	None      = 0,
 	Knockback = 1 << 0,
-	Stunned   = 1 << 1, // 기절
-	Rooted    = 1 << 2, // 속박
+	Stunned   = 1 << 1,
+	Rooted    = 1 << 2,
 	Attacking = 1 << 3,
 	Dead      = 1 << 4,
-	Invulnerable = 1 << 5, // 무적
+	Invulnerable = 1 << 5,
 };
 ENUM_CLASS_FLAGS(ECPMonsterCCState);
 
@@ -113,6 +113,22 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnMonsterDied OnMonsterDied;
 
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
+	TObjectPtr<UCapsuleComponent> Collider;
+
+	/** Draws GetCapsuleComponent()'s wireframe while the F1 debug widget's EnemyHitbox checkbox is on */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCPDebugCollisionShapeComponent> DebugHitboxShape;
+
+	/** If true, AttackHitCheck draws its sweep shape. Driven by the F1 debug widget's MonsterAttackRange checkbox */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
+	bool bDrawDebugAttackRange = false;
+
+	// todo. Data Asset 형태로
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterMesh")
+	TObjectPtr<USkeletalMeshComponent> MonsterMesh;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<UAnimMontage> AttackMontage;
 
@@ -145,12 +161,8 @@ protected:
 
 	ECPMonsterCCState CurrentCCState = ECPMonsterCCState::None;
 
-protected:
-	/** Draws GetCapsuleComponent()'s wireframe while the F1 debug widget's EnemyHitbox checkbox is on */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCPDebugCollisionShapeComponent> DebugHitboxShape;
-
-	/** If true, AttackHitCheck draws its sweep shape. Driven by the F1 debug widget's MonsterAttackRange checkbox */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
-	bool bDrawDebugAttackRange = false;
+	/** ApplyKnockback이 RVO/AI 이동을 복구할 때 쓰는 타이머 핸들. 멤버로 둬서, KnockbackDuration 안에
+	 *  넉백이 연속으로 걸려도 이전 복구 타이머를 취소하고 새로 걸 수 있게 함(안 그러면 먼저 걸린 타이머가
+	 *  나중 넉백을 중간에 취소시켜버림) */
+	FTimerHandle KnockbackRestoreHandle;
 };

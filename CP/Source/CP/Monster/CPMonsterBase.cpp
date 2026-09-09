@@ -49,6 +49,19 @@ void ACPMonsterBase::BeginPlay()
 
 	GetCapsuleComponent()->SetCapsuleRadius(GetAICollisionRadius());
 
+	// [임시 디버그] 스폰 직후 DataTable에서 실제로 어떤 수치가 들어왔는지 한 번에 확인용
+	UE_LOG(LogTemp, Warning,
+		TEXT("[임시 디버그] %s BeginPlay 스탯 - MonsterType=%d, MaxHealth=%.1f, MoveSpeed=%.1f, AttackPower=%.1f, AttackRange=%.1f, CollisionRadius=%.1f(실제 캡슐=%.1f), MoveAcceptableRadius=%.1f, TurnSpeed=%.1f"),
+		*GetName(),
+		static_cast<int32>(MonsterType),
+		GetAIMaxHealth(),
+		GetAIMoveSpeed(),
+		GetAIAttackPower(),
+		GetAIAttackRange(),
+		GetAICollisionRadius(),
+		GetCapsuleComponent()->GetScaledCapsuleRadius(),
+		GetAIMoveAcceptableRadius(),
+		GetAITurnSpeed());
 
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
@@ -232,6 +245,7 @@ void ACPMonsterBase::PlayAttackMontage(UAnimMontage* Montage)
 	TObjectPtr<UAnimInstance> AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && Montage)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s PlayAttackMontage: %s 재생 시작"), *GetName(), *Montage->GetName());
 
 		AddCCState(ECPMonsterCCState::Attacking);
 
@@ -245,6 +259,11 @@ void ACPMonsterBase::PlayAttackMontage(UAnimMontage* Montage)
 	}
 	else
 	{
+		// 여기로 빠지면 몽타주가 재생되지 않고, BT의 Attack 태스크도 완료 델리게이트를 못 받아서 InProgress로 멈춰있게 됨
+		UE_LOG(LogTemp, Error, TEXT("[임시 디버그] %s PlayAttackMontage 실패 - AnimInstance=%s, Montage=%s"),
+			*GetName(),
+			AnimInstance ? TEXT("Valid") : TEXT("NULL"),
+			Montage ? *Montage->GetName() : TEXT("NULL"));
 	}
 }
 
@@ -331,10 +350,13 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 	LaunchCharacter(LaunchVelocity, /*bXYOverride=*/true, /*bZOverride=*/false);
 
+	// KnockbackDuration 안에 넉백이 연속으로 들어오면 이전 복구 타이머가 지금 넉백을 중간에 취소시켜버리므로,
+	// 새로 걸기 전에 이전 타이머부터 취소함
+	GetWorldTimerManager().ClearTimer(KnockbackRestoreHandle);
+
 	// KnockbackDuration 후 RVO 회피를 복구하고 Flying 복구
 	TWeakObjectPtr<ACPMonsterBase> WeakThis(this);
-	FTimerHandle RestoreHandle;
-	GetWorldTimerManager().SetTimer(RestoreHandle, [WeakThis, bWasFlying, PausedMoveRequestID]()
+	GetWorldTimerManager().SetTimer(KnockbackRestoreHandle, [WeakThis, bWasFlying, PausedMoveRequestID]()
 	{
 		if (ACPMonsterBase* StrongThis = WeakThis.Get())
 		{
