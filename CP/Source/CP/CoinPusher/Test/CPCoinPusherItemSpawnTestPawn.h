@@ -10,14 +10,20 @@ class ACPCoinPusher;
 class UInputComponent;
 
 /**
- *  Pawn used to test ACPCoinPusher::ItemSpawn() in isolation. A thin ADefaultPawn subclass - its own camera
- *  and free-fly WASD/mouse movement come from the base class, no project assets required. Pressing Space
- *  calls TargetCoinPusher->ItemSpawn(CoinItemID, 1) to spawn one coin.
+ *  Pawn used to test ACPCoinPusher::ItemSpawn(), ACPCoinPusher::GetPassiveCoinConvertArea()->ConvertActive()/
+ *  HPConvertActive(), and ACPCoinPusher::ActiveWaveThrow() in isolation. A thin ADefaultPawn subclass - its own
+ *  camera and free-fly WASD/mouse movement come from the base class, no project assets required.
+ *  Space spawns one coin via TargetCoinPusher->ItemSpawn(CoinItemID, 1);
+ *  P converts PassiveConvertCount coins to Passive via ConvertActive();
+ *  O converts HPConvertCount Normal coins to HP via HPConvertActive();
+ *  M triggers TargetCoinPusher->ActiveWaveThrow().
  *
- *  TargetCoinPusher can be assigned directly (e.g. if this pawn is placed in the level with
- *  AutoPossessPlayer set, so it shows up as a level instance with an editable Details panel); if left unset,
- *  BeginPlay falls back to finding any ACPCoinPusher placed in the level - so this also works out of the box
- *  when used as a GameMode's DefaultPawnClass (see ACPCoinPusherItemSpawnTestGameMode).
+ *  This pawn only knows about TargetCoinPusher - the convert area is owned by the CoinPusher itself (as a
+ *  ChildActorComponent, see ACPCoinPusher::PassiveCoinConvertAreaComponent) and reached through it.
+ *  TargetCoinPusher can be assigned directly (e.g. if this pawn is placed in the level with AutoPossessPlayer
+ *  set, so it shows up as a level instance with an editable Details panel); if left unset, BeginPlay falls
+ *  back to finding any ACPCoinPusher placed in the level - so this also works out of the box when used as a
+ *  GameMode's DefaultPawnClass (see ACPCoinPusherItemSpawnTestGameMode).
  */
 UCLASS()
 class CP_API ACPCoinPusherItemSpawnTestPawn : public ADefaultPawn
@@ -26,8 +32,8 @@ class CP_API ACPCoinPusherItemSpawnTestPawn : public ADefaultPawn
 
 protected:
 
-	/** CoinPusher whose ItemSpawn() is called on Space. Assign directly here, or leave unset to
-	 *  auto-find any ACPCoinPusher placed in the level (see BeginPlay) */
+	/** CoinPusher targeted by every key binding below. Assign directly here, or leave unset to auto-find any
+	 *  ACPCoinPusher placed in the level (see BeginPlay) */
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher Test")
 	TObjectPtr<ACPCoinPusher> TargetCoinPusher;
 
@@ -36,12 +42,31 @@ protected:
 	UPROPERTY(EditAnywhere, Category="CoinPusher Test")
 	FName CoinItemID = TEXT("100");
 
+	/** Num passed to ConvertActive() on P */
+	UPROPERTY(EditAnywhere, Category="CoinPusher Test", meta = (ClampMin = 1))
+	int32 PassiveConvertCount = 5;
+
+	/** Num passed to HPConvertActive() on O */
+	UPROPERTY(EditAnywhere, Category="CoinPusher Test", meta = (ClampMin = 1))
+	int32 HPConvertCount = 5;
+
 	/** Falls back to finding a level-placed ACPCoinPusher if TargetCoinPusher was left unset */
 	virtual void BeginPlay() override;
 
-	/** Adds the Space bar binding on top of ADefaultPawn's own free-fly movement bindings */
+	/** Adds the Space/P/O/M bindings on top of ADefaultPawn's own free-fly movement bindings */
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 	/** Bound to Space - spawns one coin via TargetCoinPusher->ItemSpawn() */
 	void HandleSpawnCoinInput();
+
+	/** Bound to P - converts PassiveConvertCount coins via
+	 *  TargetCoinPusher->GetPassiveCoinConvertArea()->ConvertActive() */
+	void HandleConvertActiveInput();
+
+	/** Bound to O - converts HPConvertCount Normal coins to HP via
+	 *  TargetCoinPusher->GetPassiveCoinConvertArea()->HPConvertActive() */
+	void HandleHPConvertActiveInput();
+
+	/** Bound to M - triggers TargetCoinPusher->ActiveWaveThrow() */
+	void HandleActiveWaveThrowInput();
 };

@@ -4,6 +4,8 @@
 #include "CPCoinPusher.h"
 #include "CPDispenser.h"
 #include "CPDropZone.h"
+#include "CPPassiveCoinConvertArea.h"
+#include "CPCoinThrowArea.h"
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
 #include "CPCoinPusherViewCaptureComponent.h"
@@ -75,6 +77,19 @@ ACPCoinPusher::ACPCoinPusher()
 
 	DropZoneComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("DropZoneComponent"));
 	DropZoneComponent->SetupAttachment(Floor);
+
+	PassiveCoinConvertAreaComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PassiveCoinConvertAreaComponent"));
+	PassiveCoinConvertAreaComponent->SetupAttachment(Floor);
+
+	// ActiveWaveThrow()가 순차적으로 활성화시키는 CoinThrowArea 5개
+	CoinThrowAreaComponents.SetNum(5);
+	for (int32 Index = 0; Index < CoinThrowAreaComponents.Num(); ++Index)
+	{
+		const FName ComponentName(*FString::Printf(TEXT("CoinThrowAreaComponent%d"), Index));
+		UChildActorComponent* CoinThrowAreaComponent = CreateDefaultSubobject<UChildActorComponent>(ComponentName);
+		CoinThrowAreaComponent->SetupAttachment(Floor);
+		CoinThrowAreaComponents[Index] = CoinThrowAreaComponent;
+	}
 
 	// ViewCaptureComponent를 SpringArm 소켓에 붙여서 동작. 기본값은 위에서 내려다보는 구도이고,
 	// ArmLength/각도는 ViewCaptureBoom을 통해 BP에서 조정.
@@ -206,6 +221,21 @@ ACPDropZone* ACPCoinPusher::GetDropZone() const
 	return DropZoneComponent ? Cast<ACPDropZone>(DropZoneComponent->GetChildActor()) : nullptr;
 }
 
+ACPPassiveCoinConvertArea* ACPCoinPusher::GetPassiveCoinConvertArea() const
+{
+	return PassiveCoinConvertAreaComponent ? Cast<ACPPassiveCoinConvertArea>(PassiveCoinConvertAreaComponent->GetChildActor()) : nullptr;
+}
+
+ACPCoinThrowArea* ACPCoinPusher::GetCoinThrowArea(int32 Index) const
+{
+	if (!CoinThrowAreaComponents.IsValidIndex(Index) || !CoinThrowAreaComponents[Index])
+	{
+		return nullptr;
+	}
+
+	return Cast<ACPCoinThrowArea>(CoinThrowAreaComponents[Index]->GetChildActor());
+}
+
 void ACPCoinPusher::RemoveFrontWall()
 {
 	if (FrontWall)
@@ -241,4 +271,38 @@ void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 	//천장 Dispenser 중 하나를 랜덤하게 골라 그쪽에서 Spawn되도록 위임
 	const int32 RandomIndex = FMath::RandRange(0, ValidCeilingDispensers.Num() - 1);
 	ValidCeilingDispensers[RandomIndex]->DispenseItemByID(ItemID, SpawnCount);
+}
+
+void ACPCoinPusher::ActiveWaveThrow()
+{
+	if (CoinThrowAreaComponents.Num() == 0)
+	{
+		return;
+	}
+
+	WaveThrowIndex = 0;
+
+	// 0초 뒤(즉시) 첫 CoinThrowArea를 활성화하고, 이후 WaveThrowInterval마다 다음 것을 순차적으로 활성화
+	GetWorldTimerManager().SetTimer(WaveThrowTimerHandle, this, &ACPCoinPusher::HandleWaveThrowTick, WaveThrowInterval, true, 0.0f);
+}
+
+void ACPCoinPusher::HandleWaveThrowTick()
+{
+	if (!CoinThrowAreaComponents.IsValidIndex(WaveThrowIndex))
+	{
+		GetWorldTimerManager().ClearTimer(WaveThrowTimerHandle);
+		return;
+	}
+
+	if (ACPCoinThrowArea* ThrowArea = GetCoinThrowArea(WaveThrowIndex))
+	{
+		ThrowArea->ActiveThrow();
+	}
+
+	++WaveThrowIndex;
+
+	if (!CoinThrowAreaComponents.IsValidIndex(WaveThrowIndex))
+	{
+		GetWorldTimerManager().ClearTimer(WaveThrowTimerHandle);
+	}
 }
