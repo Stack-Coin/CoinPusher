@@ -90,5 +90,12 @@ void UCPCoinPusherViewCaptureComponent::TickComponent(float DeltaTime, ELevelTic
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	// BeginPlay 전(예: BP 에디터 자신의 프리뷰 뷰포트 - 여긴 게임플레이가 아니라서 BeginPlay가 호출되지
+	// 않는다)에는 TextureTarget이 아직 없으므로 캡처를 시도하지 않는다
+	if (!HasBegunPlay() || !TextureTarget)
+	{
+		return;
+	}
+
 	CaptureScene();
 }

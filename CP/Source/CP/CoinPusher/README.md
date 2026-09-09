@@ -11,7 +11,8 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
     - `Floor` (`UBoxComponent`, RootComponent) : 코인이 놓이는 바닥이자 실제 충돌의 기준이 되는 루트
     - `Body` : 몸체 StaticMeshComponent (`Floor`에 부착, 콜리전 없음 — 순수 비주얼)
     - `LeftWall` / `RightWall` / `BackWall` / `FrontWall` (`UBoxComponent`) : `Floor`와 함께 실제 충돌을 담당하는 박스 콜리전. 코인을 기계 안에 물리적으로 가둠 (`FrontWall`은 게임 시작 후 `FrontWallRemovalDelay`초 뒤 자동으로 콜리전/비주얼이 꺼짐)
-    - `ExtraBox` (`UBoxComponent`, `Floor`에 부착) + `ExtraBoxMesh` (`UStaticMeshComponent`, `ExtraBox`에 부착, 콜리전 없음) : 추가 박스 콜리전과 그 자식으로 붙는 비주얼 메시. 구체적인 용도는 아직 정해지지 않음 — BP에서 자유롭게 확장
+    - `ExtraBoxMesh` (`UStaticMeshComponent`, `Floor`에 부착, 콜리전 없음) : 추가 비주얼 메시. 구체적인 용도는 아직 정해지지 않음 — BP에서 자유롭게 확장
+    - `ViewCaptureBoom` (`USpringArmComponent`, `Floor`에 부착) + `ViewCaptureComponent` (`UCPCoinPusherViewCaptureComponent`, `SceneCaptureComponent2D` 서브클래스, Boom 소켓에 부착) : 이 CoinPusher를 비추는 카메라. 화면 Picture-in-Picture 표시에 쓰임 (아래 "화면 캡처(PIP) 시스템" 참고)
     - `PusherComponent` (`UChildActorComponent`) : **컴포넌트를 통한 Has-a** — `ACPPusher`를 소유
     - `DispenserComponentA` / `DispenserComponentB` (`UChildActorComponent`, 2개) : **컴포넌트를 통한 Has-a** — Input과 연동되어 앞으로 코인을 던지는 `ACPDispenser`를 소유
     - `CeilingDispenserComponents` (`UChildActorComponent`, 5개) : **컴포넌트를 통한 Has-a** — 천장에서 물건을 뿌리는 `ACPDispenser`를 소유. 게임 시작 시 각각 코인을 드롭
@@ -71,7 +72,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - 자신이 직접 Dispenser를 알 필요 없이, 상호작용 사실만 델리게이트로 알림 (디커플링)
 
 ### ACPDispenser
-- `Body`(StaticMeshComponent, Root) + `SpawnPoint`(SceneComponent)로 물건이 튀어나갈 위치/방향 지정
+- `SpawnPoint`(SceneComponent, Root) + `Body`(StaticMeshComponent, `SpawnPoint`에 부착)로 물건이 튀어나갈 위치/방향 지정 — `SpawnPoint`가 Root라서 이 액터(BP)를 배치/정렬할 때의 기준점이 곧 발사 위치/방향과 일치함
 - `ItemClass`(`TSubclassOf<AActor>`, EditAnywhere) : 생성할 오브젝트 클래스. `ICPCoinPusherItem`을 구현해야 하며(`ACPCoin`, `ACPItem` 등), 아니면 `DispenseItem()`이 아무것도 하지 않음 — Dispenser는 자신이 무엇을 생성하는지 몰라도 됨
 - `LinkedInput`(`TObjectPtr<ACPInput>`, VisibleInstanceOnly)으로 **Has-a Input** 관계를 표현. Dispenser가 이제 `ACPCoinPusher`의 ChildActorComponent로 스폰되기 때문에 에디터에서 직접 편집하지 않고, `SetLinkedInput()`을 통해서만 설정한다. Input 없이 코드로만 동작하는 천장 Dispenser는 이 값을 비워둠
 - `SetLinkedInput(NewLinkedInput)` : 기존 Input의 `OnInteracted` 바인딩을 해제하고 새 Input에 다시 바인딩. 소유자인 `ACPCoinPusher`가 `PostInitializeComponents`에서 호출
@@ -87,7 +88,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - `Floor`(`UBoxComponent`, RootComponent) : 액터의 루트. `BlockAllDynamic` 프로파일로 실제 충돌 기준이 됨. `BoxExtent`로 직접 크기 지정 (예: `150,150,10`)
 - `Body`(StaticMeshComponent, `Floor`에 부착) : `SetCollisionEnabled(NoCollision)`으로 콜리전을 꺼서 순수 비주얼 메시로만 사용
 - `LeftWall` / `RightWall` / `BackWall` / `FrontWall`(`UBoxComponent`, `Floor`에 부착) : `Floor`와 함께 전부 `BlockAllDynamic` 프로파일 — 코인(WorldDynamic, 물리 시뮬레이션)을 막아 기계 안에 가두고, Pawn도 막아 실제 벽처럼 동작. 상대 위치/크기는 BP에서 실제 메시에 맞게 조정. `FrontWall`은 `BeginPlay`에서 타이머를 걸어 `FrontWallRemovalDelay`초 후 `RemoveFrontWall()`로 콜리전/비주얼을 꺼서 코인이 앞으로 빠질 수 있게 함
-- `ExtraBox`(`UBoxComponent`, `Floor`에 부착) / `ExtraBoxMesh`(`UStaticMeshComponent`, `ExtraBox`에 부착, 콜리전 없음) : 추가 박스 콜리전 + 그 자식으로 붙는 비주얼 메시. 아직 특정 용도는 없고 확장을 위한 자리
+- `ExtraBoxMesh`(`UStaticMeshComponent`, `Floor`에 부착, 콜리전 없음) : 추가 비주얼 메시. 아직 특정 용도는 없고 확장을 위한 자리
 - `PusherComponent` / `DispenserComponentA` / `DispenserComponentB` / `CeilingDispenserComponents`(5개) / `DropZoneComponent` 모두 `UChildActorComponent`로 각각 `ACPPusher`, `ACPDispenser`, `ACPDropZone`을 소유 — 전부 Actor이지만 **컴포넌트로 감싸서 Has-a 관계**를 구현 (실제 사용할 BP 서브클래스는 각 컴포넌트의 `Child Actor Class`에 지정)
 - `InputA` / `InputB`(`TObjectPtr<ACPInput>`, EditInstanceOnly) : 레벨에 배치한 `ACPInput`을 CoinPusher에서 직접 연결 (앞으로 던지는 `DispenserComponentA`/`B`용)
 - `ItemRespawnDispenser`(`TObjectPtr<ACPDispenser>`, EditInstanceOnly) : DropZone에 아이템이 떨어졌을 때 재생성을 맡을 Dispenser. 레벨에서 이 CoinPusher 인스턴스의 자식 액터로 스폰된 Dispenser 중 하나를(보통 천장 Dispenser) 피커로 선택해서 지정
@@ -99,6 +100,20 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - `TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser)` 오버라이드 : 표준 엔진 데미지 경로. `Super::TakeDamage(...)`를 호출해 실제 데미지 값을 구한 뒤 `ApplyDamage(ActualDamage, DamageCauser)`로 위임 — 적(또는 다른 무엇이든)이 `UGameplayStatics::ApplyDamage` / `ApplyPointDamage` / `ApplyRadialDamage`를 호출하면 이 경로를 통해 체력이 깎임. 기존에 있던 오버랩 태그 기반 피격 판정(`OnActorOverlapBegin`, `EnemyActorTag`, `EnemyContactDamage`)은 제거하고 이 방식으로 대체함
 - 체력이 0 이하가 되면 `HandleDestroyed()` → `OnCoinPusherDestroyed` 브로드캐스트 + `BP_OnDestroyed` BP 이벤트 호출
 - `ItemSpawn(ItemID, SpawnCount)` : `CeilingDispenserComponents` 5개 중 실제로 스폰된 `ACPDispenser`들 가운데 하나를 랜덤하게 골라 그 Dispenser의 `DispenseItemByID(ItemID, SpawnCount)`를 호출 — Roulette 등 외부 시스템이 "이 ItemID를 이만큼 만들어줘"라고 요청하는 진입점
+
+## 화면 캡처(Picture-in-Picture) 시스템
+
+각 `ACPCoinPusher`는 `ViewCaptureBoom`(SpringArm) + `ViewCaptureComponent`(SceneCaptureComponent2D)로 자기 자신을 비추는 카메라를 갖고 있고, 이 화면을 게임 화면 왼쪽 30%에 항상 띄울 수 있다.
+
+- `UCPCoinPusherViewportClient`(`CoinPusher/CPCoinPusherViewportClient.h`) : 프로젝트 전역 `GameViewportClient` (`DefaultEngine.ini`의 `[/Script/Engine.Engine] GameViewportClientClassName`으로 지정됨). `LayoutPlayers()`에서 1P 로컬 플레이어의 카메라 뷰포트를 `CaptureWidthRatio`(기본 0.3)만큼 왼쪽을 제외한 오른쪽 영역으로 축소한다 — Player 카메라와 PIP가 같은 픽셀을 두고 겹쳐그리기 경쟁을 하지 않도록, Player 뷰 자체를 줄이는 방식
+- `UCPCoinPusherViewCaptureComponent`(`CoinPusher/CPCoinPusherViewCaptureComponent.h`) : `SceneCaptureComponent2D` 서브클래스. `TextureTarget`을 BP/디테일 패널에서 직접 Render Target 에셋으로 지정할 수 있고, 비워두면 `BeginPlay`에서 게임 뷰포트 실제 픽셀 크기(`CaptureWidthRatio` 반영) + `SupersampleFactor`에 맞춰 자동 생성한다(확대로 인한 pixel화 방지). `bAlwaysPersistRenderingState = true`와 캡처 자체의 Lumen GI/Reflection Off, Auto Exposure Min/MaxBrightness 고정 등 이 프로젝트(Lumen/RayTracing 사용)에서 캡처가 검게 나오지 않도록 하는 설정이 생성자에 들어있다. `bCaptureEveryFrame`의 엔진 자동 캡처가 런타임 생성 RenderTarget과 잘 맞지 않아, 대신 `TickComponent`에서 매 틱 직접 `CaptureScene()`을 호출한다
+- `UCPCoinPusherCaptureWidget`(`CoinPusher/CPCoinPusherCaptureWidget.h`) : WBP 없이 `RebuildWidget()`에서 Slate(`SConstraintCanvas` + `SImage`)로 직접 화면 왼쪽 `CaptureWidthRatio`(기본 0.3) 영역에 이미지를 앵커링하는 위젯. `SetCaptureTexture(RenderTarget)`으로 표시할 텍스처를 지정. 이 클래스 자체를 그대로 써도 되고(별도 WBP 불필요), 커스텀 스타일이 필요하면 WBP로 상속해서 오버라이드 가능
+- 실제로 화면에 띄우려면 PlayerController가 `UCPCoinPusherCaptureWidget`을 만들어 `AddToViewport()`하고 CoinPusher(또는 캡처를 가진 액터)의 `ViewCaptureComponent->GetViewRenderTarget()`을 `SetCaptureTexture()`로 넘겨줘야 한다 — 예시는 `CoinPusher/Test/CPCoinPusherCaptureTestPlayerController` 참고
+
+## 테스트용 Actor/GameMode/PlayerController (`CoinPusher/Test`)
+
+- **PIP 캡처 테스트**: `ACPCoinPusherCaptureTestActor`(비주얼 메시 + `ViewCaptureBoom`/`ViewCaptureComponent`를 직접 가진 독립 액터, 실제 `ACPCoinPusher` 전체 설정 없이 캡처 기능만 테스트) / `ACPCoinPusherCaptureTestPawn`(`ADefaultPawn` 상속, 자유비행 카메라) / `ACPCoinPusherCaptureTestGameMode`(위 Pawn을 DefaultPawnClass로) / `ACPCoinPusherCaptureTestPlayerController`(레벨의 `ACPCoinPusherCaptureTestActor` 또는 `ACPCoinPusher`를 찾아 `UCPCoinPusherCaptureWidget`을 만들고 RenderTarget을 연결)
+- **ItemSpawn 테스트**: `ACPCoinPusherItemSpawnTestPawn`(`ADefaultPawn` 상속, `TargetCoinPusher`를 직접 할당하거나 레벨에서 자동으로 찾음, Space바로 `TargetCoinPusher->ItemSpawn(CoinItemID, 1)` 호출) / `ACPCoinPusherItemSpawnTestGameMode`(위 Pawn을 DefaultPawnClass로)
 
 ## Roulette 연동
 

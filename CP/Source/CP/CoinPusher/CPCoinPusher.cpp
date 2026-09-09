@@ -25,16 +25,9 @@ ACPCoinPusher::ACPCoinPusher()
 	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
 	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
 
-	// 추가 박스 콜리전 (Floor에 부착). 코인이 실제로 얹혀서 멈출 수 있도록 콜리전을 가진다.
-	// 크기/위치는 BP에서 자유롭게 조정
-	ExtraBox = CreateDefaultSubobject<UBoxComponent>(TEXT("ExtraBox"));
-	ExtraBox->SetupAttachment(Floor);
-	ExtraBox->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f));
-	ExtraBox->SetCollisionProfileName(FName("BlockAllDynamic"));
-
-	// ExtraBox에 부착되는 비주얼 메시 (콜리전 없음 - 실제 충돌은 ExtraBox가 담당)
+	// 추가 비주얼 메시 (콜리전 없음, Floor에 부착). 용도는 BP에서 자유롭게 확장
 	ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
-	ExtraBoxMesh->SetupAttachment(ExtraBox);
+	ExtraBoxMesh->SetupAttachment(Floor);
 	ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));

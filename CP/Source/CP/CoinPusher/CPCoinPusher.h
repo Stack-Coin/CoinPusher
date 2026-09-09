@@ -50,11 +50,7 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* FrontWall;
 
-	//추가 박스 콜리전 (Floor에 부착). 용도는 BP에서 자유롭게 확장
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	UBoxComponent* ExtraBox;
-
-	//ExtraBox에 부착되는 비주얼 메시 (콜리전 없음 - 순수 비주얼)
+	//추가 비주얼 메시 (콜리전 없음, Floor에 부착). 용도는 BP에서 자유롭게 확장
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* ExtraBoxMesh;
 
@@ -187,7 +183,6 @@ public:
 	FORCEINLINE UBoxComponent* GetRightWall() const { return RightWall; }
 	FORCEINLINE UBoxComponent* GetBackWall() const { return BackWall; }
 	FORCEINLINE UBoxComponent* GetFrontWall() const { return FrontWall; }
-	FORCEINLINE UBoxComponent* GetExtraBox() const { return ExtraBox; }
 	FORCEINLINE UStaticMeshComponent* GetExtraBoxMesh() const { return ExtraBoxMesh; }
 	FORCEINLINE UChildActorComponent* GetPusherComponent() const { return PusherComponent; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentA() const { return DispenserComponentA; }

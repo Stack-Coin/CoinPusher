@@ -14,12 +14,12 @@ ACPDispenser::ACPDispenser()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	RootComponent = Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
-	Body->SetCollisionProfileName(FName("BlockAllDynamic"));
-	Body->bNavigationRelevant = false;
+	RootComponent = SpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("SpawnPoint"));
 
-	SpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("SpawnPoint"));
-	SpawnPoint->SetupAttachment(RootComponent);
+	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
+	Body->SetupAttachment(RootComponent);
+	Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Body->bNavigationRelevant = false;
 }
 
 void ACPDispenser::BeginPlay()
