@@ -1,0 +1,2 @@
+﻿Name,Health,HealthMin,HealthMax,AttackPower,AttackPowerMin,AttackPowerMax,MoveSpeed,MoveSpeedMin,MoveSpeedMax,AttackSpeed,AttackSpeedMin,AttackSpeedMax
+Default,100,0,100,10,0,999,500,0,1200,1,0.1,5

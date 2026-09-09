@@ -4,38 +4,26 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
-#include "Player/CPCoinWallet.h"
 #include "Player/CPStatTypes.h"
-#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "CPGameMode.generated.h"
 
-class ACPPartyCamera;
 class ACPPlayerCharacter;
 class UCPHealthBarWidget;
 class UCPTicketCountWidget;
 class UCPCoinCountWidget;
 class UCPRadialGaugeComponent;
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamTicketCountChanged, int32, NewTicketCount);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamCoinCountChanged, int32, NewCoinCount);
+class UCPInventoryWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamLevelUp, int32, NewLevel);
 
 UCLASS(abstract)
-class ACPGameMode : public AGameModeBase, public ICPCoinWallet
+class ACPGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
 protected:
 
 	//***** �� ���� ����
-	UPROPERTY(BlueprintReadOnly, Category="Team")
-	int32 TeamTicketCount = 0;
-
-	UPROPERTY(BlueprintReadOnly, Category="Team")
-	int32 TeamCoinCount = 0;
-
 	UPROPERTY(BlueprintReadOnly, Category="Team")
 	float TeamExperience = 0.0f;
 
@@ -56,54 +44,23 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Team|Leveling", meta = (ClampMin = 0))
 	float RequiredTeamExperiencePerLevel = 0.0f;
 
-	/** How many local players to spawn on game start - fixed at level start, no drop-in join.
-	 *  Player 0 (keyboard/mouse) is created automatically as part of regular game init; this only
-	 *  creates players 2+ (e.g. Player 1 on the first connected gamepad) */
-	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer", meta = (ClampMin = 1, ClampMax = 4))
-	int32 NumberOfLocalPlayers = 2;
-
-	/** Used to assign players to different PlayerStarts (tagged Player0, Player1, ...) in the level */
-	int32 CurrentPlayerStartAssignment = 0;
-
-	/** Bound to IPlatformInputDeviceMapper's connection-change event for the lifetime of this GameMode */
-	FDelegateHandle InputDeviceConnectionChangeHandle;
-
-	/** Class spawned as the shared single camera (see ToggleCameraMode). Defaults to ACPPartyCamera itself
-	 *  if left unset - only needs overriding if a level wants different default zoom/speed values */
-	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|Camera")
-	TSubclassOf<ACPPartyCamera> PartyCameraClass;
-
-	/** Blend time used by SetViewTargetWithBlend when swapping between split-screen and the party camera */
-	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|Camera", meta = (ClampMin = 0, Units = "s"))
-	float CameraSwapBlendTime = 0.75f;
-
-	/** Spawned lazily the first time single-camera mode is entered, then reused */
-	UPROPERTY()
-	TObjectPtr<ACPPartyCamera> PartyCamera;
-
-	/** True while every local player is viewing the single shared PartyCamera instead of their own
-	 *  split-screen viewport/camera */
-	bool bIsSingleCameraMode = false;
-
-	/** Widget Blueprint (inheriting UCPTicketCountWidget) for the team ticket count HUD. Created once in
-	 *  BeginPlay and bound directly to OnTeamTicketCountChanged in C++ - no BP graph wiring needed */
+	/** Widget Blueprint (inheriting UCPTicketCountWidget) for the player's ticket count HUD. Created once in
+	 *  BeginPlay and bound directly to the player's OnTicketChanged in C++ - no BP graph wiring needed */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPTicketCountWidget> TicketWidgetClass;
 
-	/** Widget Blueprint (inheriting UCPCoinCountWidget) for the team coin count HUD. Created once in
-	 *  BeginPlay and bound directly to OnTeamCoinCountChanged in C++ - no BP graph wiring needed */
+	/** Widget Blueprint (inheriting UCPCoinCountWidget) for the player's coin count HUD. Created once in
+	 *  BeginPlay and bound directly to the player's OnCoinChanged in C++ - no BP graph wiring needed */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPCoinCountWidget> CoinWidgetClass;
 
-	/** Widget Blueprint (inheriting UCPHealthBarWidget) for the first local player's (1P) health bar -
-	 *  give it a WBP with the bar anchored to the left of the screen */
+	/** Widget Blueprint (inheriting UCPHealthBarWidget) for the player's health bar */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
-	TSubclassOf<UCPHealthBarWidget> Player1HealthBarWidgetClass;
+	TSubclassOf<UCPHealthBarWidget> PlayerHealthBarWidgetClass;
 
-	/** Widget Blueprint (inheriting UCPHealthBarWidget) for the second local player's (2P) health bar -
-	 *  give it a WBP with the bar anchored to the right of the screen */
+	/** Widget Blueprint (inheriting UCPInventoryWidget) for the player's cross-shaped inventory HUD */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
-	TSubclassOf<UCPHealthBarWidget> Player2HealthBarWidgetClass;
+	TSubclassOf<UCPInventoryWidget> InventoryWidgetClass;
 
 	/** Class (inheriting UCPRadialGaugeComponent) dynamically attached to every player pawn in BeginPlay
 	 *  to show revive progress. Give it a BP subclass with GaugeWidgetClass (a UCPRadialGaugeWidget WBP)
@@ -116,48 +73,26 @@ public:
 	/** Constructor */
 	ACPGameMode();
 
-	/** Creates the additional local players (see NumberOfLocalPlayers), tries to assign the first
-	 *  connected gamepad to the second local player right away, and starts watching for one to connect
-	 *  later (a gamepad isn't always detected yet by the time BeginPlay runs) */
+	/** Gameplay initialization */
 	virtual void BeginPlay() override;
 
-	/** Stops watching for gamepad connection changes */
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
-	/** Assigns a PlayerStart tagged PlayerN to the Nth player to spawn, in order */
+	/** Assigns a PlayerStart tagged Player0 to the player, falling back to any PlayerStart in the level */
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 
 protected:
 
-	/** Bound to IPlatformInputDeviceMapper::GetOnInputDeviceConnectionChange - catches a gamepad that
-	 *  connects/is detected after BeginPlay already ran */
-	void HandleInputDeviceConnectionChange(EInputDeviceConnectionState NewConnectionState, FPlatformUserId PlatformUserId, FInputDeviceId InputDeviceId);
-
-	/** If the second local player doesn't already own an input device, assigns it the first currently
-	 *  connected non-default device (a gamepad). No-ops if there's no second local player, it already
-	 *  has a device, or no gamepad is connected yet. Legacy fallback used only when this level is
-	 *  played without going through ACPLobbyGameMode first (see AssignInputDevicesFromPlayerRegistry) */
-	void TryAssignGamepadToSecondPlayer();
-
-	/** Uses UCPPlayerRegistrySubsystem (populated by ACPLobbyGameMode in the previous/lobby level) to
-	 *  remap each local player's input device - keyboard/mouse or gamepad, including the case where
-	 *  both players use a gamepad - so that PlayerIndex 0 (from the lobby) ends up controlling
-	 *  LocalPlayer 0 and PlayerIndex 1 controls LocalPlayer 1. Combined with the project's
-	 *  TwoPlayerSplitscreenLayout=Vertical setting (DefaultEngine.ini), LocalPlayer 0 always renders
-	 *  in the left split-screen viewport and LocalPlayer 1 in the right one, so this keeps "who
-	 *  joined first in the lobby" playing on the left. Returns false (and remaps nothing) if the
-	 *  registry doesn't exist or has no recorded devices - e.g. this level was opened directly
-	 *  without going through the lobby */
-	bool AssignInputDevicesFromPlayerRegistry();
-
-	/** Creates the team-wide ticket/coin HUD widgets (see TicketWidgetClass/CoinWidgetClass) and binds
-	 *  them directly to OnTeamTicketCountChanged/OnTeamCoinCountChanged. Called once from BeginPlay */
-	void SetupTeamResourceWidgets();
+	/** Creates PlayerCharacter's ticket/coin HUD widgets (see TicketWidgetClass/CoinWidgetClass) and binds
+	 *  them directly to PlayerCharacter's OnTicketChanged/OnCoinChanged. Called once per local player from BeginPlay */
+	void SetupPlayerWalletWidgets(ACPPlayerCharacter* PlayerCharacter);
 
 	/** Creates a health bar widget using HealthBarWidgetClass, adds it to PlayerCharacter's owning
 	 *  player's screen, and binds it directly to PlayerCharacter's OnHealthChanged. Called once per
 	 *  local player from BeginPlay */
 	void SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHealthBarWidget> HealthBarWidgetClass);
+
+	/** Creates an inventory widget using InventoryWidgetClass, adds it to PlayerCharacter's owning player's
+	 *  screen. Called once per local player from BeginPlay */
+	void SetupPlayerInventoryWidget(ACPPlayerCharacter* PlayerCharacter);
 
 	/** Creates a ReviveGaugeComponentClass instance, attaches it to PlayerCharacter (disabled until a
 	 *  revive attempt starts), and hands it to the character via SetReviveGaugeComponent. No-ops if
@@ -166,39 +101,9 @@ protected:
 
 public:
 
-	/** Swaps between per-player split-screen and a single shared camera (ACPPartyCamera) that frames
-	 *  every local player and zooms with their spread. Bound to the C key by default (see ACPPlayerCharacter) */
-	UFUNCTION(BlueprintCallable, Category="Local Multiplayer")
-	void ToggleCameraMode();
-
-	/** Returns true while showing the single shared party camera instead of split-screen */
-	UFUNCTION(BlueprintPure, Category="Local Multiplayer")
-	bool IsSingleCameraMode() const { return bIsSingleCameraMode; }
-
-	/** Broadcast whenever TeamTicketCount changes */
-	UPROPERTY(BlueprintAssignable, Category="Team")
-	FOnCPTeamTicketCountChanged OnTeamTicketCountChanged;
-
-	/** Broadcast whenever TeamCoinCount changes */
-	UPROPERTY(BlueprintAssignable, Category="Team")
-	FOnCPTeamCoinCountChanged OnTeamCoinCountChanged;
-
 	/** Broadcast right after TeamLevel increases by 1 (once per level, even on a multi level up) */
 	UPROPERTY(BlueprintAssignable, Category="Team")
 	FOnCPTeamLevelUp OnTeamLevelUp;
-
-	/** Adds Amount tickets (e.g. called by ACPDropZone every 10 coins collected) */
-	UFUNCTION(BlueprintCallable, Category="Team")
-	void AddTeamTickets(int32 Amount = 1);
-
-	/** Returns the current team ticket count */
-	UFUNCTION(BlueprintPure, Category="Team")
-	int32 GetTeamTicketCount() const { return TeamTicketCount; }
-
-	/** Attempts to spend Amount tickets. Deducts and returns true on success; leaves the count
-	 *  unchanged and returns false if there aren't enough tickets */
-	UFUNCTION(BlueprintCallable, Category="Team")
-	bool TrySpendTeamTicket(int32 Amount = 1);
 
 	/** Adds team experience, handling one or multiple team level ups if enough is accumulated at once */
 	UFUNCTION(BlueprintCallable, Category="Team")
@@ -215,23 +120,6 @@ public:
 	/** Returns the team experience required to go from the current team level to the next */
 	UFUNCTION(BlueprintPure, Category="Team")
 	float GetRequiredTeamExperience() const;
-
-	// ~begin ICPCoinWallet
-
-	/** Adds Amount to the team's coin balance */
-	virtual void AddCoin(int32 Amount) override;
-
-	/** Returns the team's current coin balance */
-	virtual int32 GetCoinAmount() const override { return TeamCoinCount; }
-
-	/** Returns true if the team's coin balance is at least Amount */
-	virtual bool HasEnoughCoin(int32 Amount) const override { return TeamCoinCount >= Amount; }
-
-	/** Attempts to spend Amount coins from the team's balance. Deducts and returns true on success,
-	 *  leaves the balance unchanged and returns false otherwise */
-	virtual bool TrySpendCoin(int32 Amount) override;
-
-	// ~end ICPCoinWallet
 
 protected:
 	// KohMS

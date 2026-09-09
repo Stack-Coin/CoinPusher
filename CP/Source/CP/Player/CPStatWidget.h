@@ -12,10 +12,10 @@ class UTextBlock;
 class UButton;
 
 /**
- *  Simple debug/test UI that displays the current values of a player's stats, plus the team-shared
- *  resources owned by ACPGameMode (ticket/experience/level). Per-player stats are read purely
- *  through ICPStatInterface, so it works with any actor that implements it. No layout/design is
- *  provided - place the TextBlocks (matching these variable names) in the Widget Blueprint that
+ *  Simple debug/test UI that displays the current values of a player's stats, the player's ticket
+ *  count, plus the team-shared experience/level owned by ACPGameMode. Per-player stats are read
+ *  purely through ICPStatInterface, so it works with any actor that implements it. No layout/design
+ *  is provided - place the TextBlocks (matching these variable names) in the Widget Blueprint that
  *  inherits from this class.
  */
 UCLASS(abstract)
@@ -41,9 +41,6 @@ protected:
 	UTextBlock* AttackSpeedText;
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
-	UTextBlock* DefenseText;
-
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UTextBlock* LevelText;
 
 	/** Displays the names of every currently owned item */
@@ -54,7 +51,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UTextBlock* CurrentWeaponText;
 
-	/** Displays the current team ticket count (ACPGameMode::GetTeamTicketCount) */
+	/** Displays the player's current ticket count (ACPPlayerCharacter::GetTicketCount) */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UTextBlock* TicketText;
 

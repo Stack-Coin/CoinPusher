@@ -59,11 +59,11 @@ protected:
 
 public:
 
-	/** 룰렛을 동작시킨다: ACPGameMode에 티켓이 1개 이상 있어야 하며, 성공 시 1개를 소모한다.
+	/** 룰렛을 동작시킨다: Roller가 티켓을 1개 이상 보유하고 있어야 하며, 성공 시 1개를 소모한다.
 	 *  8칸 중 하나를 균등 확률로 뽑고, UI로 결과를 보여준 뒤 해당 아이템을 스폰한다.
-	 *  이미 스핀 중이거나(bIsRolling) 티켓이 없으면 아무 동작도 하지 않고 false를 반환한다 */
+	 *  이미 스핀 중이거나(bIsRolling) Roller의 티켓이 없으면 아무 동작도 하지 않고 false를 반환한다 */
 	UFUNCTION(BlueprintCallable, Category="Roulette")
-	bool Roll();
+	bool Roll(AActor* Roller);
 
 	/** 현재 스핀이 진행 중인지 여부 (다른 플레이어의 Roll() 상호작용을 막는 데 사용 가능) */
 	UFUNCTION(BlueprintPure, Category="Roulette")

@@ -4,23 +4,18 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/PlayerController.h"
-#include "Engine/LocalPlayer.h"
-#include "Engine/GameInstance.h"
 #include "Engine/World.h"
-#include "Engine/GameViewportClient.h"
-#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
-#include "GameMode/CPPlayerRegistrySubsystem.h"
 #include "Nexus/CPGoddess.h"
 #include "Nexus/CPNexus.h"
 #include "Monster/Spawner/CPMonsterSpawnManager.h"
 #include "Monster/Spawner/CPUserWidget_WaveStatus.h"
-#include "Player/CPPartyCamera.h"
 #include "Player/CPPlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/CPHealthBarWidget.h"
 #include "UI/CPTicketCountWidget.h"
 #include "UI/CPCoinCountWidget.h"
 #include "UI/CPRadialGaugeComponent.h"
+#include "UI/CPInventoryWidget.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -30,27 +25,6 @@ ACPGameMode::ACPGameMode()
 void ACPGameMode::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// Create each additional local player - Player 0 (keyboard/mouse) is created automatically as part
-	// of regular game init. Fixed at level start, no drop-in join (see NumberOfLocalPlayers)
-	for (int32 i = 2; i <= NumberOfLocalPlayers; ++i)
-	{
-		UGameplayStatics::CreatePlayer(GetWorld(), -1, true);
-	}
-
-	// Prefer the device <-> PlayerIndex assignment recorded by ACPLobbyGameMode in the previous level.
-	// Only fall back to the legacy "first connected gamepad -> 2P" behavior (and its late-connection
-	// watcher) when there's nothing recorded - i.e. this level was opened directly, without going
-	// through the lobby
-	if (!AssignInputDevicesFromPlayerRegistry())
-	{
-		// A gamepad plugged in before launch is often already detected by now - try right away...
-		TryAssignGamepadToSecondPlayer();
-
-		// ...but device detection (XInput/RawInput polling) can still lag a frame or more past
-		// BeginPlay, so keep watching for one to show up later too
-		InputDeviceConnectionChangeHandle = IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().AddUObject(this, &ACPGameMode::HandleInputDeviceConnectionChange);
-	}
 
 	// KohMs // Goddess가 죽으면 패배
 	if (ACPGoddess* Goddess = Cast<ACPGoddess>(UGameplayStatics::GetActorOfClass(this, ACPGoddess::StaticClass())))
@@ -70,143 +44,25 @@ void ACPGameMode::BeginPlay()
 		}
 	}
 
-	SetupTeamResourceWidgets();
-
-	// Per-local-player UI: health bar (1P/2P) and the revive progress gauge. Both players' pawns are
-	// already possessed by this point (created above/by the engine's own initial-player flow)
-	TArray<TSubclassOf<UCPHealthBarWidget>> HealthBarClassesByIndex = { Player1HealthBarWidgetClass, Player2HealthBarWidgetClass };
-	int32 LocalPlayerIndex = 0;
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 	{
-		APlayerController* PC = It->Get();
-		if (!PC || !PC->IsLocalController())
-		{
-			continue;
-		}
-
 		if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(PC->GetPawn()))
 		{
 			AttachReviveGaugeToPlayer(PlayerCharacter);
-
-			if (HealthBarClassesByIndex.IsValidIndex(LocalPlayerIndex))
-			{
-				SetupPlayerHealthBarWidget(PlayerCharacter, HealthBarClassesByIndex[LocalPlayerIndex]);
-			}
+			SetupPlayerHealthBarWidget(PlayerCharacter, PlayerHealthBarWidgetClass);
+			SetupPlayerWalletWidgets(PlayerCharacter);
+			SetupPlayerInventoryWidget(PlayerCharacter);
 		}
-
-		++LocalPlayerIndex;
 	}
-}
-
-void ACPGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	IPlatformInputDeviceMapper::Get().GetOnInputDeviceConnectionChange().Remove(InputDeviceConnectionChangeHandle);
-
-	Super::EndPlay(EndPlayReason);
-}
-
-void ACPGameMode::HandleInputDeviceConnectionChange(EInputDeviceConnectionState NewConnectionState, FPlatformUserId PlatformUserId, FInputDeviceId InputDeviceId)
-{
-	if (NewConnectionState == EInputDeviceConnectionState::Connected)
-	{
-		TryAssignGamepadToSecondPlayer();
-	}
-}
-
-void ACPGameMode::TryAssignGamepadToSecondPlayer()
-{
-	UGameInstance* GameInstance = GetGameInstance();
-	ULocalPlayer* SecondLocalPlayer = GameInstance ? GameInstance->GetLocalPlayerByIndex(1) : nullptr;
-	if (!SecondLocalPlayer)
-	{
-		return;
-	}
-
-	IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
-	const FPlatformUserId SecondPlayerUserId = SecondLocalPlayer->GetPlatformUserId();
-
-	// Already has a device mapped (e.g. a previous call already assigned one)? Nothing to do
-	TArray<FInputDeviceId> ExistingDevices;
-	DeviceMapper.GetAllInputDevicesForUser(SecondPlayerUserId, ExistingDevices);
-	if (!ExistingDevices.IsEmpty())
-	{
-		return;
-	}
-
-	const FInputDeviceId DefaultDevice = DeviceMapper.GetDefaultInputDevice();
-
-	TArray<FInputDeviceId> ConnectedDevices;
-	DeviceMapper.GetAllConnectedInputDevices(ConnectedDevices);
-
-	for (const FInputDeviceId& DeviceId : ConnectedDevices)
-	{
-		// Skip the default device (keyboard/mouse) - only assign an actual gamepad
-		if (DeviceId == DefaultDevice)
-		{
-			continue;
-		}
-
-		const FPlatformUserId OldUserId = DeviceMapper.GetUserForInputDevice(DeviceId);
-		DeviceMapper.Internal_ChangeInputDeviceUserMapping(DeviceId, SecondPlayerUserId, OldUserId);
-		break;
-	}
-}
-
-bool ACPGameMode::AssignInputDevicesFromPlayerRegistry()
-{
-	UGameInstance* GameInstance = GetGameInstance();
-	UCPPlayerRegistrySubsystem* PlayerRegistry = GameInstance ? GameInstance->GetSubsystem<UCPPlayerRegistrySubsystem>() : nullptr;
-	if (!PlayerRegistry)
-	{
-		return false;
-	}
-
-	IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
-	const TArray<ULocalPlayer*>& LocalPlayers = GameInstance->GetLocalPlayers();
-
-	// Registry index = PlayerIndex from the lobby (0 = P1, 1 = P2, ...), same order LocalPlayers were
-	// created in (Player 0 always exists first, additional ones via CreatePlayer above) - so
-	// PlayerIndex N here lines up with LocalPlayers[N]
-	bool bAssignedAny = false;
-
-	for (int32 PlayerIndex = 0; PlayerIndex < LocalPlayers.Num(); ++PlayerIndex)
-	{
-		ULocalPlayer* LocalPlayer = LocalPlayers[PlayerIndex];
-		const FInputDeviceId DeviceId = PlayerRegistry->GetInputDeviceForPlayerIndex(PlayerIndex);
-		if (!LocalPlayer || !DeviceId.IsValid())
-		{
-			continue;
-		}
-
-		// Works the same whether DeviceId is a gamepad or the keyboard/mouse (default) device, and
-		// regardless of which PlayerIndex it's assigned to - handles both players using gamepads,
-		// or the keyboard/mouse ending up on either player
-		const FPlatformUserId TargetUserId = LocalPlayer->GetPlatformUserId();
-		const FPlatformUserId CurrentUserId = DeviceMapper.GetUserForInputDevice(DeviceId);
-
-		if (CurrentUserId != TargetUserId)
-		{
-			DeviceMapper.Internal_ChangeInputDeviceUserMapping(DeviceId, TargetUserId, CurrentUserId);
-		}
-
-		bAssignedAny = true;
-	}
-
-	return bAssignedAny;
 }
 
 AActor* ACPGameMode::ChoosePlayerStart_Implementation(AController* Player)
 {
-	// Build the current player tag
-	const FName PlayerTag = FName(*FString::Printf(TEXT("Player%d"), CurrentPlayerStartAssignment));
+	static const FName PlayerTag(TEXT("Player0"));
 
-	// Find all player starts with the matching player tag
 	TArray<AActor*> PlayerStarts;
 	UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), APlayerStart::StaticClass(), PlayerTag, PlayerStarts);
 
-	++CurrentPlayerStartAssignment;
-
-	// If no PlayerStarts were found with this tag, fall back to any PlayerStart in the level
 	if (PlayerStarts.IsEmpty())
 	{
 		UGameplayStatics::GetAllActorsOfClass(GetWorld(), APlayerStart::StaticClass(), PlayerStarts);
@@ -220,98 +76,20 @@ AActor* ACPGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	return nullptr;
 }
 
-void ACPGameMode::ToggleCameraMode()
+void ACPGameMode::SetupPlayerWalletWidgets(ACPPlayerCharacter* PlayerCharacter)
 {
-	UWorld* World = GetWorld();
-	if (!World)
+	if (!PlayerCharacter)
 	{
 		return;
 	}
 
-	bIsSingleCameraMode = !bIsSingleCameraMode;
-
-	UGameViewportClient* ViewportClient = World->GetGameViewport();
-
-	if (bIsSingleCameraMode)
-	{
-		if (!PartyCamera)
-		{
-			TSubclassOf<ACPPartyCamera> ClassToSpawn = ACPPartyCamera::StaticClass();
-			if (PartyCameraClass)
-			{
-				ClassToSpawn = PartyCameraClass;
-			}
-			PartyCamera = World->SpawnActor<ACPPartyCamera>(ClassToSpawn);
-		}
-
-		if (!PartyCamera)
-		{
-			bIsSingleCameraMode = false;
-			return;
-		}
-
-		TArray<TWeakObjectPtr<AActor>> TrackedPlayers;
-		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-		{
-			APlayerController* PC = It->Get();
-			if (PC && PC->IsLocalController() && PC->GetPawn())
-			{
-				TrackedPlayers.Add(PC->GetPawn());
-			}
-		}
-		PartyCamera->SetTrackedActors(TrackedPlayers);
-		PartyCamera->SetActorTickEnabled(true);
-
-		if (ViewportClient)
-		{
-			ViewportClient->SetForceDisableSplitscreen(true);
-		}
-
-		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-		{
-			if (APlayerController* PC = It->Get())
-			{
-				if (PC->IsLocalController())
-				{
-					PC->SetViewTargetWithBlend(PartyCamera, CameraSwapBlendTime);
-				}
-			}
-		}
-	}
-	else
-	{
-		if (ViewportClient)
-		{
-			ViewportClient->SetForceDisableSplitscreen(false);
-		}
-
-		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-		{
-			if (APlayerController* PC = It->Get())
-			{
-				if (PC->IsLocalController() && PC->GetPawn())
-				{
-					PC->SetViewTargetWithBlend(PC->GetPawn(), CameraSwapBlendTime);
-				}
-			}
-		}
-
-		if (PartyCamera)
-		{
-			PartyCamera->SetActorTickEnabled(false);
-		}
-	}
-}
-
-void ACPGameMode::SetupTeamResourceWidgets()
-{
 	if (TicketWidgetClass)
 	{
 		if (UCPTicketCountWidget* TicketWidget = CreateWidget<UCPTicketCountWidget>(GetWorld(), TicketWidgetClass))
 		{
 			TicketWidget->AddToViewport();
-			OnTeamTicketCountChanged.AddDynamic(TicketWidget, &UCPTicketCountWidget::UpdateTicketCount);
-			TicketWidget->UpdateTicketCount(TeamTicketCount);
+			PlayerCharacter->OnTicketChanged.AddDynamic(TicketWidget, &UCPTicketCountWidget::UpdateTicketCount);
+			TicketWidget->UpdateTicketCount(PlayerCharacter->GetTicketCount());
 		}
 	}
 
@@ -320,8 +98,8 @@ void ACPGameMode::SetupTeamResourceWidgets()
 		if (UCPCoinCountWidget* CoinWidget = CreateWidget<UCPCoinCountWidget>(GetWorld(), CoinWidgetClass))
 		{
 			CoinWidget->AddToViewport();
-			OnTeamCoinCountChanged.AddDynamic(CoinWidget, &UCPCoinCountWidget::UpdateCoinCount);
-			CoinWidget->UpdateCoinCount(TeamCoinCount);
+			PlayerCharacter->OnCoinChanged.AddDynamic(CoinWidget, &UCPCoinCountWidget::UpdateCoinCount);
+			CoinWidget->UpdateCoinCount(PlayerCharacter->GetCoinAmount());
 		}
 	}
 }
@@ -345,15 +123,29 @@ void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter
 		return;
 	}
 
-	// AddToPlayerScreen ties the widget to that player's own split-screen viewport slot, which
-	// ToggleCameraMode's SetForceDisableSplitscreen(true) collapses away entirely for every player but the
-	// first - so 2P's health bar would vanish in single-camera mode. AddToViewport instead renders across
-	// the whole (shared) game viewport regardless of split-screen state, same as every other HUD widget
-	// here (ticket/coin/etc.) - the WBP's own left/right screen anchor still positions it correctly either way
 	HealthBarWidget->AddToViewport();
 
 	PlayerCharacter->OnHealthChanged.AddDynamic(HealthBarWidget, &UCPHealthBarWidget::UpdateHealth);
 	HealthBarWidget->UpdateHealth(PlayerCharacter->GetStat(ECPStatType::Health), PlayerCharacter->GetMaxHealth());
+}
+
+void ACPGameMode::SetupPlayerInventoryWidget(ACPPlayerCharacter* PlayerCharacter)
+{
+	if (!PlayerCharacter || !InventoryWidgetClass)
+	{
+		return;
+	}
+
+	APlayerController* OwningController = Cast<APlayerController>(PlayerCharacter->GetController());
+	if (!OwningController)
+	{
+		return;
+	}
+
+	if (UCPInventoryWidget* InventoryWidget = CreateWidget<UCPInventoryWidget>(OwningController, InventoryWidgetClass))
+	{
+		InventoryWidget->AddToViewport();
+	}
 }
 
 void ACPGameMode::AttachReviveGaugeToPlayer(ACPPlayerCharacter* PlayerCharacter)
@@ -375,32 +167,6 @@ void ACPGameMode::AttachReviveGaugeToPlayer(ACPPlayerCharacter* PlayerCharacter)
 	Gauge->SetGaugeEnabled(false);
 
 	PlayerCharacter->SetReviveGaugeComponent(Gauge);
-}
-
-void ACPGameMode::AddTeamTickets(int32 Amount)
-{
-	if (Amount <= 0)
-	{
-		return;
-	}
-
-	TeamTicketCount += Amount;
-
-	OnTeamTicketCountChanged.Broadcast(TeamTicketCount);
-}
-
-bool ACPGameMode::TrySpendTeamTicket(int32 Amount)
-{
-	if (Amount <= 0 || TeamTicketCount < Amount)
-	{
-		return false;
-	}
-
-	TeamTicketCount -= Amount;
-
-	OnTeamTicketCountChanged.Broadcast(TeamTicketCount);
-
-	return true;
 }
 
 float ACPGameMode::GetRequiredTeamExperience() const
@@ -429,32 +195,6 @@ void ACPGameMode::AddTeamExperience(float Amount)
 	}
 
 	TeamLevel = FMath::Clamp(TeamLevel, FMath::RoundToInt32(TeamLevelRange.Min), FMath::RoundToInt32(TeamLevelRange.Max));
-}
-
-void ACPGameMode::AddCoin(int32 Amount)
-{
-	if (Amount <= 0)
-	{
-		return;
-	}
-
-	TeamCoinCount += Amount;
-
-	OnTeamCoinCountChanged.Broadcast(TeamCoinCount);
-}
-
-bool ACPGameMode::TrySpendCoin(int32 Amount)
-{
-	if (!HasEnoughCoin(Amount))
-	{
-		return false;
-	}
-
-	TeamCoinCount -= Amount;
-
-	OnTeamCoinCountChanged.Broadcast(TeamCoinCount);
-
-	return true;
 }
 
 // KohMS

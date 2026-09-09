@@ -7,6 +7,7 @@
 #include "Player/CPWeaponEquipper.h"
 #include "Weapon/CPWeaponBase.h"
 #include "Player/CPGameMode.h"
+#include "Player/CPPlayerCharacter.h"
 
 void UCPStatWidget::SetStatSource(TScriptInterface<ICPStatInterface> InStatSource)
 {
@@ -72,11 +73,6 @@ void UCPStatWidget::RefreshStats()
 		AttackSpeedText->SetText(FText::FromString(FString::Printf(TEXT("AttackSpeed : %.2f"), Interface->GetStat(ECPStatType::AttackSpeed))));
 	}
 
-	if (DefenseText)
-	{
-		DefenseText->SetText(FText::FromString(FString::Printf(TEXT("Defense : %.0f"), Interface->GetStat(ECPStatType::Defense))));
-	}
-
 	UObject* SourceObject = StatSource.GetObject();
 
 	const ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr;
@@ -91,9 +87,12 @@ void UCPStatWidget::RefreshStats()
 		LevelText->SetText(FText::FromString(FString::Printf(TEXT("Level : %d"), GameMode->GetTeamLevel())));
 	}
 
-	if (TicketText && GameMode)
+	if (TicketText)
 	{
-		TicketText->SetText(FText::FromString(FString::Printf(TEXT("Ticket : %d"), GameMode->GetTeamTicketCount())));
+		if (const ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(SourceObject))
+		{
+			TicketText->SetText(FText::FromString(FString::Printf(TEXT("Ticket : %d"), PlayerCharacter->GetTicketCount())));
+		}
 	}
 
 	if (OwnedItemsText)

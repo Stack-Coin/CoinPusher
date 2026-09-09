@@ -5,7 +5,7 @@
 #include "../CoinPusher/CPCoinPusher.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
-#include "Player/CPGameMode.h"
+#include "Player/CPPlayerCharacter.h"
 
 ACPRoulette::ACPRoulette()
 {
@@ -16,7 +16,7 @@ ACPRoulette::ACPRoulette()
 	Slots.SetNum(NumSlots);
 }
 
-bool ACPRoulette::Roll()
+bool ACPRoulette::Roll(AActor* Roller)
 {
 	// 이미 스핀 중이면(다른 플레이어가 먼저 돌린 경우 포함) 무시 - 하나의 룰렛을 두 플레이어가 공유
 	if (bIsRolling || Slots.Num() == 0)
@@ -24,9 +24,9 @@ bool ACPRoulette::Roll()
 		return false;
 	}
 
-	// GameMode가 관리하는 티켓을 1개 소모해야 스핀이 시작됨 - 부족하면 아무 일도 일어나지 않음
-	ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr;
-	if (!GameMode || !GameMode->TrySpendTeamTicket(1))
+	// Roller(돌린 플레이어)가 보유한 티켓을 1개 소모해야 스핀이 시작됨 - 부족하면 아무 일도 일어나지 않음
+	ACPPlayerCharacter* RollingPlayer = Cast<ACPPlayerCharacter>(Roller);
+	if (!RollingPlayer || !RollingPlayer->TrySpendTicket(1))
 	{
 		return false;
 	}

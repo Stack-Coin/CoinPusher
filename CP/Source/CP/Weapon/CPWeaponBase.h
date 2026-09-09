@@ -12,6 +12,7 @@ class ACharacter;
 class UStaticMeshComponent;
 class UCPWeaponAnimationData;
 class ICPStatInterface;
+class UCPWeaponPassiveSkillModule;
 
 /** Broadcast right when a combo string starts (true), and right when the attack motion is actually over (false):
  *  when the attack montage finishes/blends out if one is assigned, otherwise as soon as the last swing is
@@ -61,6 +62,9 @@ protected:
 	/** Animation set applied to the wielder while this weapon is equipped */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Animation")
 	TObjectPtr<UCPWeaponAnimationData> AnimationData;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category="Passive Skill")
+	TObjectPtr<UCPWeaponPassiveSkillModule> PassiveSkillModule;
 
 	/** Floor for GetFinalAttackInterval(), so an extreme AttackSpeed stat can never produce a zero/negative timer */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon", AdvancedDisplay, meta = (ClampMin = 0.01, Units = "s"))
@@ -140,6 +144,9 @@ public:
 	/** WeaponData.AttackInterval / GetFinalAttackSpeed(), floored at MinAttackInterval */
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	float GetFinalAttackInterval() const;
+
+	UFUNCTION(BlueprintCallable, Category="Passive Skill")
+	virtual void ActivatePassiveSkill();
 
 protected:
 

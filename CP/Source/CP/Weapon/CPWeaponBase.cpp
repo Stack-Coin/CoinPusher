@@ -3,6 +3,7 @@
 #include "Weapon/CPWeaponBase.h"
 #include "Weapon/CPWeaponAnimationData.h"
 #include "Weapon/CPAimDirectionInterface.h"
+#include "Weapon/CPWeaponPassiveSkillModule.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Character.h"
@@ -214,6 +215,26 @@ FVector ACPWeaponBase::ResolveAimDirection() const
 	}
 
 	return GetActorForwardVector();
+}
+
+void ACPWeaponBase::ActivatePassiveSkill()
+{
+	if (!PassiveSkillModule)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ACPWeaponBase::ActivatePassiveSkill - '%s' has no PassiveSkillModule assigned"), *GetNameSafe(this));
+		return;
+	}
+
+	ACharacter* OwnerCharacter = GetOwningCharacter();
+
+	FCPPassiveSkillActivationContext Context;
+	Context.Weapon = this;
+	Context.OwnerCharacter = OwnerCharacter;
+	Context.InstigatorController = OwnerCharacter ? OwnerCharacter->GetController() : nullptr;
+	Context.DamageCauser = OwnerCharacter ? static_cast<AActor*>(OwnerCharacter) : static_cast<AActor*>(this);
+	Context.Origin = OwnerCharacter ? OwnerCharacter->GetActorLocation() : GetActorLocation();
+
+	PassiveSkillModule->Activate(Context);
 }
 
 void ACPWeaponBase::PlayAttackEffect(const FVector& Location) const

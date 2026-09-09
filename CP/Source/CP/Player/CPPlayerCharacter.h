@@ -8,6 +8,7 @@
 #include "Engine/TimerHandle.h"
 #include "Player/CPStatInterface.h"
 #include "Player/CPStatTypes.h"
+#include "Player/CPCoinWallet.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPInteractor.h"
 #include "Player/CPItemInventory.h"
@@ -29,6 +30,13 @@ class UCPWeaponManagerComponent;
 class ACPWeaponBase;
 class ACPRoulette;
 class UCPDebugCollisionShapeComponent;
+class UDataTable;
+struct FCPPlayerLevelStatRow;
+class UTimelineComponent;
+class UCurveFloat;
+class UMaterialInstanceDynamic;
+class UCameraShakeBase;
+class UCPInventoryComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -46,6 +54,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerRevived);
  *  here to keep a health bar in sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPPlayerHealthChanged, float, CurrentHealth, float, MaxHealth);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerCoinChanged, int32, NewCoinCount);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerTicketChanged, int32, NewTicketCount);
+
 /**
  *  Top-down / quarter view action prototype character.
  *  - 8-directional WASD movement relative to the fixed camera
@@ -53,7 +65,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPPlayerHealthChanged, float, Cu
  *  - Directional dash with temporary invincibility
  */
 UCLASS(abstract)
-class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable, public ICPReviveProgressProvider
+class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable, public ICPReviveProgressProvider, public ICPCoinWallet
 {
 	GENERATED_BODY()
 
@@ -78,6 +90,12 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCPDebugCollisionShapeComponent* DebugHitboxShape;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UTimelineComponent* HitFlashTimeline;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UCPInventoryComponent* InventoryComponent;
+
 protected:
 
 	/** Move Input Action (WASD / Axis2D) */
@@ -100,14 +118,21 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* RollRouletteAction;
 
-	/** Toggle Camera Mode Input Action (C key) - swaps between split-screen and the single party camera */
 	UPROPERTY(EditAnywhere, Category = "Input")
-	UInputAction* ToggleCameraAction;
+	UInputAction* UseSlotEastAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* UseSlotNorthAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* UseSlotWestAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* UseSlotSouthAction;
 
 protected:
 
-	/** Core per-player combat stats (health, attack power, move speed, attack speed, defense). Coin/ticket/
-	 *  experience/level are intentionally NOT tracked here - see ACPGameMode, they're shared by the team */
+	/** Core per-player combat stats (health, attack power, move speed, attack speed, experience, level) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	FCPPlayerStats Stats;
 
@@ -127,38 +152,44 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
 	FCPStatRange AttackSpeedRange = FCPStatRange(0.1f, 5.0f);
 
-	/** Min/Max bounds for Defense. SetStat/ModifyStat clamp to this range */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
-	FCPStatRange DefenseRange = FCPStatRange(0.0f, 999.0f);
+	FCPStatRange ExperienceRange = FCPStatRange(0.0f, 100.0f);
 
-	/** Width (left-right) of the rectangular attack hitbox */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
-	float AttackWidth = 100.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|DataTable")
+	TObjectPtr<UDataTable> BaseStatTable;
 
-	/** Length (along the attack direction) of the rectangular attack hitbox */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
-	float AttackLength = 150.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|DataTable")
+	TObjectPtr<UDataTable> LevelStatTable;
 
-	/** Height of the rectangular attack hitbox */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
-	float AttackHeight = 100.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
+	TObjectPtr<UCurveFloat> HitFlashCurve;
 
-	/** Distance the 
-	hitbox is offset in front of the character */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (Units = "cm"))
-	float AttackOffset = 50.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash", meta = (ClampMin = 0.01))
+	float HitFlashSpeed = 2.0f;
 
-	/** Minimum time that must pass between attacks */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "s"))
-	float AttackCooldown = 0.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
+	FLinearColor HitFlashColor = FLinearColor::Red;
 
-	/** How long the debug attack box is drawn for when bDrawDebugAttackBox is enabled */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "s"))
-	float AttackDuration = 0.1f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
+	FName HitFlashAmountParameterName = TEXT("FlashAmount");
 
-	/** If true, draws the attack hitbox for debugging */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack")
-	bool bDrawDebugAttackBox = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
+	FName HitFlashColorParameterName = TEXT("FlashColor");
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> HitFlashMIDs;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitCameraShake")
+	TSubclassOf<UCameraShakeBase> HitCameraShakeClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitCameraShake", meta = (ClampMin = 0))
+	float HitCameraShakeIntensity = 1.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category="Wallet")
+	int32 CoinCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category="Wallet")
+	int32 TicketCount = 0;
 
 	/** Distance moved by the forward lunge triggered when attacking while moving */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
@@ -240,9 +271,6 @@ protected:
 	/** True while SetDebugInvincible(true) is active - tracked separately so a redundant call doesn't
 	 *  double up (or a mismatched call double-remove) an InvincibilityRequestCount entry */
 	bool bIsDebugInvincible = false;
-
-	/** Game time the last attack was performed */
-	float LastAttackTime = -1000.0f;
 
 	/** Game time the last dash was performed */
 	float LastDashTime = -1000.0f;
@@ -339,8 +367,13 @@ protected:
 	/** Called for RollRoulette input */
 	void RollRoulette(const FInputActionValue& Value);
 
-	/** Called for ToggleCamera input. Swaps split-screen/single-camera via ACPGameMode::ToggleCameraMode */
-	void ToggleCamera(const FInputActionValue& Value);
+	void UseSlotEast(const FInputActionValue& Value);
+
+	void UseSlotNorth(const FInputActionValue& Value);
+
+	void UseSlotWest(const FInputActionValue& Value);
+
+	void UseSlotSouth(const FInputActionValue& Value);
 
 	/** Bound to WeaponManager->OnWeaponChanged. Subscribes to the newly equipped weapon's OnAttackStateChanged */
 	UFUNCTION()
@@ -374,9 +407,8 @@ protected:
 	 *  while bDrawDebugReviveRange is true */
 	void DrawDebugReviveRangeShape() const;
 
-	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Reacts to PlayerWeapon (the legacy
-	 *  unarmed attack box) and PlayerRevive (ReviveDetectionRange) - the other categories are handled by
-	 *  DebugHitboxShape directly */
+	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Reacts to PlayerRevive
+	 *  (ReviveDetectionRange) - the other categories are handled by DebugHitboxShape directly */
 	UFUNCTION()
 	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
 
@@ -436,8 +468,6 @@ protected:
 	 *  gamepad, the attack direction */
 	FVector GetLastMovementWorldDirection() const;
 
-	/** Runs the rectangular box trace attack and applies damage to anything hit */
-	void PerformAttack();
 
 	/** Faces the character toward the mouse cursor, then lunges it forward by AttackLungeDistance if it was
 	 *  moving fast enough (in its current movement direction) when the attack started. Called right after a
@@ -455,6 +485,19 @@ protected:
 
 	/** Pushes current stat values onto the systems that use them (e.g. MoveSpeed -> MaxWalkSpeed) */
 	void ApplyStatsToGameplay();
+
+	void InitStatsFromDataTable();
+
+	const FCPPlayerLevelStatRow* FindLevelStatRow(int32 InLevel) const;
+
+	float GetRequiredExperienceForLevel(int32 InLevel) const;
+
+	void PlayHitFlash();
+
+	UFUNCTION()
+	void HandleHitFlashUpdate(float Value);
+
+	void PlayHitCameraShake();
 
 	/** Recomputes CurrentInteractable as the closest valid entry in NearbyInteractables */
 	void RefreshCurrentInteractable();
@@ -476,6 +519,27 @@ public:
 	virtual float GetStat(ECPStatType StatType) const override;
 
 	// ~end ICPStatInterface
+
+	// ~begin ICPCoinWallet
+
+	virtual void AddCoin(int32 Amount) override;
+
+	virtual int32 GetCoinAmount() const override { return CoinCount; }
+
+	virtual bool HasEnoughCoin(int32 Amount) const override { return CoinCount >= Amount; }
+
+	virtual bool TrySpendCoin(int32 Amount) override;
+
+	// ~end ICPCoinWallet
+
+	UFUNCTION(BlueprintCallable, Category="Wallet")
+	void AddTicket(int32 Amount = 1);
+
+	UFUNCTION(BlueprintPure, Category="Wallet")
+	int32 GetTicketCount() const { return TicketCount; }
+
+	UFUNCTION(BlueprintCallable, Category="Wallet")
+	bool TrySpendTicket(int32 Amount = 1);
 
 	// ~begin ICPInteractor
 
@@ -545,6 +609,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnCPPlayerHealthChanged OnHealthChanged;
 
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnCPPlayerCoinChanged OnCoinChanged;
+
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnCPPlayerTicketChanged OnTicketChanged;
+
 	/** Assigns the RadialGaugeComponent this character drives to show revive progress. Called once by
 	 *  ACPGameMode right after this character is created (see ACPGameMode::AttachReviveGaugeToPlayer) */
 	void SetReviveGaugeComponent(UCPRadialGaugeComponent* InComponent) { ReviveGaugeComponent = InComponent; }
@@ -578,4 +648,6 @@ public:
 
 	/** Returns WeaponManager subobject **/
 	FORCEINLINE class UCPWeaponManagerComponent* GetWeaponManager() const { return WeaponManager; }
+
+	FORCEINLINE class UCPInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 };

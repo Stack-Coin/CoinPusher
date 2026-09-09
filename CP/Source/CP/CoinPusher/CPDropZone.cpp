@@ -6,7 +6,9 @@
 #include "CPDispenser.h"
 #include "Components/BoxComponent.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 #include "Player/CPGameMode.h"
+#include "Player/CPPlayerCharacter.h"
 
 ACPDropZone::ACPDropZone()
 {
@@ -45,21 +47,12 @@ void ACPDropZone::AddCollectedCoins(int32 Amount)
 		}
 	}
 
-	//������ 10�� ���� ������(��: 10, 20, 30...) GameMode�� ã�� ������ ���� ������ �Ѱ���
 	if (CollectedCoinCount % CoinsPerTicket == 0)
 	{
-		if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+		if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
 		{
-			GameMode->AddTeamTickets(1);
+			PlayerCharacter->AddTicket(1);
 		}
-
-		/*
-		if (ACPGameMode* GameMode = GetWorld() ? Cast<ACPGameMode>(GetWorld()->GetAuthGameMode()) : nullptr)
-		{
-			//TODO: ACPGameMode�� UpdateTicketCount�� �߰��Ǹ� ����
-			//GameMode->UpdateTicketCount(CollectedCoinCount);
-		}
-		*/
 	}
 }
 
