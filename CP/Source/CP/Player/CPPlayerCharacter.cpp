@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Player/CPPlayerCharacter.h"
 #include "Camera/CameraComponent.h"
@@ -9,8 +9,6 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
-#include "GameFramework/PlayerInput.h"
-#include "InputCoreTypes.h"
 #include "EnhancedInputComponent.h"
 #include "InputActionValue.h"
 #include "Kismet/GameplayStatics.h"
@@ -24,6 +22,7 @@
 #include "UI/CPRadialGaugeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
+#include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
 #include "Player/Stat/CPPlayerStatTableTypes.h"
 #include "Player/Inventory/CPInventoryComponent.h"
 #include "Components/TimelineComponent.h"
@@ -93,6 +92,11 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	DebugHitboxShape->Category = ECPDebugCollisionCategory::PlayerHitbox;
 	DebugHitboxShape->SetTargetComponent(GetCapsuleComponent());
 
+	// kohMS
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel7, ECR_Overlap);
+
+	MonsterSpawnManager = CreateDefaultSubobject<UCPMonsterSpawnManagerComponent>(TEXT("MonsterSpawnManager"));
 	HitFlashTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("HitFlashTimeline"));
 
 	UCurveFloat* DefaultHitFlashCurve = CreateDefaultSubobject<UCurveFloat>(TEXT("HitFlashDefaultCurve"));
@@ -175,6 +179,8 @@ void ACPPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	{
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ACPPlayerCharacter::Move);
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::Attack);
+		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Triggered, this, &ACPPlayerCharacter::Aim);
+		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &ACPPlayerCharacter::EndAim);
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::StartDash);
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::Interact);
 		EnhancedInputComponent->BindAction(RollRouletteAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::RollRoulette);
@@ -246,7 +252,6 @@ void ACPPlayerCharacter::Move(const FInputActionValue& Value)
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
 	// Ignore tiny stick drift/noise below the deadzone threshold, so it doesn't register as movement
-	// (or, for a gamepad player, as an attack direction - see GetAttackDirection)
 	if (MovementVector.Size() < MoveInputDeadzone)
 	{
 		MovementVector = FVector2D::ZeroVector;
@@ -263,6 +268,58 @@ void ACPPlayerCharacter::Move(const FInputActionValue& Value)
 void ACPPlayerCharacter::Attack(const FInputActionValue& Value)
 {
 	DoAttack();
+}
+
+void ACPPlayerCharacter::Aim(const FInputActionValue& Value)
+{
+	if (bIsDowned)
+	{
+		return;
+	}
+
+	const FVector2D AimVector = Value.Get<FVector2D>();
+
+	// Below the deadzone counts as "not aiming with the stick" - EndAim (AimAction's Completed trigger)
+	// normally covers this (fires once the stick returns to exactly rest), but real analog stick drift/noise
+	// can keep the raw value just above the engine's own tiny actuation threshold forever, so Triggered keeps
+	// firing here instead of Completed ever firing - StopGamepadAiming() covers that case too
+	if (AimVector.Size() < MoveInputDeadzone)
+	{
+		StopGamepadAiming();
+		return;
+	}
+
+	LastGamepadAimInputVector = AimVector;
+	bIsGamepadAiming = true;
+	bIsUsingGamepadAim = true;
+
+	// Face the stick direction immediately, continuously, every time this fires - even while not attacking.
+	// Cancels any pending revert-to-movement-facing countdown from a previous release/attack
+	GetWorldTimerManager().ClearTimer(PostAttackRotationTimerHandle);
+	GetCharacterMovement()->bOrientRotationToMovement = false;
+	OrientTowardsAttackDirection();
+}
+
+void ACPPlayerCharacter::EndAim(const FInputActionValue& Value)
+{
+	StopGamepadAiming();
+}
+
+void ACPPlayerCharacter::StopGamepadAiming()
+{
+	if (!bIsGamepadAiming)
+	{
+		// Already stopped - don't re-trigger this. Aim()'s deadzone branch can call this every single frame
+		// while residual stick noise keeps AimAction "actuated" at the engine level (see Aim()); restarting
+		// the timer every one of those frames would keep resetting the countdown and it would never fire
+		return;
+	}
+
+	bIsGamepadAiming = false;
+
+	// Keep facing the last stick direction for a moment before reverting to movement-driven rotation - the
+	// same delay/mechanism used after an attack's motion ends (see HandleAttackStateChanged)
+	GetWorldTimerManager().SetTimer(PostAttackRotationTimerHandle, this, &ACPPlayerCharacter::ReorientToMovementDirection, PostAttackRotationDelay, false);
 }
 
 void ACPPlayerCharacter::StartDash(const FInputActionValue& Value)
@@ -385,10 +442,12 @@ void ACPPlayerCharacter::HandleAttackStateChanged(bool bIsAttacking)
 		GetCharacterMovement()->bOrientRotationToMovement = false;
 		OrientTowardsAttackDirection();
 	}
-	else
+	else if (!bIsGamepadAiming)
 	{
 		// The attack's motion just ended (montage finished, or last swing dispatched if no montage) - keep
-		// facing the attack direction for a bit longer before resuming movement-driven rotation
+		// facing the attack direction for a bit longer before resuming movement-driven rotation. Skipped
+		// while the gamepad's right stick is still held - Aim/EndAim own that transition in that case, so
+		// this doesn't fight it by reverting early while the player is still actively aiming with the stick
 		GetWorldTimerManager().SetTimer(PostAttackRotationTimerHandle, this, &ACPPlayerCharacter::ReorientToMovementDirection, PostAttackRotationDelay, false);
 	}
 }
@@ -445,24 +504,33 @@ float ACPPlayerCharacter::GetMovementDirection() const
 
 FVector ACPPlayerCharacter::GetAttackDirection() const
 {
-	APlayerController* PC = Cast<APlayerController>(GetController());
-	if (!PC)
+	// Same control scheme either way: movement (WASD/left stick) never determines aim. While the gamepad's
+	// right stick is actively pushed, aim tracks it directly - the same role the mouse cursor plays for a
+	// keyboard/mouse player - converted to a world direction the same way movement input is
+	if (bIsGamepadAiming)
 	{
-		return GetActorForwardVector();
+		return GetWorldDirectionFromInput(LastGamepadAimInputVector);
 	}
 
-	// Checked live every time, instead of asking "which device does this player own" (that's a per-player
-	// classification meant for local multiplayer/the lobby - it's meaningless when testing this level
-	// directly, and it forces an either/or choice). This way the same controller can freely mix mouse
-	// aiming and gamepad-stick aiming from one attack to the next
-	if (PC->PlayerInput)
+	APlayerController* PC = Cast<APlayerController>(GetController());
+
+	// The right stick isn't being pushed right now - decide which device's aim to fall back on. Whichever
+	// was used most recently wins: the moment the mouse actually moves, prefer it again over the gamepad
+	if (PC)
 	{
-		const float GamepadX = PC->PlayerInput->GetKeyValue(EKeys::Gamepad_LeftX);
-		const float GamepadY = PC->PlayerInput->GetKeyValue(EKeys::Gamepad_LeftY);
-		if (FVector2D(GamepadX, GamepadY).Size() >= MoveInputDeadzone)
+		float MouseDeltaX = 0.0f, MouseDeltaY = 0.0f;
+		PC->GetInputMouseDelta(MouseDeltaX, MouseDeltaY);
+		if (!FMath::IsNearlyZero(MouseDeltaX) || !FMath::IsNearlyZero(MouseDeltaY))
 		{
-			return GetLastMovementWorldDirection();
+			bIsUsingGamepadAim = false;
 		}
+	}
+
+	// Gamepad, right stick idle: there's no reason to aim with a mouse cursor the player isn't touching -
+	// attack in the current movement direction instead
+	if (bIsUsingGamepadAim || !PC)
+	{
+		return GetLastMovementWorldDirection();
 	}
 
 	// Mouse: intersect the deprojected cursor ray with a horizontal plane at the character's own height,
@@ -487,7 +555,9 @@ FVector ACPPlayerCharacter::GetAttackDirection() const
 		}
 	}
 
-	return GetActorForwardVector();
+	// No valid cursor hit (e.g. never touched the mouse this session) - fall back to the movement direction
+	// rather than snapping to the character's current facing
+	return GetLastMovementWorldDirection();
 }
 
 void ACPPlayerCharacter::OrientTowardsAttackDirection()

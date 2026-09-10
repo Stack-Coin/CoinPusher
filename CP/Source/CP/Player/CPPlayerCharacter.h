@@ -30,6 +30,7 @@ class UCPWeaponManagerComponent;
 class ACPWeaponBase;
 class ACPRoulette;
 class UCPDebugCollisionShapeComponent;
+class UCPMonsterSpawnManagerComponent;
 class UDataTable;
 struct FCPPlayerLevelStatRow;
 class UTimelineComponent;
@@ -60,8 +61,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerTicketChanged, int32, New
 
 /**
  *  Top-down / quarter view action prototype character.
- *  - 8-directional WASD movement relative to the fixed camera
- *  - Mouse cursor directed rectangular (box trace) melee attack
+ *  - 8-directional WASD/left-stick movement relative to the fixed camera
+ *  - Mouse cursor (or gamepad right stick) directed rectangular (box trace) melee attack - same control
+ *    scheme either way: movement never determines aim (see GetAttackDirection)
  *  - Directional dash with temporary invincibility
  *  - Movement is never blocked by attacking: while a combo string is in progress, the character's facing
  *    is locked to the attack direction instead of following movement (see HandleAttackStateChanged),
@@ -95,6 +97,12 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCPDebugCollisionShapeComponent* DebugHitboxShape;
 
+	/** 뱀서류 몬스터 웨이브/라운드/보스 스폰을 전담하는 컴포넌트. 매 인스턴스에 자동으로 붙어있고,
+	 *  MonsterClassByType/SpawnWaveEntryTable/RoundInfoTable 기본값은 이 컴포넌트의 생성자
+	 *  (ConstructorHelpers)에서 자동으로 채워짐 - Details 패널에서 개별적으로 덮어쓸 수 있음.
+	 *  See Monster/Spawner/CPMonsterSpawnManagerComponent */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCPMonsterSpawnManagerComponent> MonsterSpawnManager;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UTimelineComponent* HitFlashTimeline;
 
@@ -110,6 +118,13 @@ protected:
 	/** Attack Input Action (Mouse Left Button) */
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* AttackAction;
+
+	/** Aim Input Action (Gamepad Right Stick, Axis2D) - lets a gamepad player set the attack direction
+	 *  directly and independently of movement, the same way a keyboard/mouse player aims with the mouse
+	 *  cursor instead of their movement direction. Left unmapped for keyboard/mouse (mouse cursor is used
+	 *  instead - see GetAttackDirection) */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* AimAction;
 
 	/** Dash Input Action (Left Shift) */
 	UPROPERTY(EditAnywhere, Category="Input")
@@ -277,9 +292,25 @@ protected:
 	/** Game time the last dash was performed */
 	float LastDashTime = -1000.0f;
 
-	/** Last non-zero WASD/stick input (after the deadzone), used as the dash direction and, for a
-	 *  gamepad player, as the attack direction too (see GetAttackDirection) */
+	/** Last non-zero WASD/stick input (after the deadzone), used as the dash direction */
 	FVector2D LastMoveInputVector = FVector2D(0.0f, 1.0f);
+
+	/** Last non-zero right-stick aim input (after the deadzone). Persists after the stick returns to rest,
+	 *  the same way the mouse cursor keeps pointing wherever it was last left - see GetAttackDirection */
+	FVector2D LastGamepadAimInputVector = FVector2D(0.0f, 1.0f);
+
+	/** True while the gamepad's right stick is currently being pushed past the deadzone. While true,
+	 *  GetAttackDirection() aims with the stick instead of the mouse cursor, and the character continuously
+	 *  faces the stick direction (see Aim) even outside of an attack */
+	bool bIsGamepadAiming = false;
+
+	/** Which device GetAttackDirection() currently prefers once the right stick isn't being pushed: true =
+	 *  attack/face the movement direction (gamepad play - see GetLastMovementWorldDirection), false = the
+	 *  mouse cursor. Set true the moment the right stick is used (Aim), set back to false the moment the
+	 *  mouse is actually moved (checked in GetAttackDirection) - so whichever device was used most recently
+	 *  wins, the same way the mouse cursor and the stick each "own" aiming for their own control scheme.
+	 *  Mutable: flipped from the const GetAttackDirection() as it reacts to live input */
+	mutable bool bIsUsingGamepadAim = false;
 
 	/** World direction resolved for the dash currently in progress */
 	FVector DashDirection = FVector::ForwardVector;
@@ -363,6 +394,17 @@ protected:
 
 	/** Called for attack input */
 	void Attack(const FInputActionValue& Value);
+
+	/** Called while the gamepad right stick is pushed past the deadzone - updates LastGamepadAimInputVector,
+	 *  sets bIsGamepadAiming/bIsUsingGamepadAim true, and immediately (and continuously, every time this
+	 *  fires) rotates the character to face the stick direction - even while not attacking */
+	void Aim(const FInputActionValue& Value);
+
+	/** Called when the gamepad right stick returns to rest (AimAction's Completed trigger). Just forwards
+	 *  to StopGamepadAiming() - Aim()'s own deadzone check can also detect the stick being released (analog
+	 *  drift/noise can keep AimAction "actuated" - Triggered - well past our own deadzone, so Completed
+	 *  isn't guaranteed to be what actually catches the release) */
+	void EndAim(const FInputActionValue& Value);
 
 	/** Called for dash input */
 	void StartDash(const FInputActionValue& Value);
@@ -464,18 +506,22 @@ protected:
 	/** Resolves a WASD input vector into a world space direction relative to the fixed camera yaw */
 	FVector GetWorldDirectionFromInput(const FVector2D& InputVector) const;
 
-	/** Resolves the current attack/aim direction. Checks the gamepad's own left stick live (raw
-	 *  EKeys::Gamepad_LeftX/Y, independent of any Enhanced Input mapping/device-ownership classification) -
-	 *  if it's currently being pushed, aims in the current/last movement direction (see
-	 *  GetLastMovementWorldDirection; there's no separate aim stick). Otherwise aims at the mouse cursor's
-	 *  world location (deprojected against a horizontal plane at the character's height - not a collision
-	 *  trace, so it doesn't depend on the floor blocking any particular channel). This lets the same
-	 *  controller freely mix mouse aiming and gamepad-stick aiming rather than being locked to one */
+	/** Resolves the current attack/aim direction, in priority order:
+	 *  1. While the gamepad's right stick is pushed (bIsGamepadAiming, see Aim/EndAim) - aims with
+	 *     LastGamepadAimInputVector, converted to a world direction the same way movement input is.
+	 *  2. Otherwise, whichever of mouse/gamepad was used most recently (bIsUsingGamepadAim, flipped to
+	 *     false here the moment the mouse actually moves): if gamepad, aims in the current movement
+	 *     direction (see GetLastMovementWorldDirection) instead of the mouse cursor - there's no reason to
+	 *     aim with a cursor the player isn't touching.
+	 *  3. Otherwise (mouse), aims at the cursor's world location (deprojected against a horizontal plane at
+	 *     the character's height - not a collision trace, so it doesn't depend on the floor blocking any
+	 *     particular channel), falling back to the movement direction if that fails.
+	 *  This lets the same controller freely mix mouse aiming and gamepad right-stick aiming rather than
+	 *  being locked to one, while movement (WASD/left stick) itself never affects aim */
 	FVector GetAttackDirection() const;
 
 	/** Converts LastMoveInputVector to a world-space direction, falling back to the character's current
-	 *  forward vector if there's no movement input yet. Used for both the dash direction and, on a
-	 *  gamepad, the attack direction */
+	 *  forward vector if there's no movement input yet. Used for the dash direction */
 	FVector GetLastMovementWorldDirection() const;
 
 
@@ -488,6 +534,12 @@ protected:
 	 *  its movement direction again). Fires on PostAttackRotationTimerHandle, PostAttackRotationDelay
 	 *  seconds after an attack's motion ends (see HandleAttackStateChanged) */
 	void ReorientToMovementDirection();
+
+	/** Shared by Aim()'s deadzone branch and EndAim(): if bIsGamepadAiming is already false, does nothing
+	 *  (so repeated calls - e.g. every frame of residual stick noise below our deadzone - don't keep
+	 *  resetting the countdown below and it never fires). Otherwise sets bIsGamepadAiming false and starts
+	 *  the PostAttackRotationDelay countdown to ReorientToMovementDirection() */
+	void StopGamepadAiming();
 
 	/** Ends the dash movement and invincibility window */
 	void EndDash();
@@ -588,7 +640,7 @@ public:
 
 	// ~begin ICPAimDirectionProvider
 
-	/** Returns the current mouse-cursor attack direction - see GetAttackDirection() */
+	/** Returns the current attack/aim direction (mouse cursor or gamepad right stick) - see GetAttackDirection() */
 	virtual FVector GetAimDirection() const override { return GetAttackDirection(); }
 
 	// ~end ICPAimDirectionProvider
@@ -673,6 +725,7 @@ public:
 
 	/** Returns WeaponManager subobject **/
 	FORCEINLINE class UCPWeaponManagerComponent* GetWeaponManager() const { return WeaponManager; }
+	FORCEINLINE class UCPMonsterSpawnManagerComponent* GetMonsterSpawnManager() const { return MonsterSpawnManager; }
 
 	FORCEINLINE class UCPInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 };
