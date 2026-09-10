@@ -16,7 +16,7 @@ ACPRoulette::ACPRoulette()
 	RootComponent = SpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("SpawnPoint"));
 }
 
-bool ACPRoulette::Roll(AActor* Roller)
+bool ACPRoulette::Roll()
 {
 	// 이미 스핀 중이면(다른 플레이어가 먼저 돌린 경우 포함) 무시 - 하나의 룰렛을 두 플레이어가 공유
 	if (bIsRolling || Slots.Num() == 0)
@@ -24,15 +24,6 @@ bool ACPRoulette::Roll(AActor* Roller)
 		return false;
 	}
 
-	// ACPGameMode가 있으면(실제 게임 플레이) 티켓을 1개 소모해야 스핀 가능 - 부족하면 실패.
-	// 팀 티켓 개념이 없는 테스트/독립 레벨(AGameModeBase 등)에서는 티켓 검사 없이 그대로 진행한다
-	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
-	{
-		if (!GameMode->TrySpendTeamTicket(1))
-		{
-			return false;
-		}
-	}
 
 	bIsRolling = true;
 

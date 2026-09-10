@@ -212,7 +212,7 @@ void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Rollin"));
-	Roulette->Roll(this);
+	Roulette->Roll();
 }
 
 void ACPPlayerCharacter::UseSlotEast(const FInputActionValue& Value)

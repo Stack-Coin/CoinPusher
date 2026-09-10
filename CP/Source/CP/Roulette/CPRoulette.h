@@ -63,7 +63,7 @@ public:
 	 *  가중치에 따라 칸을 뽑고, UI로 결과를 보여준 뒤 해당 칸의 당첨 정보를 전달한다.
 	 *  이미 스핀 중이거나(bIsRolling) 티켓이 부족하면 아무 동작도 하지 않고 false를 반환한다 */
 	UFUNCTION(BlueprintCallable, Category="Roulette")
-	bool Roll(AActor* Roller);
+	bool Roll();
 
 	/** 현재 스핀이 진행 중인지 여부 (다른 플레이어의 Roll() 상호작용을 막는 데 사용 가능) */
 	UFUNCTION(BlueprintPure, Category="Roulette")
