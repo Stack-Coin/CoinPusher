@@ -13,6 +13,9 @@ enum class ECPMonsterType : uint8
 	Tanker   UMETA(DisplayName = "탱커형"),
 	Ranged   UMETA(DisplayName = "원거리형"),
 	Boss     UMETA(DisplayName = "보스"),
+	// 기존 값(Normal~Boss)들 뒤에 추가함 - 중간에 끼워 넣으면 이미 저장된 DataTable/블루프린트 에셋의
+	// enum 값(내부적으로 정수로 직렬화됨)이 다른 항목을 가리키게 되어버릴 수 있음
+	Bomb     UMETA(DisplayName = "폭탄형"),
 };
 
 USTRUCT(BlueprintType)

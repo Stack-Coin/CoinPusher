@@ -16,6 +16,7 @@ FName UCPMonsterStatComponent::GetMonsterTypeRowName(ECPMonsterType InType)
 	case ECPMonsterType::Tanker: return TEXT("Tanker");
 	case ECPMonsterType::Ranged: return TEXT("Ranged");
 	case ECPMonsterType::Boss: return TEXT("Boss");
+	case ECPMonsterType::Bomb: return TEXT("Bomb");
 	}
 	return NAME_None;
 }

@@ -69,6 +69,7 @@ void UCPMonsterSpawnManagerComponent::LoadAsset()
 	LoadMonsterClassIfMissing(ECPMonsterType::Tanker, TEXT("/Game/Monster/Blueprints/BP_Tanker.BP_Tanker_C"));
 	LoadMonsterClassIfMissing(ECPMonsterType::Ranged, TEXT("/Game/Monster/Blueprints/BP_Ranged.BP_Ranged_C"));
 	LoadMonsterClassIfMissing(ECPMonsterType::Boss, TEXT("/Game/Monster/Blueprints/BP_BossMonster.BP_BossMonster_C"));
+	LoadMonsterClassIfMissing(ECPMonsterType::Bomb, TEXT("/Game/Monster/Blueprints/BP_Bomb.BP_Bomb_C"));
 
 	if (!WaveInfoTable)
 	{
