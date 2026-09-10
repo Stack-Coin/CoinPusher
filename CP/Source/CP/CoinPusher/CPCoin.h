@@ -59,7 +59,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Coin")
 	float CoinValue = 1.0f;
 
-	//Coin의 Item ID. ItemRegistry / Dispenser가 ItemID로 구분할 때 쓰는 식별자
+	//Coin의 Item ID. ItemDataTable(FItemData) / Dispenser가 ItemID로 구분할 때 쓰는 식별자
 	UPROPERTY(EditAnywhere, Category="Coin")
 	FName ItemID;
 

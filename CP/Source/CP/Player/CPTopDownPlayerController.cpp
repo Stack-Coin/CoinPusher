@@ -9,6 +9,8 @@
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "Blueprint/UserWidget.h"
 #include "Debug/CPDebugWidget.h"
+#include "UI/CPInGamePauseWidget.h"
+#include "UI/CPEndingWidget.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "CoinPusher/CPCoinPusher.h"
@@ -60,6 +62,9 @@ void ACPTopDownPlayerController::SetupInputComponent()
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
 	{
 		EnhancedInputComponent->BindAction(ToggleDebugWidgetAction, ETriggerEvent::Started, this, &ACPTopDownPlayerController::ToggleDebugWidget);
+		EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Started, this, &ACPTopDownPlayerController::TogglePauseMenu);
+		EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Triggered, this, &ACPTopDownPlayerController::HandleMenuNavigate);
+		EnhancedInputComponent->BindAction(MenuConfirmAction, ETriggerEvent::Started, this, &ACPTopDownPlayerController::HandleMenuConfirm);
 	}
 }
 
@@ -89,6 +94,151 @@ void ACPTopDownPlayerController::ToggleDebugWidget(const FInputActionValue& Valu
 
 	const bool bIsVisible = DebugWidgetInstance->GetVisibility() == ESlateVisibility::Visible;
 	DebugWidgetInstance->SetVisibility(bIsVisible ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+}
+
+ACPTopDownPlayerController* ACPTopDownPlayerController::GetMenuOwnerController() const
+{
+	UWorld* World = GetWorld();
+	return World ? Cast<ACPTopDownPlayerController>(World->GetFirstPlayerController()) : nullptr;
+}
+
+UCPInGamePauseWidget* ACPTopDownPlayerController::GetActiveMenuWidget() const
+{
+	ACPTopDownPlayerController* OwnerPC = GetMenuOwnerController();
+	if (!OwnerPC)
+	{
+		return nullptr;
+	}
+
+	if (OwnerPC->EndingWidgetInstance && OwnerPC->EndingWidgetInstance->GetVisibility() != ESlateVisibility::Collapsed)
+	{
+		return OwnerPC->EndingWidgetInstance;
+	}
+
+	if (OwnerPC->PauseWidgetInstance && OwnerPC->PauseWidgetInstance->GetVisibility() != ESlateVisibility::Collapsed)
+	{
+		return OwnerPC->PauseWidgetInstance;
+	}
+
+	return nullptr;
+}
+
+void ACPTopDownPlayerController::TogglePauseMenu(const FInputActionValue& Value)
+{
+	ACPTopDownPlayerController* OwnerPC = GetMenuOwnerController();
+	if (!OwnerPC || !OwnerPC->InGamePauseWidgetClass)
+	{
+		return;
+	}
+
+	// Ending 화면이 떠 있으면(게임이 끝난 상태) 별도로 일시정지 메뉴를 열지 않는다 - Ending은
+	// 게임 종료/타이틀로 버튼만 제공하고 재개(resume) 개념이 없음
+	if (OwnerPC->EndingWidgetInstance && OwnerPC->EndingWidgetInstance->GetVisibility() != ESlateVisibility::Collapsed)
+	{
+		return;
+	}
+
+	const bool bNewPausedState = !UGameplayStatics::IsGamePaused(this);
+	UGameplayStatics::SetGamePaused(this, bNewPausedState);
+	OwnerPC->SetPauseMenuVisible(bNewPausedState);
+}
+
+void ACPTopDownPlayerController::SetPauseMenuVisible(bool bVisible)
+{
+	if (bVisible)
+	{
+		if (!PauseWidgetInstance && InGamePauseWidgetClass)
+		{
+			PauseWidgetInstance = CreateWidget<UCPInGamePauseWidget>(this, InGamePauseWidgetClass);
+			if (PauseWidgetInstance)
+			{
+				PauseWidgetInstance->AddToViewport(20);
+			}
+		}
+
+		if (!PauseWidgetInstance)
+		{
+			return;
+		}
+
+		PauseWidgetInstance->RefreshForDisplay();
+		PauseWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	}
+	else if (PauseWidgetInstance)
+	{
+		PauseWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void ACPTopDownPlayerController::ShowEndingResult(bool bIsClear)
+{
+	ACPTopDownPlayerController* OwnerPC = GetMenuOwnerController();
+	if (!OwnerPC || !OwnerPC->EndingWidgetClass)
+	{
+		return;
+	}
+
+	UGameplayStatics::SetGamePaused(this, true);
+	OwnerPC->SetEndingMenuVisible(bIsClear);
+}
+
+void ACPTopDownPlayerController::SetEndingMenuVisible(bool bIsClear)
+{
+	if (!EndingWidgetInstance && EndingWidgetClass)
+	{
+		EndingWidgetInstance = CreateWidget<UCPEndingWidget>(this, EndingWidgetClass);
+		if (EndingWidgetInstance)
+		{
+			EndingWidgetInstance->AddToViewport(20);
+		}
+	}
+
+	if (!EndingWidgetInstance)
+	{
+		return;
+	}
+
+	// InGamePause 메뉴가 열려 있었다면 Ending 화면으로 교체
+	SetPauseMenuVisible(false);
+
+	EndingWidgetInstance->RefreshForDisplay();
+	EndingWidgetInstance->ShowResult(bIsClear);
+	EndingWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+}
+
+void ACPTopDownPlayerController::HandleMenuNavigate(const FInputActionValue& Value)
+{
+	UCPInGamePauseWidget* ActiveMenu = GetActiveMenuWidget();
+	if (!ActiveMenu)
+	{
+		bHasProcessedMenuNavigateThisHold = false;
+		return;
+	}
+
+	const float AxisY = Value.Get<FVector2D>().Y;
+	if (FMath::Abs(AxisY) < MenuNavigateDeadZone)
+	{
+		bHasProcessedMenuNavigateThisHold = false;
+		return;
+	}
+
+	if (bHasProcessedMenuNavigateThisHold)
+	{
+		return;
+	}
+
+	bHasProcessedMenuNavigateThisHold = true;
+
+	// 스틱 위(+Y)는 이전 버튼(-1), 아래(-Y)는 다음 버튼(+1)으로 이동
+	ActiveMenu->MoveSelection(AxisY > 0.0f ? -1 : 1);
+}
+
+void ACPTopDownPlayerController::HandleMenuConfirm(const FInputActionValue& Value)
+{
+	if (UCPInGamePauseWidget* ActiveMenu = GetActiveMenuWidget())
+	{
+		ActiveMenu->ConfirmSelection();
+	}
 }
 
 bool ACPTopDownPlayerController::GetCursorWorldLocation(FVector& OutWorldLocation) const

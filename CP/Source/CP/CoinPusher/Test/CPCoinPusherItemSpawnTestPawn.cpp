@@ -5,6 +5,7 @@
 #include "CoinPusher/CPPassiveCoinConvertArea.h"
 #include "CoinPusher/CPCoinTowerSpawner.h"
 #include "Roulette/CPRoulette.h"
+#include "Player/CPTopDownPlayerController.h"
 #include "Components/InputComponent.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -51,6 +52,8 @@ void ACPCoinPusherItemSpawnTestPawn::SetupPlayerInputComponent(UInputComponent* 
 	PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower20Input);
 	PlayerInputComponent->BindKey(EKeys::Five, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower25Input);
 	PlayerInputComponent->BindKey(EKeys::Six, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower30Input);
+	PlayerInputComponent->BindKey(EKeys::Z, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleShowClearEndingInput);
+	PlayerInputComponent->BindKey(EKeys::X, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleShowLoseEndingInput);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinInput()
@@ -189,5 +192,23 @@ void ACPCoinPusherItemSpawnTestPawn::SpawnCoinTower(int32 FloorCount)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Spawn Coin Tower (%d floors)"), FloorCount);
 		CoinTowerSpawner->SpawnTower(FloorCount);
+	}
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleShowClearEndingInput()
+{
+	if (ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(GetController()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Show Ending - Clear"));
+		PC->ShowEndingResult(true);
+	}
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleShowLoseEndingInput()
+{
+	if (ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(GetController()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Show Ending - Lose"));
+		PC->ShowEndingResult(false);
 	}
 }

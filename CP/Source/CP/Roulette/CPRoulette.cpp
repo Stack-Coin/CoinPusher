@@ -2,12 +2,23 @@
 
 #include "CPRoulette.h"
 #include "CPRouletteWidget.h"
-#include "CPRouletteRewardReceiver.h"
-#include "../CoinPusher/CPCoinPusher.h"
+#include "../Datatables/CPItemData.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
+#include "Engine/DataTable.h"
 #include "Player/CPGameMode.h"
-#include "UObject/Class.h"
+
+namespace
+{
+	/** ItemDataTable에서 bRoulette인 행 하나를 추첨하기 위한 내부 후보 정보 - 헤더에 노출할 필요 없는
+	 *  PickWeightedItem()만의 구현 세부사항이라 .cpp 익명 네임스페이스에 둔다 */
+	struct FCPRouletteCandidate
+	{
+		FName ItemID;
+		float Probability = 0.0f;
+		int32 SpawnCount = 1;
+	};
+}
 
 ACPRoulette::ACPRoulette()
 {
@@ -19,15 +30,29 @@ ACPRoulette::ACPRoulette()
 bool ACPRoulette::Roll()
 {
 	// 이미 스핀 중이면(다른 플레이어가 먼저 돌린 경우 포함) 무시 - 하나의 룰렛을 두 플레이어가 공유
-	if (bIsRolling || Slots.Num() == 0)
+	if (bIsRolling)
 	{
 		return false;
 	}
 
+	int32 ResultIndex = 0;
+	int32 CandidateCount = 0;
+	if (!PickWeightedItem(ResultIndex, CandidateCount))
+	{
+		return false;
+	}
+
+	// ACPGameMode가 있으면(실제 게임 플레이) 티켓을 1개 소모해야 스핀 가능 - 부족하면 실패.
+	// 팀 티켓 개념이 없는 테스트/독립 레벨(AGameModeBase 등)에서는 티켓 검사 없이 그대로 진행한다
+	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+	{
+		if (!GameMode->TrySpendTeamTicket(1))
+		{
+			return false;
+		}
+	}
 
 	bIsRolling = true;
-
-	const int32 ResultIndex = PickWeightedSlotIndex();
 
 	const TArray<UCPRouletteWidget*> Widgets = GetOrCreateRouletteWidgets();
 	if (Widgets.Num() > 0)
@@ -37,7 +62,7 @@ bool ACPRoulette::Roll()
 		{
 			if (Widget)
 			{
-				Widget->PlaySpin(ResultIndex, Slots.Num());
+				Widget->PlaySpin(ResultIndex, CandidateCount);
 			}
 		}
 	}
@@ -99,32 +124,63 @@ TArray<UCPRouletteWidget*> ACPRoulette::GetOrCreateRouletteWidgets()
 	return Widgets;
 }
 
-int32 ACPRoulette::PickWeightedSlotIndex() const
+bool ACPRoulette::PickWeightedItem(int32& OutResultIndex, int32& OutCandidateCount)
 {
-	float TotalProbability = 0.0f;
-	for (const FCPRouletteSlotData& Slot : Slots)
+	if (!ItemDataTable)
 	{
-		TotalProbability += FMath::Max(Slot.Probability, 0.0f);
+		return false;
 	}
 
-	// 모든 칸의 Probability 합이 0 이하면(설정 실수 등) 균등 확률로 대체
+	TArray<FCPRouletteCandidate> Candidates;
+	float TotalProbability = 0.0f;
+
+	for (const TPair<FName, uint8*>& RowPair : ItemDataTable->GetRowMap())
+	{
+		const FItemData* Row = reinterpret_cast<const FItemData*>(RowPair.Value);
+		if (!Row || !Row->bRoulette)
+		{
+			continue;
+		}
+
+		FCPRouletteCandidate& Candidate = Candidates.AddDefaulted_GetRef();
+		Candidate.ItemID = RowPair.Key;
+		Candidate.Probability = FMath::Max(Row->RouletteProbability, 0.0f);
+		Candidate.SpawnCount = Row->RouletteSpawnCount;
+
+		TotalProbability += Candidate.Probability;
+	}
+
+	if (Candidates.Num() == 0)
+	{
+		return false;
+	}
+
+	int32 PickedIndex = Candidates.Num() - 1;
 	if (TotalProbability <= 0.0f)
 	{
-		return FMath::RandRange(0, Slots.Num() - 1);
+		// 모든 후보의 확률이 0 이하면(설정 실수 등) 균등 확률로 대체
+		PickedIndex = FMath::RandRange(0, Candidates.Num() - 1);
 	}
-
-	float RemainingWeight = FMath::FRandRange(0.0f, TotalProbability);
-	for (int32 Index = 0; Index < Slots.Num(); ++Index)
+	else
 	{
-		RemainingWeight -= FMath::Max(Slots[Index].Probability, 0.0f);
-		if (RemainingWeight <= 0.0f)
+		float RemainingWeight = FMath::FRandRange(0.0f, TotalProbability);
+		for (int32 Index = 0; Index < Candidates.Num(); ++Index)
 		{
-			return Index;
+			RemainingWeight -= Candidates[Index].Probability;
+			if (RemainingWeight <= 0.0f)
+			{
+				PickedIndex = Index;
+				break;
+			}
 		}
 	}
 
-	// 부동소수점 오차로 끝까지 못 뽑은 경우 첫번째 칸으로 대체
-	return 0;
+	PendingResultItemID = Candidates[PickedIndex].ItemID;
+	PendingResultSpawnCount = Candidates[PickedIndex].SpawnCount;
+
+	OutResultIndex = PickedIndex;
+	OutCandidateCount = Candidates.Num();
+	return true;
 }
 
 void ACPRoulette::HandleRouletteResultDetermined(int32 ResultIndex)
@@ -138,36 +194,8 @@ void ACPRoulette::HandleRouletteResultDetermined(int32 ResultIndex)
 
 	bIsRolling = false;
 
-	if (!Slots.IsValidIndex(ResultIndex))
-	{
-		return;
-	}
+	UE_LOG(LogTemp, Warning, TEXT("[ACPRoulette] Roulette Result - ItemID: %s, SpawnCount: %d"),
+		*PendingResultItemID.ToString(), PendingResultSpawnCount);
 
-	DeliverSlotReward(Slots[ResultIndex]);
-}
-
-void ACPRoulette::DeliverSlotReward(const FCPRouletteSlotData& SlotData)
-{
-	UE_LOG(LogTemp, Warning, TEXT("[ACPRoulette] Roulette Result - ItemID: %s, SpawnCount: %d, CoinType: %s, RewardTarget: %s"),
-		*SlotData.ItemID.ToString(), SlotData.SpawnCount, *UEnum::GetValueAsString(SlotData.CoinType), *UEnum::GetValueAsString(SlotData.RewardTarget));
-
-	switch (SlotData.RewardTarget)
-	{
-	case ECPRouletteRewardTarget::CoinPusher:
-		if (CoinPusher)
-		{
-			CoinPusher->ItemSpawn(SlotData.ItemID, SlotData.SpawnCount, SlotData.CoinType);
-		}
-		break;
-
-	case ECPRouletteRewardTarget::GameMode:
-		if (ICPRouletteRewardReceiver* Receiver = GetWorld() ? Cast<ICPRouletteRewardReceiver>(GetWorld()->GetAuthGameMode()) : nullptr)
-		{
-			Receiver->ReceiveRouletteReward(SlotData.ItemID, SlotData.SpawnCount, SlotData.CoinType);
-		}
-		break;
-
-	default:
-		break;
-	}
+	OnPickedUp.Broadcast(PendingResultItemID, PendingResultSpawnCount);
 }

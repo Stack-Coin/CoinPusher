@@ -44,6 +44,8 @@ void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType Coin
 	//테스트용 GameMode든 이 인터페이스만 구현하면 받을 수 있다
 	if (!ItemID.IsNone())
 	{
+		OnDropped.Broadcast(ItemID);
+
 		if (ICPDroppedItemReceiver* Receiver = GetWorld() ? Cast<ICPDroppedItemReceiver>(GetWorld()->GetAuthGameMode()) : nullptr)
 		{
 			Receiver->ReceiveDroppedItem(ItemID, Amount, CoinType);
@@ -61,11 +63,12 @@ void ACPDropZone::RecordCollectedItem(FName ItemCode)
 	CollectedItemCodes.Add(ItemCode);
 
 	OnItemCollected.Broadcast(ItemCode);
+	OnDropped.Broadcast(ItemCode);
 
 	//CoinPusher가 지정해둔 재생성 담당 Dispenser에게 같은 ItemID로 재생성 요청
 	if (ItemRespawnDispenser)
 	{
-		ItemRespawnDispenser->DispenseItemByID(ItemCode, 1, ECPDispenserSpawnType::WorldItem);
+		ItemRespawnDispenser->DispenseItemByID(ItemCode, 1);
 	}
 
 	//떨어진 아이템의 정보를 GameMode로 전달 (Item은 코인이 아니므로 CoinType은 기본값 Normal)

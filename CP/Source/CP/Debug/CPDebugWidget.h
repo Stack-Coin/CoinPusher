@@ -106,6 +106,14 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* RemoveItemButton;
 
+	/** Count passed to ACPCoinPusher::SpawnBigCoin() when SpawnBigCoinButton is clicked */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* BigCoinSpawnCountInputText;
+
+	/** Spawns BigCoinSpawnCountInputText's value worth of Big-type coins via the level's ACPCoinPusher */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* SpawnBigCoinButton;
+
 protected:
 
 	/** Binds every checkbox and applies UCPDebugCollisionSubsystem's current state to them */
@@ -176,4 +184,9 @@ protected:
 
 	UFUNCTION()
 	void HandleRemoveItemClicked();
+
+	/** Bound to SpawnBigCoinButton. Parses BigCoinSpawnCountInputText and calls SpawnBigCoin() on
+	 *  the first ACPCoinPusher found in the level */
+	UFUNCTION()
+	void HandleSpawnBigCoinClicked();
 };

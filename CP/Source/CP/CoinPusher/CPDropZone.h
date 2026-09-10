@@ -13,6 +13,10 @@ class ACPDispenser;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCoinCollected, int32, NewCount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemCollected, FName, ItemCode);
 
+/** DropZone에 아이템(코인 포함)이 떨어질 때마다 ItemID만 실어 Broadcast하는 범용 알림용 델리게이트.
+ *  OnCoinCollected/OnItemCollected와 달리 코인/아이템 구분 없이 "무엇이 떨어졌는지"만 알려준다 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPDropZoneDropped, FName, ItemID);
+
 
 UCLASS(abstract)
 class CP_API ACPDropZone : public AActor
@@ -60,6 +64,10 @@ public:
 	//Item ���� �� BroadCast
 	UPROPERTY(BlueprintAssignable, Category="Drop Zone")
 	FOnItemCollected OnItemCollected;
+
+	/** 아이템(코인 포함)이 떨어질 때마다 ItemID와 함께 Broadcast (코인/아이템 종류 구분 없는 범용 알림) */
+	UPROPERTY(BlueprintAssignable, Category="Drop Zone")
+	FOnCPDropZoneDropped OnDropped;
 
 	//������ ���� ���� ��ȯ
 	UFUNCTION(BlueprintPure, Category="Drop Zone")

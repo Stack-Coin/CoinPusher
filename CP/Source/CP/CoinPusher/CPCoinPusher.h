@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "CPCoinTypes.h"
+#include "CPDropZone.h"
 #include "CPCoinPusher.generated.h"
 
 class UStaticMeshComponent;
@@ -13,12 +14,12 @@ class UChildActorComponent;
 class USpringArmComponent;
 class UCPCoinPusherViewCaptureComponent;
 class ACPDispenser;
-class ACPDropZone;
 class ACPPassiveCoinConvertArea;
 class ACPCoinThrowArea;
 class ACPCoinTowerSpawner;
 class ACPPusher;
 class ACPNexus;
+class ACPRoulette;
 
 /**Broadcast whenever this CoinPusher's health changes as a result of damage */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCoinPusherDamaged, float, Damage, AActor*, DamageCauser);
@@ -130,13 +131,19 @@ protected:
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	int32 InitialCoinDropCount = 10;
 
-	//SpawnBigCoin()이 스폰할 코인의 ItemID (ItemRegistry에 Big 코인으로 쓸 CoinPusherItem 클래스가 등록돼 있어야 함)
+	//SpawnBigCoin()이 스폰할 코인의 ItemID (천장 Dispenser의 ItemDataTable에 Big 코인 행이 등록돼 있어야 함)
 	UPROPERTY(EditAnywhere, Category="CoinPusher")
-	FName BigCoinItemID = TEXT("100");
+	FName BigCoinItemID = TEXT("4C");
 
-	//SpawnMonsterCoin()이 스폰할 코인의 ItemID (ItemRegistry에 코인으로 쓸 CoinPusherItem 클래스가 등록돼 있어야 함)
+	//SpawnMonsterCoin()이 스폰할 코인의 ItemID (천장 Dispenser의 ItemDataTable에 Monster 코인 행이 등록돼 있어야 함)
 	UPROPERTY(EditAnywhere, Category="CoinPusher")
-	FName MonsterCoinItemID = TEXT("100");
+	FName MonsterCoinItemID = TEXT("5C");
+
+	//이 CoinPusher와 연동할 Roulette. 레벨에서 직접 연결해야 하며(InputA/InputB와 동일한 방식의 수동
+	//연결), BeginPlay에서 자동으로 이 Roulette의 OnPickedUp에 ItemSpawn()을 등록해 룰렛에서 아이템이
+	//뽑힐 때마다 천장 Dispenser에서 그 아이템이 나오게 한다
+	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
+	TObjectPtr<ACPRoulette> LinkedRoulette;
 
 	//게임 시작 후 FrontWall을 제거하기까지 대기하는 시간(초)
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
@@ -253,6 +260,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDropZone* GetDropZone() const;
 
+	//GetDropZone()->OnDropped에 대한 포인터 반환 (DropZone이 아직 스폰되지 않았으면 nullptr) -
+	//DropZone을 직접 거치지 않고 CoinPusher만으로 바로 바인딩하고 싶은 C++ 코드를 위한 편의 함수.
+	//FOnCPDropZoneDropped는 델리게이트 타입이라 반환값으로 BP에 노출할 수 없어 BlueprintCallable로
+	//두지 않음 - BP에서 바인딩하려면 GetDropZone()으로 얻은 액터의 OnDropped 핀에 직접 Bind Event
+	FOnCPDropZoneDropped* GetDropZoneDroppedDelegate() const;
+
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPPassiveCoinConvertArea* GetPassiveCoinConvertArea() const;
 
@@ -267,12 +280,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPCoinTowerSpawner* GetCoinTowerSpawner() const;
 
-	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출.
-	//천장 Dispenser(CeilingDispenserComponents) 중 하나를 랜덤하게 골라 그 Dispenser의
-	//DispenseItemByID()로 위임한다. CoinType이 Normal이 아니면 스폰된 각 액터가 실제로 ACPCoin일
-	//때만 SetCoinType(CoinType)을 호출한다 (코인이 아닌 아이템이면 무시됨)
+	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출 (LinkedRoulette::OnPickedUp
+	//에 자동으로 등록되므로 룰렛이 직접 호출할 필요는 없음). 천장 Dispenser(CeilingDispenserComponents)
+	//중 하나를 랜덤하게 골라 그 Dispenser의 DispenseItemByID()로 위임한다 - 코인 여부/CoinType 적용은
+	//Dispenser가 ItemDataTable을 조회해 알아서 처리하므로 여기서는 신경 쓰지 않는다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
-	void ItemSpawn(FName ItemID, int32 SpawnCount, ECPCoinType CoinType = ECPCoinType::Normal);
+	void ItemSpawn(FName ItemID, int32 SpawnCount);
 
 	//천장 Dispenser 중 하나를 랜덤하게 골라(매번 다시 고름) BigCoinItemID로 지정된 코인을 Count개
 	//스폰하고 각각 CoinType을 Big으로 전환한다

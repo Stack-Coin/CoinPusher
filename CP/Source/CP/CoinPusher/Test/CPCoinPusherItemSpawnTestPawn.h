@@ -25,8 +25,13 @@ class UInputComponent;
  *  I drops one Big-type coin via TargetCoinPusher->SpawnBigCoin();
  *  U drops MonsterCoinSpawnCount Monster-type coins via TargetCoinPusher->SpawnMonsterCoin();
  *  1/2/3/4/5/6 trigger TargetCoinPusher->GetCoinTowerSpawner()->SpawnTower(N) with N = 5/10/15/20/25/30 floors;
- *  R triggers TargetRoulette->Roll() - each slot's RewardTarget (CoinPusher/GameMode) determines whether the
- *  result reaches TargetCoinPusher->ItemSpawn() or ACPCoinPusherItemSpawnTestGameMode::ReceiveRouletteReward().
+ *  R triggers TargetRoulette->Roll() - the winning item is broadcast via ACPRoulette::OnPickedUp, which
+ *  whichever ACPCoinPusher has this Roulette assigned as its LinkedRoulette is subscribed to, so the
+ *  result reaches that CoinPusher's ItemSpawn() automatically (see ACPCoinPusher::LinkedRoulette);
+ *  Z/X test the Ending UI via the possessing ACPTopDownPlayerController::ShowEndingResult() - Z shows the
+ *  Clear result, X shows the Lose result (see ACPCoinPusherItemSpawnTestPlayerController). The InGamePause
+ *  menu itself isn't bound here - it's opened/closed by ACPTopDownPlayerController::PauseAction
+ *  (gamepad Menu button / keyboard Escape, mapped in the controller's Input Mapping Context).
  *
  *  This pawn only knows about TargetCoinPusher/TargetRoulette - the convert areas are owned by the CoinPusher
  *  itself (as ChildActorComponents, see ACPCoinPusher::PassiveCoinConvertAreaComponent/
@@ -53,10 +58,10 @@ protected:
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher Test")
 	TObjectPtr<ACPRoulette> TargetRoulette;
 
-	/** ItemID passed to ItemSpawn() - must match a key registered in whichever UCPItemRegistry the level's
-	 *  ceiling Dispensers use for coins */
+	/** ItemID passed to ItemSpawn() - must match a row (RowName) in whichever ItemDataTable the level's
+	 *  ceiling Dispensers use for coins (default matches the "Normal Coin" row, ID "1C") */
 	UPROPERTY(EditAnywhere, Category="CoinPusher Test")
-	FName CoinItemID = TEXT("100");
+	FName CoinItemID = TEXT("1C");
 
 	/** Num passed to ConvertActive() on P */
 	UPROPERTY(EditAnywhere, Category="CoinPusher Test", meta = (ClampMin = 1))
@@ -118,4 +123,10 @@ protected:
 
 	/** Shared by the 1-6 handlers above - calls TargetCoinPusher->GetCoinTowerSpawner()->SpawnTower(FloorCount) */
 	void SpawnCoinTower(int32 FloorCount);
+
+	/** Bound to Z - calls ShowEndingResult(true) (Clear) on the possessing ACPTopDownPlayerController, if any */
+	void HandleShowClearEndingInput();
+
+	/** Bound to X - calls ShowEndingResult(false) (Lose) on the possessing ACPTopDownPlayerController, if any */
+	void HandleShowLoseEndingInput();
 };

@@ -12,6 +12,7 @@
 #include "Weapon/CPWeaponBase.h"
 #include "Player/CPPlayerCharacter.h"
 #include "Player/Inventory/CPInventoryComponent.h"
+#include "CoinPusher/CPCoinPusher.h"
 
 void UCPDebugWidget::NativeConstruct()
 {
@@ -85,6 +86,10 @@ void UCPDebugWidget::NativeConstruct()
 	if (RemoveItemButton)
 	{
 		RemoveItemButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleRemoveItemClicked);
+	}
+	if (SpawnBigCoinButton)
+	{
+		SpawnBigCoinButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleSpawnBigCoinClicked);
 	}
 
 	RefreshPlayerInfo();
@@ -311,5 +316,18 @@ void UCPDebugWidget::HandleRemoveItemClicked()
 			const FName ItemCode(*ItemCodeInputText->GetText().ToString());
 			Inventory->RemoveItem(ItemCode, FCString::Atoi(*ItemCountInputText->GetText().ToString()));
 		}
+	}
+}
+
+void UCPDebugWidget::HandleSpawnBigCoinClicked()
+{
+	if (!BigCoinSpawnCountInputText)
+	{
+		return;
+	}
+
+	if (ACPCoinPusher* CoinPusher = Cast<ACPCoinPusher>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPCoinPusher::StaticClass())))
+	{
+		CoinPusher->SpawnBigCoin(FCString::Atoi(*BigCoinSpawnCountInputText->GetText().ToString()));
 	}
 }

@@ -12,6 +12,7 @@
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
 #include "CPCoinPusherViewCaptureComponent.h"
+#include "../Roulette/CPRoulette.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
@@ -171,6 +172,13 @@ void ACPCoinPusher::BeginPlay()
 
 	// 게임 시작 FrontWallRemovalDelay초 후 FrontWall을 비활성화해 코인이 앞으로 빠질 수 있도록 함
 	GetWorldTimerManager().SetTimer(FrontWallRemovalTimerHandle, this, &ACPCoinPusher::RemoveFrontWall, FrontWallRemovalDelay, false);
+
+	// LinkedRoulette가 아이템을 뽑을 때마다(OnPickedUp) ItemSpawn()이 자동으로 호출되도록 등록 -
+	// 룰렛은 CoinPusher를 전혀 모르며, 이 CoinPusher가 스스로 룰렛의 결과를 구독하는 방식
+	if (LinkedRoulette)
+	{
+		LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::ItemSpawn);
+	}
 }
 
 float ACPCoinPusher::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -243,6 +251,12 @@ ACPDropZone* ACPCoinPusher::GetDropZone() const
 	return DropZoneComponent ? Cast<ACPDropZone>(DropZoneComponent->GetChildActor()) : nullptr;
 }
 
+FOnCPDropZoneDropped* ACPCoinPusher::GetDropZoneDroppedDelegate() const
+{
+	ACPDropZone* DropZone = GetDropZone();
+	return DropZone ? &DropZone->OnDropped : nullptr;
+}
+
 ACPPassiveCoinConvertArea* ACPCoinPusher::GetPassiveCoinConvertArea() const
 {
 	return PassiveCoinConvertAreaComponent ? Cast<ACPPassiveCoinConvertArea>(PassiveCoinConvertAreaComponent->GetChildActor()) : nullptr;
@@ -277,22 +291,13 @@ void ACPCoinPusher::RemoveFrontWall()
 	}
 }
 
-void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount, ECPCoinType CoinType)
+void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 {
-	// CoinType이 지정되면 스폰된 액터에 SetCoinType()을 호출해야 하므로, 스폰된 인스턴스를
-	// 돌려주는 DispenseCoinByID()로 하나씩 스폰한다 (ACPCoin이 아니면 nullptr이라 자연히 무시됨)
-	for (int32 Index = 0; Index < SpawnCount; ++Index)
+	// 코인 여부 판별/CoinType 적용은 Dispenser::DispenseItemByID()가 ItemDataTable을 조회해 알아서
+	// 처리하므로, 여기서는 Dispenser 하나를 골라 그대로 위임하기만 하면 된다
+	if (ACPDispenser* Dispenser = PickRandomValidCeilingDispenser())
 	{
-		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
-		if (!Dispenser)
-		{
-			return;
-		}
-
-		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(ItemID))
-		{
-			SpawnedCoin->SetCoinType(CoinType);
-		}
+		Dispenser->DispenseItemByID(ItemID, SpawnCount);
 	}
 }
 

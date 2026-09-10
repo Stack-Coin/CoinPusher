@@ -143,6 +143,74 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 - `UCPGameClearWidget` : `NextLevelName`(EditAnywhere) + `GoToNextLevel()` — 지정한 레벨로 이동
   (다음 스테이지/타이틀로 버튼 등에서 호출)
 
+  > 위 둘은 만들어만 두고 아직 어디서도 생성/표시하지 않는 초기 스캐폴딩이다(각각 재시작/다음
+  > 레벨 이동 함수 하나씩만 가짐). 실제 일시정지 메뉴/Clear·Lose 엔딩 화면은 아래 "인게임
+  > 일시정지 / 엔딩 화면" 절의 `UCPInGamePauseWidget`/`UCPEndingWidget`을 사용한다 - 서로 다른
+  > 스펙(배경/버튼 2개/컨트롤러별 분기 여부)이라 겹치지 않고 별도로 남겨뒀다
+
+### 인게임 일시정지 / 엔딩 화면
+
+게임패드는 Menu 버튼, 키보드/마우스는 ESC를 누르면 게임이 일시정지되고 메뉴 UI가 뜨며, 같은 버튼을
+다시 누르면 닫히고 게임이 재개된다. 이 메뉴(InGamePause)와, 특정 조건에 Clear/Lose 결과를 보여주는
+엔딩 화면(Ending)은 반투명 배경 + "게임 종료"/"타이틀로 돌아가기" 두 버튼이라는 같은 뼈대를 공유하므로
+`UCPInGamePauseWidget`(뼈대) → `UCPEndingWidget`(그 위에 Clear/Lose 이미지만 추가)로 상속 관계를 이룬다.
+실제 입력 처리(일시정지 토글, 게임패드 탐색/확인)는 위젯이 아니라 `ACPTopDownPlayerController`
+(`CP/Player/`)가 맡는다 - 위젯은 순수하게 "선택/실행" 상태만 갖고, 어떤 입력 장치가 그 상태를
+바꾸는지는 몰라도 된다.
+
+- `UCPInGamePauseWidget`(`UI/CPInGamePauseWidget.h`) : `KeyboardMouseBackgroundImage`/
+  `GamePadBackgroundImage`(둘 다 `BindWidgetOptional`) 중 현재 `UCPControllerTypeSubsystem`에 기록된
+  컨트롤러 종류에 맞는 쪽만 보이도록 `RefreshBackgroundForControllerType()`이 전환한다(시작
+  화면과 동일한 `SelfHitTestInvisible`/`Collapsed` 토글 방식). `EndGameButton`/`ReturnToTitleButton`
+  (둘 다 `BindWidgetOptional` `UButton`)과 그에 대응하는 `EndGameButtonOutline`/
+  `ReturnToTitleButtonOutline`(둘 다 `BindWidgetOptional` `UWidget` - Border/Image 등 자유롭게 사용)로
+  구성. 두 버튼을 `NavigableButtons`/`ButtonOutlines` 배열로 모아두고 `SelectedButtonIndex` 하나로
+  "지금 윤곽선이 표시된 버튼"을 관리한다 - 키보드/마우스는 포인터가 버튼 위로 올라오면(`OnHovered`)
+  그 버튼이 선택되고 클릭(`OnClicked`)하면 즉시 실행되며, 게임패드는 `ACPTopDownPlayerController`가
+  L-Stick 입력을 `MoveSelection(Delta)`(선택 인덱스를 순환 이동)로, A버튼 입력을
+  `ConfirmSelection()`(현재 선택된 버튼 실행)으로 전달해 조작한다 - 결국 마우스 호버든 게임패드
+  탐색이든 같은 `SelectedButtonIndex`/`UpdateSelectionVisuals()` 경로로 합쳐지므로 윤곽선 표시 로직은
+  하나뿐이다. `EndGameButton`은 `EndGame()`(`UKismetSystemLibrary::QuitGame`)을,
+  `ReturnToTitleButton`은 `ReturnToTitle()`(`TitleLevelName`(EditAnywhere)로 `OpenLevel`)을 실행 -
+  둘 다 `virtual`이라 필요하면 하위 클래스나 WBP에서 오버라이드 가능. `RefreshForDisplay()`
+  (`BlueprintCallable`)는 이 위젯이 (재사용되는 인스턴스로) 다시 표시될 때마다 배경 이미지와 선택을
+  초기화하기 위한 진입점 - `ACPTopDownPlayerController`가 `SetVisibility(Visible)` 직전에 호출한다
+- `UCPEndingWidget`(`UI/CPEndingWidget.h`) : `UCPInGamePauseWidget`을 상속해 배경/버튼/선택 로직을
+  그대로 재사용하고, `ClearImage`/`LoseImage`(둘 다 `BindWidgetOptional` `UImage`)만 추가한다.
+  `ShowResult(bool bIsClear)`(`BlueprintCallable`)가 둘 중 하나만 보이도록 전환 - `bIsClear`가
+  true면 `ClearImage`, false면 `LoseImage`
+- `ACPTopDownPlayerController`(`CP/Player/`)에 추가된 Pause/Ending 관련 멤버:
+  - `PauseAction`(`UInputAction*`) : 일시정지 메뉴를 열고 닫는 입력. Input Mapping Context에서
+    게임패드 Menu 버튼과 키보드 Escape를 **같은 액션**에 매핑해두면 둘 다 토글로 동작한다
+  - `MenuNavigateAction`(`UInputAction*`, Axis2D) : 메뉴가 열려 있는 동안 게임패드 L-Stick으로 버튼
+    사이를 이동. `MenuNavigateDeadZone`(EditAnywhere, 기본 0.5) 미만인 축 값은 무시되며, 한 번 민
+    입력은 스틱이 중립으로 돌아올 때까지 한 번만 처리된다(디바운스, `bHasProcessedMenuNavigateThisHold`) -
+    이 디바운스 상태는 입력을 실제로 받는 컨트롤러 인스턴스(=자기 자신) 기준으로 관리된다
+  - `MenuConfirmAction`(`UInputAction*`) : 메뉴가 열려 있는 동안 게임패드 A버튼으로 현재 선택된
+    버튼의 기능을 실행
+  - `InGamePauseWidgetClass`/`EndingWidgetClass`(`TSubclassOf`, `EditDefaultsOnly`) : 각각
+    `UCPInGamePauseWidget`/`UCPEndingWidget` 상속 WBP를 지정
+  - `TogglePauseMenu()`(`PauseAction`에 바인딩) : `UGameplayStatics::SetGamePaused()`로 월드 전체를
+    일시정지/재개시키고, `GetMenuOwnerController()`의 `InGamePause` 위젯을 표시/숨김. Ending 위젯이
+    떠 있는 동안은 무시(Ending에는 재개 개념이 없음)
+  - `ShowEndingResult(bool bIsClear)`(`BlueprintCallable`) : 특정 조건(레벨 클리어, 체력 0 등)이
+    만족됐을 때 호출 - 게임을 일시정지하고 `GetMenuOwnerController()`의 Ending 위젯에 Clear/Lose
+    결과를 표시. 로컬 스플릿 스크린의 어느 플레이어 컨트롤러에서 호출해도 항상 하나의 공용 위젯으로
+    합쳐진다(아래 참고)
+  - `GetMenuOwnerController()` : `PauseWidgetInstance`/`EndingWidgetInstance`는 화면 전체(양쪽
+    스플릿 스크린 절반 모두)를 덮는 `AddToViewport()` 오버레이라, `ACPRoulette`처럼 플레이어마다
+    따로 만들 필요가 없다 - 항상 월드의 첫 번째 로컬 `PlayerController`(`GetFirstPlayerController()`)
+    하나에만 생성/캐싱되며, 어느 플레이어의 입력이 `TogglePauseMenu`/`ShowEndingResult`/
+    `HandleMenuNavigate`/`HandleMenuConfirm`을 호출했든 전부 이 함수로 그 하나의 인스턴스를 찾아
+    대신 조작한다
+
+> **왜 위젯 인스턴스가 플레이어당 하나가 아니라 전체에 하나뿐인가**: `ACPRoulette`의 룰렛 스핀
+> UI(`Roulette/README.md` 참고)는 플레이어마다 별개 위젯을 만들어 각자 화면에 `AddToViewport()`하는데,
+> 이는 "두 화면에 똑같은 내용을 동시에 띄운다"는 결과만 같을 뿐 두 인스턴스가 각자 독립적으로 존재한다.
+> 일시정지/엔딩 메뉴는 상태(선택된 버튼, 열려있는지 여부)까지 두 플레이어가 완전히 공유해야
+> 하므로(한 플레이어가 연 메뉴를 다른 플레이어가 게임패드로 조작해 닫을 수도 있어야 함), 인스턴스
+> 자체를 하나만 두고 항상 그 하나를 찾아가는 방식(`GetMenuOwnerController`)을 택했다
+
 ### 로컬 2인 플레이 참가
 
 - `ACPLobbyGameMode`(`CP/GameMode/`) : `UCPPlayerJoinWidget`이 뜬 뒤 처음 입력을 발생시킨 장치
@@ -219,7 +287,8 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 
 1. 각 Widget 클래스(`UCPHealthBarWidget`, `UCPRadialGaugeWidget`, `UCPCoinCountWidget`,
    `UCPTicketCountWidget`, `UCPTimeDisplayWidget`, `UCPPressAnyKeyWidget`, `UCPPlayerJoinWidget`,
-   `UCPStartScreenWidget`, `UCPGameExplanationWidget`)를 부모로 하는 WBP를 만들고 비주얼
+   `UCPStartScreenWidget`, `UCPGameExplanationWidget`, `UCPInGamePauseWidget`, `UCPEndingWidget`)를
+   부모로 하는 WBP를 만들고 비주얼
    (ProgressBar/Image/TextBlock 등, `BindWidgetOptional` 변수와 이름을 맞춰서 배치)과 표시 문구
    (`DisplayFormat`, "Press Any Key" 안내 텍스트 등)를 채운다
 2. 값을 표시하고 싶은 곳(적/캐릭터 BP, HUD, GameMode 등)에 해당 컴포넌트를 Add Component로
@@ -257,3 +326,24 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
    `ACPStartScreenTestPlayerController`로 자동 지정해주므로 별도 설정 불필요 - 레벨을 PIE로 열면
    바로 시작 화면부터 테스트할 수 있고, `EKeys::AnyKey` 입력마다 현재 선택된 컨트롤러 종류가 Output
    Log에 찍힌다
+9. 인게임 일시정지/엔딩 화면: `UCPInGamePauseWidget` 상속 WBP를 만들어
+   `KeyboardMouseBackgroundImage`/`GamePadBackgroundImage`(반투명 배경, 장치별로 다른 이미지)와
+   `EndGameButton`/`ReturnToTitleButton` + 각각의 `EndGameButtonOutline`/`ReturnToTitleButtonOutline`
+   (선택 시 보일 윤곽선 - Border든 테두리만 그려진 Image든 자유)을 배치하고, `TitleLevelName`에
+   타이틀 레벨을 지정한다. `UCPEndingWidget` 상속 WBP도 동일하게 만들되 `ClearImage`/`LoseImage`를
+   추가로 배치한다. 그다음 `ACPTopDownPlayerController`를 상속하는 실제 게임의 BP PlayerController
+   Class Defaults에서: `PauseAction`에 게임패드 Menu 버튼과 키보드 Escape를 **같은 Input Action**에
+   매핑한 Input Mapping Context 항목을 만들어 지정, `MenuNavigateAction`에 게임패드 L-Stick을 매핑한
+   Axis2D Input Action을 지정, `MenuConfirmAction`에 게임패드 A버튼을 매핑한 Input Action을 지정
+   (셋 다 `DefaultMappingContexts`에 실제로 추가돼 있어야 함), `InGamePauseWidgetClass`/
+   `EndingWidgetClass`에 위에서 만든 두 WBP를 지정한다. 키보드/마우스의 클릭·호버는 UMG 버튼이
+   기본으로 처리하므로 별도 입력 설정이 필요 없다. 게임을 끝내는 조건이 생기는 지점(GameMode,
+   체력 0, 레벨 클리어 등)에서 `ACPTopDownPlayerController::ShowEndingResult(bIsClear)`를 호출하면
+   Ending 화면이 뜬다
+10. 위 InGamePause/Ending UI만 독립적으로 테스트하려면 `CoinPusher/Test`의
+    `ACPCoinPusherItemSpawnTestPlayerController`(`ACPTopDownPlayerController` 상속)를 상속하는 BP를
+    만들어 9번의 Input Action/Mapping Context/위젯 클래스를 지정하고,
+    `ACPCoinPusherItemSpawnTestGameMode`를 상속하는 BP를 만들어 `PlayerControllerClass`를 그 BP로
+    덮어쓴 뒤 테스트 레벨의 GameMode Override로 지정한다. PIE로 열면 Menu 버튼/Escape로 일시정지
+    메뉴를 열고 닫을 수 있고, Z/X 키로 각각 Clear/Lose 엔딩 화면을 띄워볼 수 있다 (자세한 내용은
+    `CoinPusher/README.md`의 테스트 절 참고)
