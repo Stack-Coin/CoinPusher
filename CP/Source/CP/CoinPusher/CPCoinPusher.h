@@ -258,9 +258,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void ItemSpawn(FName ItemID, int32 SpawnCount);
 
-	//천장 Dispenser 중 하나를 랜덤하게 골라 BigCoinItemID로 지정된 코인 1개를 스폰하고 CoinType을 Big으로 전환한다
+	//천장 Dispenser 중 하나를 랜덤하게 골라(매번 다시 고름) BigCoinItemID로 지정된 코인을 Count개
+	//스폰하고 각각 CoinType을 Big으로 전환한다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
-	void SpawnBigCoin();
+	void SpawnBigCoin(int32 Count = 1);
 
 	//CoinThrowAreaComponents 5개를 WaveThrowInterval 간격으로 순차적으로 ActiveThrow() 시킨다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "CPCoinTypes.h"
 #include "CPDropZone.generated.h"
 
 class UBoxComponent;
@@ -68,11 +69,13 @@ public:
 	UFUNCTION(BlueprintPure, Category="Drop Zone")
 	const TArray<FName>& GetCollectedItemCodes() const { return CollectedItemCodes; }
 
-	//ICPCoinPusherItem ����ü(Coin)�� ȣ�� - ���� ������ �ø��� BroadCast
+	//ICPCoinPusherItem 구현체(Coin)가 호출 - 수집 개수를 늘리고 BroadCast + GameMode로 드랍 정보 전달.
+	//ItemID를 함께 넘기면(코인은 항상 넘김) GameMode->ReceiveDroppedItem(ItemID, Amount, CoinType) 호출
 	UFUNCTION(BlueprintCallable, Category="Drop Zone")
-	void AddCollectedCoins(int32 Amount = 1);
+	void AddCollectedCoins(int32 Amount = 1, FName ItemID = NAME_None, ECPCoinType CoinType = ECPCoinType::Normal);
 
-	//ICPCoinPusherItem ����ü(Item)�� ȣ�� - ������ �ڵ带 ����ϰ� BroadCast + ItemRespawnDispenser�� ����� ��û
+	//ICPCoinPusherItem 구현체(Item)가 호출 - 아이템 코드를 기록하고 BroadCast + ItemRespawnDispenser에
+	//재생성 요청 + GameMode로 드랍 정보 전달
 	UFUNCTION(BlueprintCallable, Category="Drop Zone")
 	void RecordCollectedItem(FName ItemCode);
 

@@ -21,6 +21,7 @@
 #include "UI/CPTicketCountWidget.h"
 #include "UI/CPCoinCountWidget.h"
 #include "UI/CPRadialGaugeComponent.h"
+#include "UObject/Class.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -387,6 +388,20 @@ void ACPGameMode::AddTeamTickets(int32 Amount)
 	TeamTicketCount += Amount;
 
 	OnTeamTicketCountChanged.Broadcast(TeamTicketCount);
+}
+
+void ACPGameMode::ReceiveDroppedItem(FName ItemID, int32 Count, ECPCoinType CoinType)
+{
+	if (ItemID == CoinItemID)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ACPGameMode] Dropped Item Received - ItemID: %s, Count: %d, CoinType: %s"),
+			*ItemID.ToString(), Count, *UEnum::GetValueAsString(CoinType));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ACPGameMode] Dropped Item Received - ItemID: %s, Count: %d"),
+			*ItemID.ToString(), Count);
+	}
 }
 
 bool ACPGameMode::TrySpendTeamTicket(int32 Amount)

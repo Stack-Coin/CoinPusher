@@ -277,19 +277,22 @@ void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 	}
 }
 
-void ACPCoinPusher::SpawnBigCoin()
+void ACPCoinPusher::SpawnBigCoin(int32 Count)
 {
-	ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
-	if (!Dispenser)
+	for (int32 Index = 0; Index < Count; ++Index)
 	{
-		return;
-	}
+		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+		if (!Dispenser)
+		{
+			continue;
+		}
 
-	if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(BigCoinItemID))
-	{
-		// Big 코인이 CoinPusher의 Collision에 부딪혔을 때 ActiveWaveThrow()를 호출할 대상을 직접 알려줌
-		SpawnedCoin->SetOwningCoinPusher(this);
-		SpawnedCoin->SetCoinType(ECPCoinType::Big);
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(BigCoinItemID))
+		{
+			// Big 코인이 CoinPusher의 Collision에 부딪혔을 때 ActiveWaveThrow()를 호출할 대상을 직접 알려줌
+			SpawnedCoin->SetOwningCoinPusher(this);
+			SpawnedCoin->SetCoinType(ECPCoinType::Big);
+		}
 	}
 }
 

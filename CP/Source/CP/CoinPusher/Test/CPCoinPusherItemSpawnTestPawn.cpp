@@ -4,6 +4,7 @@
 #include "CoinPusher/CPCoinPusher.h"
 #include "CoinPusher/CPPassiveCoinConvertArea.h"
 #include "CoinPusher/CPCoinTowerSpawner.h"
+#include "Roulette/CPRoulette.h"
 #include "Components/InputComponent.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -20,6 +21,16 @@ void ACPCoinPusherItemSpawnTestPawn::BeginPlay()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestPawn] No ACPCoinPusher assigned or found in the level - Space/P/O/M/I/1-6 will do nothing."));
 	}
+
+	if (!TargetRoulette)
+	{
+		TargetRoulette = Cast<ACPRoulette>(UGameplayStatics::GetActorOfClass(this, ACPRoulette::StaticClass()));
+	}
+
+	if (!TargetRoulette)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestPawn] No ACPRoulette assigned or found in the level - R will do nothing."));
+	}
 }
 
 void ACPCoinPusherItemSpawnTestPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -27,6 +38,7 @@ void ACPCoinPusherItemSpawnTestPawn::SetupPlayerInputComponent(UInputComponent* 
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 	PlayerInputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinInput);
+	PlayerInputComponent->BindKey(EKeys::R, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleRollRouletteInput);
 	PlayerInputComponent->BindKey(EKeys::P, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleConvertActiveInput);
 	PlayerInputComponent->BindKey(EKeys::O, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleHPConvertActiveInput);
 	PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleActiveWaveThrowInput);
@@ -46,6 +58,17 @@ void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinInput()
 		UE_LOG(LogTemp, Warning, TEXT("Coin Spawn"));
 		TargetCoinPusher->ItemSpawn(CoinItemID, 1);
 	}
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleRollRouletteInput()
+{
+	if (!TargetRoulette)
+	{
+		return;
+	}
+
+	const bool bStarted = TargetRoulette->Roll();
+	UE_LOG(LogTemp, Warning, TEXT("Roll Roulette (started: %s)"), bStarted ? TEXT("true") : TEXT("false"));
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleConvertActiveInput()

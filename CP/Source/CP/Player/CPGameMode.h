@@ -6,6 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "Player/CPCoinWallet.h"
 #include "Player/CPStatTypes.h"
+#include "CoinPusher/CPCoinTypes.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "CPGameMode.generated.h"
 
@@ -47,6 +48,11 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team|Ranges")
 	FCPStatRange TeamExperienceRange = FCPStatRange(0.0f, 999999.0f);
+
+	/** 코인으로 취급할 ItemID. ReceiveDroppedItem()에 이 ID가 들어오면 CoinType 정보도 함께 로그로
+	 *  표시한다 (ACPCoinPusher::BigCoinItemID 등 프로젝트 전반에서 쓰는 코인 ID와 동일한 값이어야 함) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Team")
+	FName CoinItemID = TEXT("100");
 
 	// ���� �� �ϴ� ���� �ʿ��� ����ġ
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Team|Leveling", meta = (ClampMin = 0))
@@ -190,6 +196,11 @@ public:
 	/** Adds Amount tickets (e.g. called by ACPDropZone every 10 coins collected) */
 	UFUNCTION(BlueprintCallable, Category="Team")
 	void AddTeamTickets(int32 Amount = 1);
+
+	/** ACPDropZone에 아이템(코인 포함)이 떨어졌을 때 호출됨. ItemID가 CoinItemID와 같으면(코인이면)
+	 *  CoinType도 함께 넘어온다 (코인이 아니면 CoinType은 기본값 Normal) */
+	UFUNCTION(BlueprintCallable, Category="Team")
+	void ReceiveDroppedItem(FName ItemID, int32 Count, ECPCoinType CoinType = ECPCoinType::Normal);
 
 	/** Returns the current team ticket count */
 	UFUNCTION(BlueprintPure, Category="Team")
