@@ -21,6 +21,14 @@ ACPTopDownPlayerController::ACPTopDownPlayerController()
 {
 	CaptureWidgetClass = UCPCoinPusherCaptureWidget::StaticClass();
 	DefaultMouseCursor = EMouseCursor::Crosshairs;
+
+	// UGameplayStatics::SetGamePaused(true)로 일시정지하면 APlayerController::TickActor()가 기본적으로
+	// PlayerTick()(=Enhanced Input의 액션 평가/바인딩된 델리게이트 호출 경로)을 건너뛴다 - 이 플래그가
+	// false인 채로는 일시정지 중 PauseAction(재개)/MenuNavigateAction/MenuConfirmAction이 전혀 호출되지
+	// 않는다. 단, Input Action 에셋 쪽의 bTriggerWhenPaused도 각각 true로 켜야 한다(에디터에서 설정,
+	// UI/README.md 참고) - 이 플래그는 PlayerTick 자체가 도는지만 결정하고, 실제로 어떤 액션이 일시정지
+	// 중에도 트리거될지는 bTriggerWhenPaused가 따로 결정한다
+	bShouldPerformFullTickWhenPaused = true;
 }
 
 void ACPTopDownPlayerController::BeginPlay()
@@ -208,6 +216,11 @@ void ACPTopDownPlayerController::SetEndingMenuVisible(bool bIsClear)
 
 void ACPTopDownPlayerController::HandleMenuNavigate(const FInputActionValue& Value)
 {
+	// 임시 진단 로그 - MenuNavigateAction이 아예 안 불리는지(바인딩/Trigger When Paused 문제),
+	// 불리긴 하는데 X가 계속 0인지(IMC에서 실제로 매핑된 키/Swizzle 문제)를 Output Log로 구분하기
+	// 위한 것. 원인 확인 후 제거해도 됨
+	UE_LOG(LogTemp, Warning, TEXT("HandleMenuNavigate raw value = %s"), *Value.Get<FVector2D>().ToString());
+
 	UCPInGamePauseWidget* ActiveMenu = GetActiveMenuWidget();
 	if (!ActiveMenu)
 	{
@@ -215,8 +228,9 @@ void ACPTopDownPlayerController::HandleMenuNavigate(const FInputActionValue& Val
 		return;
 	}
 
-	const float AxisY = Value.Get<FVector2D>().Y;
-	if (FMath::Abs(AxisY) < MenuNavigateDeadZone)
+	// 버튼들이 화면에 가로로(EndGameButton/ReturnToTitleButton) 배치되므로 좌우(X축)로 선택을 옮긴다
+	const float AxisX = Value.Get<FVector2D>().X;
+	if (FMath::Abs(AxisX) < MenuNavigateDeadZone)
 	{
 		bHasProcessedMenuNavigateThisHold = false;
 		return;
@@ -229,8 +243,8 @@ void ACPTopDownPlayerController::HandleMenuNavigate(const FInputActionValue& Val
 
 	bHasProcessedMenuNavigateThisHold = true;
 
-	// 스틱 위(+Y)는 이전 버튼(-1), 아래(-Y)는 다음 버튼(+1)으로 이동
-	ActiveMenu->MoveSelection(AxisY > 0.0f ? -1 : 1);
+	// 스틱 왼쪽(-X)은 이전 버튼(-1), 오른쪽(+X)은 다음 버튼(+1)으로 이동
+	ActiveMenu->MoveSelection(AxisX > 0.0f ? 1 : -1);
 }
 
 void ACPTopDownPlayerController::HandleMenuConfirm(const FInputActionValue& Value)

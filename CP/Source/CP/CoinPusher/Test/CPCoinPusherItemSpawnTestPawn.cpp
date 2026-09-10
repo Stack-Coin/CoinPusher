@@ -2,8 +2,6 @@
 
 #include "CPCoinPusherItemSpawnTestPawn.h"
 #include "CoinPusher/CPCoinPusher.h"
-#include "CoinPusher/CPPassiveCoinConvertArea.h"
-#include "CoinPusher/CPCoinTowerSpawner.h"
 #include "Roulette/CPRoulette.h"
 #include "Player/CPTopDownPlayerController.h"
 #include "Components/InputComponent.h"
@@ -83,11 +81,8 @@ void ACPCoinPusherItemSpawnTestPawn::HandleConvertActiveInput()
 		return;
 	}
 
-	if (ACPPassiveCoinConvertArea* ConvertArea = TargetCoinPusher->GetPassiveCoinConvertArea())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Convert Active"));
-		ConvertArea->ConvertActive(PassiveConvertCount);
-	}
+	UE_LOG(LogTemp, Warning, TEXT("Convert Active"));
+	TargetCoinPusher->ConvertActive(PassiveConvertItemID, PassiveConvertCount);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleHPConvertActiveInput()
@@ -97,11 +92,8 @@ void ACPCoinPusherItemSpawnTestPawn::HandleHPConvertActiveInput()
 		return;
 	}
 
-	if (ACPPassiveCoinConvertArea* ConvertArea = TargetCoinPusher->GetPassiveCoinConvertArea())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("HP Convert Active"));
-		ConvertArea->HPConvertActive(HPConvertCount);
-	}
+	UE_LOG(LogTemp, Warning, TEXT("HP Convert Active"));
+	TargetCoinPusher->HPConvertActive(HPConvertItemID, HPConvertCount);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleMonsterConvertActiveInput()
@@ -111,11 +103,8 @@ void ACPCoinPusherItemSpawnTestPawn::HandleMonsterConvertActiveInput()
 		return;
 	}
 
-	if (ACPPassiveCoinConvertArea* ConvertArea = TargetCoinPusher->GetMonsterCoinConvertArea())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Monster Convert Active"));
-		ConvertArea->MonsterConvertActive(MonsterConvertCount);
-	}
+	UE_LOG(LogTemp, Warning, TEXT("Monster Convert Active"));
+	TargetCoinPusher->MonsterConvertActive(MonsterConvertItemID, MonsterConvertCount);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleActiveWaveThrowInput()
@@ -137,7 +126,7 @@ void ACPCoinPusherItemSpawnTestPawn::HandleSpawnBigCoinInput()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Spawn Big Coin"));
-	TargetCoinPusher->SpawnBigCoin();
+	TargetCoinPusher->SpawnBigCoin(BigCoinItemID);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleSpawnMonsterCoinInput()
@@ -148,7 +137,7 @@ void ACPCoinPusherItemSpawnTestPawn::HandleSpawnMonsterCoinInput()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Spawn Monster Coin (%d)"), MonsterCoinSpawnCount);
-	TargetCoinPusher->SpawnMonsterCoin(MonsterCoinSpawnCount);
+	TargetCoinPusher->SpawnMonsterCoin(MonsterCoinItemID, MonsterCoinSpawnCount);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower5Input()
@@ -188,11 +177,8 @@ void ACPCoinPusherItemSpawnTestPawn::SpawnCoinTower(int32 FloorCount)
 		return;
 	}
 
-	if (ACPCoinTowerSpawner* CoinTowerSpawner = TargetCoinPusher->GetCoinTowerSpawner())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Spawn Coin Tower (%d floors)"), FloorCount);
-		CoinTowerSpawner->SpawnTower(FloorCount);
-	}
+	UE_LOG(LogTemp, Warning, TEXT("Spawn Coin Tower (%d floors)"), FloorCount);
+	TargetCoinPusher->SpawnTower(CoinTowerItemID, FloorCount);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleShowClearEndingInput()

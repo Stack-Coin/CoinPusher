@@ -78,18 +78,19 @@ Blueprint에서 채워 넣는다.
 
 `ACPRoulette`는 당첨 결과를 누가 쓰는지 전혀 모르는 순수 pub-sub 구조다. `ACPCoinPusher`가
 `LinkedRoulette`(`TObjectPtr<ACPRoulette>`, `EditInstanceOnly`) 프로퍼티로 연동할 룰렛을 직접
-참조하고, `BeginPlay()`에서 `LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::ItemSpawn)`으로
-자신의 `ItemSpawn(ItemID, SpawnCount)`를 구독한다 — 룰렛에서 아이템이 뽑힐 때마다 CoinPusher가 천장
-Dispenser 중 하나에서 그 아이템을 스폰한다. 자세한 내용은 `CoinPusher/README.md`의 `ACPCoinPusher`
-섹션 참고.
+참조하고, `BeginPlay()`에서 `LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::HandleRoulettePickedUp)`
+으로 자신의 `HandleRoulettePickedUp(ItemID, SpawnCount)`를 구독한다 — 룰렛에서 아이템이 뽑힐 때마다
+CoinPusher가 자신의 `ItemDataTable`에서 그 `ItemID`의 `FItemData::bRouletteToCoinPusher`를 확인해,
+true인 경우에만 `ItemSpawn(ItemID, SpawnCount)`으로 천장 Dispenser 중 하나에서 그 아이템을 스폰한다.
+자세한 내용은 `CoinPusher/README.md`의 `ACPCoinPusher` 섹션 참고.
 
 ## 테스트 (CoinPusher/Test)
 
 - `ACPCoinPusherItemSpawnTestPawn` : R 키를 누르면 `TargetRoulette->Roll()`을 호출 (미지정 시
   `BeginPlay`에서 레벨에 배치된 아무 `ACPRoulette`나 자동으로 찾아 사용, `TargetCoinPusher`와 동일한
   방식). 시작 여부(`bool` 반환값)를 `UE_LOG(LogTemp, Warning, ...)`으로 표시. 당첨 결과 자체는
-  `TargetRoulette`의 `LinkedRoulette`로 연결된 `ACPCoinPusher`(있다면)의 `ItemSpawn()`으로 자동
-  전달되므로 이 Pawn이 직접 결과를 처리하지 않음
+  `TargetRoulette`의 `LinkedRoulette`로 연결된 `ACPCoinPusher`(있다면)의 `HandleRoulettePickedUp()`으로
+  자동 전달되므로 이 Pawn이 직접 결과를 처리하지 않음
 
 ## 에디터에서 준비해야 할 것
 

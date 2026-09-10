@@ -321,13 +321,14 @@ void UCPDebugWidget::HandleRemoveItemClicked()
 
 void UCPDebugWidget::HandleSpawnBigCoinClicked()
 {
-	if (!BigCoinSpawnCountInputText)
+	if (!BigCoinItemIDInputText || !BigCoinSpawnCountInputText)
 	{
 		return;
 	}
 
 	if (ACPCoinPusher* CoinPusher = Cast<ACPCoinPusher>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPCoinPusher::StaticClass())))
 	{
-		CoinPusher->SpawnBigCoin(FCString::Atoi(*BigCoinSpawnCountInputText->GetText().ToString()));
+		const FName BigCoinItemID(*BigCoinItemIDInputText->GetText().ToString());
+		CoinPusher->SpawnBigCoin(BigCoinItemID, FCString::Atoi(*BigCoinSpawnCountInputText->GetText().ToString()));
 	}
 }

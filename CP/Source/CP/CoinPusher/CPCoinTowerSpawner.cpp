@@ -73,7 +73,7 @@ void ACPCoinTowerSpawner::Tick(float DeltaTime)
 	}
 }
 
-void ACPCoinTowerSpawner::SpawnTower(int32 N)
+void ACPCoinTowerSpawner::SpawnTower(FName ItemID, int32 N)
 {
 	// 8. 이전 타워가 완전히 끝나기(코인 Detach + Pusher 재개) 전까지는 새로 스폰할 수 없음
 	if (bIsTowerActive || N <= 0 || !CoinClass)

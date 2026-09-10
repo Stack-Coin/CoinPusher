@@ -11,8 +11,10 @@ class UBoxComponent;
 class ACPCoin;
 
 /**
- *  레벨에 배치해두는 트리거 볼륨 - 다른 곳(BP, 다른 시스템 등)에서 ConvertActive(Num)을 호출하면
- *  이 영역과 겹쳐 있는 Coin 중 Num개를 랜덤하게 골라 Passive 코인으로 바꾼다.
+ *  레벨에 배치해두는 트리거 볼륨 - 다른 곳(BP, 다른 시스템 등)에서 ConvertActive(ItemID, Num)을 호출하면
+ *  이 영역과 겹쳐 있는 Coin 중 Num개를 랜덤하게 골라 Passive 코인으로 바꾼다. 보통은 이 함수를 직접
+ *  호출하지 않고 ACPCoinPusher::ConvertActive()/HPConvertActive()/MonsterConvertActive() 랩퍼를 통해
+ *  호출된다 - 그 랩퍼가 ItemID의 CoinType을 검증한 뒤에만 여기로 위임한다.
  *  볼륨 자체는 Overlap만 감지하고(BlockAllDynamic이 아닌 OverlapAllDynamic) 아무것도 물리적으로 막지 않는다.
  */
 UCLASS(abstract)
@@ -29,19 +31,22 @@ public:
 	ACPPassiveCoinConvertArea();
 
 	//이 영역과 겹쳐 있는 Coin 중 아직 Passive가 아닌 것들을 대상으로, Num개(가능한 만큼)를 중복 없이
-	//랜덤하게 골라 SetCoinType(Passive)를 호출한다
+	//랜덤하게 골라 SetCoinType(Passive)를 호출한다. ItemID는 호출부(ACPCoinPusher::ConvertActive())가
+	//CoinType 검증에 사용하며, 이 함수 자체는 대상 타입이 이미 Passive로 고정돼 있어 사용하지 않는다
 	UFUNCTION(BlueprintCallable, Category="Passive Coin Convert Area")
-	void ConvertActive(int32 Num);
+	void ConvertActive(FName ItemID, int32 Num);
 
 	//이 영역과 겹쳐 있는 Normal 코인들을 대상으로, Num개(가능한 만큼)를 중복 없이 랜덤하게 골라
-	//SetCoinType(HP)를 호출한다
+	//SetCoinType(HP)를 호출한다. ItemID는 호출부(ACPCoinPusher::HPConvertActive())가 CoinType 검증에
+	//사용하며, 이 함수 자체는 대상 타입이 이미 HP로 고정돼 있어 사용하지 않는다
 	UFUNCTION(BlueprintCallable, Category="Passive Coin Convert Area")
-	void HPConvertActive(int32 Num);
+	void HPConvertActive(FName ItemID, int32 Num);
 
 	//이 영역과 겹쳐 있는 Normal 코인들을 대상으로, Num개(가능한 만큼)를 중복 없이 랜덤하게 골라
-	//SetCoinType(Monster)를 호출한다
+	//SetCoinType(Monster)를 호출한다. ItemID는 호출부(ACPCoinPusher::MonsterConvertActive())가
+	//CoinType 검증에 사용하며, 이 함수 자체는 대상 타입이 이미 Monster로 고정돼 있어 사용하지 않는다
 	UFUNCTION(BlueprintCallable, Category="Passive Coin Convert Area")
-	void MonsterConvertActive(int32 Num);
+	void MonsterConvertActive(FName ItemID, int32 Num);
 
 public:
 

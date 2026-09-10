@@ -13,6 +13,7 @@
 #include "../Nexus/CPNexus.h"
 #include "CPCoinPusherViewCaptureComponent.h"
 #include "../Roulette/CPRoulette.h"
+#include "Datatables/CPItemData.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
@@ -307,10 +308,6 @@ void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 
 void ACPCoinPusher::HandleRoulettePickedUp(FName ItemID, int32 SpawnCount)
 {
-	// bRouletteToCoinPusher 조회를 위해 천장 Dispenser 중 하나의 ItemDataTable을 빌려 씀 (여러
-	// Dispenser가 같은 테이블을 공유하는 것이 전제이므로 어떤 Dispenser에서 조회하든 상관없다)
-	const ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
-	const UDataTable* ItemDataTable = Dispenser ? Dispenser->GetItemDataTable() : nullptr;
 	if (!ItemDataTable)
 	{
 		return;
@@ -323,8 +320,13 @@ void ACPCoinPusher::HandleRoulettePickedUp(FName ItemID, int32 SpawnCount)
 	}
 }
 
-void ACPCoinPusher::SpawnBigCoin(int32 Count)
+void ACPCoinPusher::SpawnBigCoin(FName ItemID, int32 Count)
 {
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::Big))
+	{
+		return;
+	}
+
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
@@ -333,7 +335,7 @@ void ACPCoinPusher::SpawnBigCoin(int32 Count)
 			continue;
 		}
 
-		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(BigCoinItemID))
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(ItemID))
 		{
 			// Big 코인이 CoinPusher의 Collision에 부딪혔을 때 ActiveWaveThrow()를 호출할 대상을 직접 알려줌
 			SpawnedCoin->SetOwningCoinPusher(this);
@@ -342,8 +344,13 @@ void ACPCoinPusher::SpawnBigCoin(int32 Count)
 	}
 }
 
-void ACPCoinPusher::SpawnMonsterCoin(int32 Num)
+void ACPCoinPusher::SpawnMonsterCoin(FName ItemID, int32 Num)
 {
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::Monster))
+	{
+		return;
+	}
+
 	for (int32 Index = 0; Index < Num; ++Index)
 	{
 		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
@@ -352,11 +359,74 @@ void ACPCoinPusher::SpawnMonsterCoin(int32 Num)
 			continue;
 		}
 
-		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(MonsterCoinItemID))
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(ItemID))
 		{
 			SpawnedCoin->SetCoinType(ECPCoinType::Monster);
 		}
 	}
+}
+
+void ACPCoinPusher::ConvertActive(FName ItemID, int32 SpawnCount)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::Passive))
+	{
+		return;
+	}
+
+	if (ACPPassiveCoinConvertArea* ConvertArea = GetPassiveCoinConvertArea())
+	{
+		ConvertArea->ConvertActive(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::HPConvertActive(FName ItemID, int32 SpawnCount)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::HP))
+	{
+		return;
+	}
+
+	if (ACPPassiveCoinConvertArea* ConvertArea = GetPassiveCoinConvertArea())
+	{
+		ConvertArea->HPConvertActive(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::MonsterConvertActive(FName ItemID, int32 SpawnCount)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::Monster))
+	{
+		return;
+	}
+
+	if (ACPPassiveCoinConvertArea* ConvertArea = GetMonsterCoinConvertArea())
+	{
+		ConvertArea->MonsterConvertActive(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::SpawnTower(FName ItemID, int32 SpawnCount)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::CoinTower))
+	{
+		return;
+	}
+
+	if (ACPCoinTowerSpawner* CoinTowerSpawner = GetCoinTowerSpawner())
+	{
+		CoinTowerSpawner->SpawnTower(ItemID, SpawnCount);
+	}
+}
+
+bool ACPCoinPusher::ValidateItemCoinType(FName ItemID, ECPCoinType ExpectedType) const
+{
+	if (!ItemDataTable)
+	{
+		return false;
+	}
+
+	const FItemData* Row = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPCoinPusher::ValidateItemCoinType"));
+	return Row && Row->CoinType == ExpectedType;
 }
 
 ACPDispenser* ACPCoinPusher::PickRandomValidCeilingDispenser() const

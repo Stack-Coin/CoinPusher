@@ -182,10 +182,12 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 - `ACPTopDownPlayerController`(`CP/Player/`)에 추가된 Pause/Ending 관련 멤버:
   - `PauseAction`(`UInputAction*`) : 일시정지 메뉴를 열고 닫는 입력. Input Mapping Context에서
     게임패드 Menu 버튼과 키보드 Escape를 **같은 액션**에 매핑해두면 둘 다 토글로 동작한다
-  - `MenuNavigateAction`(`UInputAction*`, Axis2D) : 메뉴가 열려 있는 동안 게임패드 L-Stick으로 버튼
-    사이를 이동. `MenuNavigateDeadZone`(EditAnywhere, 기본 0.5) 미만인 축 값은 무시되며, 한 번 민
-    입력은 스틱이 중립으로 돌아올 때까지 한 번만 처리된다(디바운스, `bHasProcessedMenuNavigateThisHold`) -
-    이 디바운스 상태는 입력을 실제로 받는 컨트롤러 인스턴스(=자기 자신) 기준으로 관리된다
+  - `MenuNavigateAction`(`UInputAction*`, Axis2D) : 메뉴가 열려 있는 동안 게임패드 L-Stick의 **X축**
+    (좌우)으로 버튼 사이를 이동 — `EndGameButton`/`ReturnToTitleButton`이 가로로 배치되므로 X축을
+    읽는다(왼쪽=이전 버튼, 오른쪽=다음 버튼). `MenuNavigateDeadZone`(EditAnywhere, 기본 0.5) 미만인
+    축 값은 무시되며, 한 번 민 입력은 스틱이 중립으로 돌아올 때까지 한 번만 처리된다(디바운스,
+    `bHasProcessedMenuNavigateThisHold`) - 이 디바운스 상태는 입력을 실제로 받는 컨트롤러
+    인스턴스(=자기 자신) 기준으로 관리된다
   - `MenuConfirmAction`(`UInputAction*`) : 메뉴가 열려 있는 동안 게임패드 A버튼으로 현재 선택된
     버튼의 기능을 실행
   - `InGamePauseWidgetClass`/`EndingWidgetClass`(`TSubclassOf`, `EditDefaultsOnly`) : 각각
@@ -203,6 +205,15 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
     하나에만 생성/캐싱되며, 어느 플레이어의 입력이 `TogglePauseMenu`/`ShowEndingResult`/
     `HandleMenuNavigate`/`HandleMenuConfirm`을 호출했든 전부 이 함수로 그 하나의 인스턴스를 찾아
     대신 조작한다
+
+> **일시정지 중에도 입력이 들어오게 하려면 (엔진 차원의 필수 설정)**: `UGameplayStatics::SetGamePaused(true)`
+> 로 일시정지하면 `APlayerController::TickActor()`가 기본적으로 `PlayerTick()`(Enhanced Input 액션 평가
+> 경로 포함)을 건너뛴다. `ACPTopDownPlayerController`는 생성자에서 `bShouldPerformFullTickWhenPaused = true`
+> 를 설정해 이 문제를 해결해뒀지만, 그것만으로는 부족하다 - Enhanced Input은 액션 단위로 한 번 더
+> "일시정지 중에도 트리거할지"를 검사하므로, **`PauseAction`/`MenuNavigateAction`/`MenuConfirmAction`으로
+> 쓰는 각 `UInputAction` 에셋마다 `Action Trigger` 카테고리의 `Trigger When Paused`를 체크**해야
+> 실제로 일시정지 중 재개/메뉴 탐색/확인이 동작한다. 둘 중 하나라도 빠지면 "일시정지는 되는데 다시
+> 못 풀거나(ESC/Menu 재입력 무시) A버튼/L-Stick이 먹통"인 증상으로 나타난다
 
 > **왜 위젯 인스턴스가 플레이어당 하나가 아니라 전체에 하나뿐인가**: `ACPRoulette`의 룰렛 스핀
 > UI(`Roulette/README.md` 참고)는 플레이어마다 별개 위젯을 만들어 각자 화면에 `AddToViewport()`하는데,
@@ -336,10 +347,13 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
    매핑한 Input Mapping Context 항목을 만들어 지정, `MenuNavigateAction`에 게임패드 L-Stick을 매핑한
    Axis2D Input Action을 지정, `MenuConfirmAction`에 게임패드 A버튼을 매핑한 Input Action을 지정
    (셋 다 `DefaultMappingContexts`에 실제로 추가돼 있어야 함), `InGamePauseWidgetClass`/
-   `EndingWidgetClass`에 위에서 만든 두 WBP를 지정한다. 키보드/마우스의 클릭·호버는 UMG 버튼이
-   기본으로 처리하므로 별도 입력 설정이 필요 없다. 게임을 끝내는 조건이 생기는 지점(GameMode,
-   체력 0, 레벨 클리어 등)에서 `ACPTopDownPlayerController::ShowEndingResult(bIsClear)`를 호출하면
-   Ending 화면이 뜬다
+   `EndingWidgetClass`에 위에서 만든 두 WBP를 지정한다. **`PauseAction`/`MenuNavigateAction`/
+   `MenuConfirmAction`으로 쓰는 세 Input Action 에셋 각각에서 `Action Trigger` 카테고리의
+   `Trigger When Paused`를 체크** — 이걸 빼먹으면 일시정지 메뉴가 열리기만 하고 재개/탐색/확인이
+   전혀 동작하지 않는다(자세한 이유는 위 "일시정지 중에도 입력이 들어오게 하려면" 참고). 키보드/
+   마우스의 클릭·호버는 UMG 버튼이 기본으로 처리하므로 별도 입력 설정이 필요 없다. 게임을 끝내는
+   조건이 생기는 지점(GameMode, 체력 0, 레벨 클리어 등)에서
+   `ACPTopDownPlayerController::ShowEndingResult(bIsClear)`를 호출하면 Ending 화면이 뜬다
 10. 위 InGamePause/Ending UI만 독립적으로 테스트하려면 `CoinPusher/Test`의
     `ACPCoinPusherItemSpawnTestPlayerController`(`ACPTopDownPlayerController` 상속)를 상속하는 BP를
     만들어 9번의 Input Action/Mapping Context/위젯 클래스를 지정하고,

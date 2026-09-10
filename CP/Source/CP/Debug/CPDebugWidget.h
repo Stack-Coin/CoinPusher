@@ -106,6 +106,11 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* RemoveItemButton;
 
+	/** ItemID passed to ACPCoinPusher::SpawnBigCoin() when SpawnBigCoinButton is clicked - must match a row
+	 *  (RowName) in the CoinPusher's ItemDataTable whose CoinType is Big, or the wrapper does nothing */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* BigCoinItemIDInputText;
+
 	/** Count passed to ACPCoinPusher::SpawnBigCoin() when SpawnBigCoinButton is clicked */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* BigCoinSpawnCountInputText;
@@ -185,8 +190,8 @@ protected:
 	UFUNCTION()
 	void HandleRemoveItemClicked();
 
-	/** Bound to SpawnBigCoinButton. Parses BigCoinSpawnCountInputText and calls SpawnBigCoin() on
-	 *  the first ACPCoinPusher found in the level */
+	/** Bound to SpawnBigCoinButton. Parses BigCoinItemIDInputText/BigCoinSpawnCountInputText and calls
+	 *  SpawnBigCoin(ItemID, Count) on the first ACPCoinPusher found in the level */
 	UFUNCTION()
 	void HandleSpawnBigCoinClicked();
 };
