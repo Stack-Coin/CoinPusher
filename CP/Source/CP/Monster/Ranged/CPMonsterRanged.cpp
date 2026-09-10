@@ -8,7 +8,18 @@ void ACPMonsterRanged::BeginPlay()
 {
 	Super::BeginPlay();
 
-	GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->SetMovementMode(MOVE_Flying);
+
+		// BT의 MoveTo가 플레이어(지면 위치)를 쫓아가면서 Z까지 같이 끌고 내려가던 게 진짜 원인이었음.
+		// 라인트레이스/타이머/틱 보정 대신, 엔진 내장 PlaneConstraint로 이동 자체를 수평면(XY)에만
+		// 투영되게 강제함 - AI가 뭘 하든 Z는 스폰 시점 높이(스포너가 GetSpawnHeightOffset()으로 이미
+		// 정확히 잡아준 값) 그대로 유지되고, 몹이 아무리 많아도 추가 비용이 전혀 없음(틱/타이머 없음)
+		MoveComp->SetPlaneConstraintEnabled(true);
+		MoveComp->SetPlaneConstraintNormal(FVector::UpVector);
+		MoveComp->SetPlaneConstraintOrigin(GetActorLocation());
+	}
 }
 
 void ACPMonsterRanged::Tick(float DeltaSeconds)
@@ -29,15 +40,9 @@ void ACPMonsterRanged::AttackHitCheck()
 
 	if (Duration > 0.f && Now - LastFireTime < Duration)
 	{
-		// [임시 디버그] 발사 간격 쿨다운에 걸려서 스킵된 경우 - 몽타주는 재생되는데 실제 발사는 안 되는
-		// 케이스를 구분하기 위한 로그
-		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s AttackHitCheck 스킵 - Now=%.2f, LastFireTime=%.2f, Duration=%.2f"),
-			*GetName(), Now, LastFireTime, Duration);
 		return;
 	}
 	LastFireTime = Now;
-
-	UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s Fire() 호출 - Now=%.2f, Duration=%.2f"), *GetName(), Now, Duration);
 
 	Fire();
 }
@@ -51,6 +56,7 @@ void ACPMonsterRanged::Fire()
 {
 	if (!ProjectileClass)
 	{
+		UE_LOG(LogTemp, Error, TEXT("[임시 디버그] %s Fire() 실패 - ProjectileClass가 비어있음"), *GetName());
 		return;
 	}
 
@@ -61,13 +67,19 @@ void ACPMonsterRanged::Fire()
 	{
 		SpawnLocation = GetMesh()->GetSocketLocation(MuzzleSocketName);
 	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s Muzzle 소켓(%s) 없음 - 액터 위치로 스폰"), *GetName(), *MuzzleSocketName.ToString());
+	}
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = this;
 	SpawnParams.Instigator = GetInstigator();
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	if (ACPMonsterProjectile* Projectile = GetWorld()->SpawnActor<ACPMonsterProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, SpawnParams))
+	ACPMonsterProjectile* Projectile = GetWorld()->SpawnActor<ACPMonsterProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, SpawnParams);
+
+	if (Projectile)
 	{
 		Projectile->Init(GetAIAttackPower(), GetController(), this);
 	}

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Player/CPPlayerCharacter.h"
 #include "Camera/CameraComponent.h"
@@ -87,8 +87,10 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	DebugHitboxShape->Category = ECPDebugCollisionCategory::PlayerHitbox;
 	DebugHitboxShape->SetTargetComponent(GetCapsuleComponent());
 
-	// 뱀서류 몬스터 웨이브/라운드/보스 스폰 담당. 부착 대상이 없는 순수 로직 컴포넌트라
-	// SetupAttachment 불필요 (WeaponManager와 동일한 패턴)
+	// kohMS
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel7, ECR_Overlap);
+
 	MonsterSpawnManager = CreateDefaultSubobject<UCPMonsterSpawnManagerComponent>(TEXT("MonsterSpawnManager"));
 }
 
