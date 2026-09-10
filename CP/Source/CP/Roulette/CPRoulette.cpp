@@ -42,16 +42,6 @@ bool ACPRoulette::Roll()
 		return false;
 	}
 
-	// ACPGameMode가 있으면(실제 게임 플레이) 티켓을 1개 소모해야 스핀 가능 - 부족하면 실패.
-	// 팀 티켓 개념이 없는 테스트/독립 레벨(AGameModeBase 등)에서는 티켓 검사 없이 그대로 진행한다
-	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
-	{
-		if (!GameMode->TrySpendTeamTicket(1))
-		{
-			return false;
-		}
-	}
-
 	bIsRolling = true;
 
 	const TArray<UCPRouletteWidget*> Widgets = GetOrCreateRouletteWidgets();

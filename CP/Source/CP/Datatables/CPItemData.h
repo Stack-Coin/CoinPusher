@@ -55,4 +55,8 @@ struct FItemData : public FTableRowBase
 	/** 룰렛에서 이 아이템이 당첨됐을 때 스폰(또는 전달)할 개수. bRoulette가 false면 무시됨 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
 	int32 RouletteSpawnCount = 1;
+
+	/** 이 아이템이 룰렛에서 당첨된 후 CoinPusher에 스폰되는지 여부 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Data")
+	bool bRouletteToCoinPusher = false;
 };

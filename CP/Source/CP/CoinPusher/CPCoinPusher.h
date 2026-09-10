@@ -140,8 +140,8 @@ protected:
 	FName MonsterCoinItemID = TEXT("5C");
 
 	//이 CoinPusher와 연동할 Roulette. 레벨에서 직접 연결해야 하며(InputA/InputB와 동일한 방식의 수동
-	//연결), BeginPlay에서 자동으로 이 Roulette의 OnPickedUp에 ItemSpawn()을 등록해 룰렛에서 아이템이
-	//뽑힐 때마다 천장 Dispenser에서 그 아이템이 나오게 한다
+	//연결), BeginPlay에서 자동으로 이 Roulette의 OnPickedUp에 HandleRoulettePickedUp()을 등록해
+	//룰렛에서 아이템이 뽑힐 때마다(bRouletteToCoinPusher인 경우에만) 천장 Dispenser에서 그 아이템이 나오게 한다
 	UPROPERTY(EditInstanceOnly, Category="CoinPusher")
 	TObjectPtr<ACPRoulette> LinkedRoulette;
 
@@ -280,12 +280,18 @@ public:
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPCoinTowerSpawner* GetCoinTowerSpawner() const;
 
-	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출 (LinkedRoulette::OnPickedUp
-	//에 자동으로 등록되므로 룰렛이 직접 호출할 필요는 없음). 천장 Dispenser(CeilingDispenserComponents)
-	//중 하나를 랜덤하게 골라 그 Dispenser의 DispenseItemByID()로 위임한다 - 코인 여부/CoinType 적용은
-	//Dispenser가 ItemDataTable을 조회해 알아서 처리하므로 여기서는 신경 쓰지 않는다
+	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출. 천장 Dispenser
+	//(CeilingDispenserComponents) 중 하나를 랜덤하게 골라 그 Dispenser의 DispenseItemByID()로
+	//위임한다 - 코인 여부/CoinType 적용은 Dispenser가 ItemDataTable을 조회해 알아서 처리하므로
+	//여기서는 신경 쓰지 않는다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void ItemSpawn(FName ItemID, int32 SpawnCount);
+
+	//LinkedRoulette::OnPickedUp에 자동으로 등록되는 핸들러. ItemID로 ItemDataTable을 조회해
+	//FItemData::bRouletteToCoinPusher가 true인 경우에만 ItemSpawn(ItemID, SpawnCount)을 호출한다 -
+	//룰렛에서 당첨된 아이템이라도 실제로 CoinPusher에 스폰되어야 하는지는 데이터 테이블 설정에 따른다
+	UFUNCTION()
+	void HandleRoulettePickedUp(FName ItemID, int32 SpawnCount);
 
 	//천장 Dispenser 중 하나를 랜덤하게 골라(매번 다시 고름) BigCoinItemID로 지정된 코인을 Count개
 	//스폰하고 각각 CoinType을 Big으로 전환한다

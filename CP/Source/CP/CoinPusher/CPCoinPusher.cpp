@@ -173,11 +173,11 @@ void ACPCoinPusher::BeginPlay()
 	// 게임 시작 FrontWallRemovalDelay초 후 FrontWall을 비활성화해 코인이 앞으로 빠질 수 있도록 함
 	GetWorldTimerManager().SetTimer(FrontWallRemovalTimerHandle, this, &ACPCoinPusher::RemoveFrontWall, FrontWallRemovalDelay, false);
 
-	// LinkedRoulette가 아이템을 뽑을 때마다(OnPickedUp) ItemSpawn()이 자동으로 호출되도록 등록 -
-	// 룰렛은 CoinPusher를 전혀 모르며, 이 CoinPusher가 스스로 룰렛의 결과를 구독하는 방식
+	// LinkedRoulette가 아이템을 뽑을 때마다(OnPickedUp) HandleRoulettePickedUp()이 자동으로
+	// 호출되도록 등록 - 룰렛은 CoinPusher를 전혀 모르며, 이 CoinPusher가 스스로 룰렛의 결과를 구독하는 방식
 	if (LinkedRoulette)
 	{
-		LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::ItemSpawn);
+		LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::HandleRoulettePickedUp);
 	}
 }
 
@@ -295,9 +295,31 @@ void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 {
 	// 코인 여부 판별/CoinType 적용은 Dispenser::DispenseItemByID()가 ItemDataTable을 조회해 알아서
 	// 처리하므로, 여기서는 Dispenser 하나를 골라 그대로 위임하기만 하면 된다
-	if (ACPDispenser* Dispenser = PickRandomValidCeilingDispenser())
+
+	for (int i = 0; i < SpawnCount; ++i)
 	{
-		Dispenser->DispenseItemByID(ItemID, SpawnCount);
+		if (ACPDispenser* Dispenser = PickRandomValidCeilingDispenser())
+		{
+			Dispenser->DispenseItemByID(ItemID, 1);
+		}
+	}
+}
+
+void ACPCoinPusher::HandleRoulettePickedUp(FName ItemID, int32 SpawnCount)
+{
+	// bRouletteToCoinPusher 조회를 위해 천장 Dispenser 중 하나의 ItemDataTable을 빌려 씀 (여러
+	// Dispenser가 같은 테이블을 공유하는 것이 전제이므로 어떤 Dispenser에서 조회하든 상관없다)
+	const ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+	const UDataTable* ItemDataTable = Dispenser ? Dispenser->GetItemDataTable() : nullptr;
+	if (!ItemDataTable)
+	{
+		return;
+	}
+
+	const FItemData* Row = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPCoinPusher::HandleRoulettePickedUp"));
+	if (Row && Row->bRouletteToCoinPusher)
+	{
+		ItemSpawn(ItemID, SpawnCount);
 	}
 }
 
