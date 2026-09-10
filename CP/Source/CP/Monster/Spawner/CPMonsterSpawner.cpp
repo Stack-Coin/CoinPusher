@@ -33,8 +33,18 @@ ACPMonsterBase* ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> M
 		return nullptr;
 	}
 
-	const FTransform BaseTransform = SpawnCapsule->GetComponentTransform();
+	FTransform BaseTransform = SpawnCapsule->GetComponentTransform();
 	const FVector RightAxis = FVector::YAxisVector; // 스포너 회전과 무관하게 항상 월드 Y축 기준으로 나란히 배치
+
+	// 몬스터 클래스마다 캡슐 Half Height(또는 비행 몬스터의 고정 스폰 높이)가 달라서, SpawnCapsule의
+	// 고정 Z(90)를 그대로 쓰면 살짝 떠서 스폰됐다가 떨어지거나 파묻히는 문제가 생김.
+	// 스포너 액터 자체가 지면에 놓여있다고 가정하고, 그 위로 몬스터별 스폰 높이만큼만 띄움
+	if (const ACPMonsterBase* MonsterCDO = MonsterClass->GetDefaultObject<ACPMonsterBase>())
+	{
+		FVector SpawnLocation = BaseTransform.GetLocation();
+		SpawnLocation.Z = GetActorLocation().Z + MonsterCDO->GetSpawnHeightOffset();
+		BaseTransform.SetLocation(SpawnLocation);
+	}
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;

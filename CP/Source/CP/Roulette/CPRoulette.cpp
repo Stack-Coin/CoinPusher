@@ -16,7 +16,7 @@ ACPRoulette::ACPRoulette()
 	RootComponent = SpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("SpawnPoint"));
 }
 
-bool ACPRoulette::Roll()
+bool ACPRoulette::Roll(AActor* Roller)
 {
 	// 이미 스핀 중이면(다른 플레이어가 먼저 돌린 경우 포함) 무시 - 하나의 룰렛을 두 플레이어가 공유
 	if (bIsRolling || Slots.Num() == 0)

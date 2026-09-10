@@ -10,8 +10,8 @@
 #include "Player/CPStatInterface.h"
 #include "Player/CPWeaponEquipper.h"
 #include "Weapon/CPWeaponBase.h"
-#include "Player/CPGameMode.h"
 #include "Player/CPPlayerCharacter.h"
+#include "Player/Inventory/CPInventoryComponent.h"
 
 void UCPDebugWidget::NativeConstruct()
 {
@@ -66,13 +66,25 @@ void UCPDebugWidget::NativeConstruct()
 	{
 		SetTeamTicketButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleSetTeamTicketClicked);
 	}
-	if (Player1InvincibleCheckBox)
+	if (PlayerInvincibleCheckBox)
 	{
-		Player1InvincibleCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayer1InvincibleCheckChanged);
+		PlayerInvincibleCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayerInvincibleCheckChanged);
 	}
-	if (Player2InvincibleCheckBox)
+	if (ApplyDamageButton)
 	{
-		Player2InvincibleCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayer2InvincibleCheckChanged);
+		ApplyDamageButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleApplyDamageClicked);
+	}
+	if (ActivatePassiveSkillButton)
+	{
+		ActivatePassiveSkillButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleActivatePassiveSkillClicked);
+	}
+	if (StoreItemButton)
+	{
+		StoreItemButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleStoreItemClicked);
+	}
+	if (RemoveItemButton)
+	{
+		RemoveItemButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleRemoveItemClicked);
 	}
 
 	RefreshPlayerInfo();
@@ -92,23 +104,18 @@ void UCPDebugWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 void UCPDebugWidget::RefreshPlayerInfo()
 {
-	if (Player1InfoText)
+	if (PlayerInfoText)
 	{
-		Player1InfoText->SetText(FText::FromString(BuildPlayerInfoString(0)));
-	}
-
-	if (Player2InfoText)
-	{
-		Player2InfoText->SetText(FText::FromString(BuildPlayerInfoString(1)));
+		PlayerInfoText->SetText(FText::FromString(BuildPlayerInfoString()));
 	}
 }
 
-FString UCPDebugWidget::BuildPlayerInfoString(int32 PlayerIndex) const
+FString UCPDebugWidget::BuildPlayerInfoString() const
 {
-	APawn* Pawn = UGameplayStatics::GetPlayerPawn(GetWorld(), PlayerIndex);
+	APawn* Pawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 	if (!Pawn)
 	{
-		return FString::Printf(TEXT("Player %d : (no pawn)"), PlayerIndex + 1);
+		return TEXT("Player : (no pawn)");
 	}
 
 	FString WeaponName = TEXT("Unarmed");
@@ -123,17 +130,17 @@ FString UCPDebugWidget::BuildPlayerInfoString(int32 PlayerIndex) const
 	const ICPStatInterface* StatInterface = Cast<ICPStatInterface>(Pawn);
 	if (!StatInterface)
 	{
-		return FString::Printf(TEXT("Player %d\nWeapon : %s"), PlayerIndex + 1, *WeaponName);
+		return FString::Printf(TEXT("Weapon : %s"), *WeaponName);
 	}
 
 	return FString::Printf(
-		TEXT("Player %d\nHealth : %.0f\nAttackPower : %.0f\nMoveSpeed : %.0f\nAttackSpeed : %.2f\nDefense : %.0f\nWeapon : %s"),
-		PlayerIndex + 1,
+		TEXT("Health : %.0f\nAttackPower : %.0f\nMoveSpeed : %.0f\nAttackSpeed : %.2f\nExperience : %.0f\nLevel : %.0f\nWeapon : %s"),
 		StatInterface->GetStat(ECPStatType::Health),
 		StatInterface->GetStat(ECPStatType::AttackPower),
 		StatInterface->GetStat(ECPStatType::MoveSpeed),
 		StatInterface->GetStat(ECPStatType::AttackSpeed),
-		StatInterface->GetStat(ECPStatType::Defense),
+		StatInterface->GetStat(ECPStatType::Experience),
+		StatInterface->GetStat(ECPStatType::Level),
 		*WeaponName);
 }
 
@@ -206,11 +213,11 @@ void UCPDebugWidget::HandleSetTeamCoinClicked()
 		return;
 	}
 
-	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
 	{
 		// Adds to the current count rather than replacing it - this is an "add N coins" button, not a
 		// "set the count to N" one, so clicking it repeatedly with the same input keeps incrementing
-		GameMode->AddCoin(FCString::Atoi(*TeamCoinInputText->GetText().ToString()));
+		PlayerCharacter->AddCoin(FCString::Atoi(*TeamCoinInputText->GetText().ToString()));
 	}
 }
 
@@ -221,27 +228,88 @@ void UCPDebugWidget::HandleSetTeamTicketClicked()
 		return;
 	}
 
-	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
 	{
 		// Adds to the current count rather than replacing it - see HandleSetTeamCoinClicked
-		GameMode->AddTeamTickets(FCString::Atoi(*TeamTicketInputText->GetText().ToString()));
+		PlayerCharacter->AddTicket(FCString::Atoi(*TeamTicketInputText->GetText().ToString()));
 	}
 }
 
-void UCPDebugWidget::HandlePlayer1InvincibleCheckChanged(bool bIsChecked)
+void UCPDebugWidget::HandlePlayerInvincibleCheckChanged(bool bIsChecked)
 {
-	SetPlayerDebugInvincible(0, bIsChecked);
+	SetPlayerDebugInvincible(bIsChecked);
 }
 
-void UCPDebugWidget::HandlePlayer2InvincibleCheckChanged(bool bIsChecked)
+void UCPDebugWidget::SetPlayerDebugInvincible(bool bEnabled)
 {
-	SetPlayerDebugInvincible(1, bIsChecked);
-}
-
-void UCPDebugWidget::SetPlayerDebugInvincible(int32 PlayerIndex, bool bEnabled)
-{
-	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), PlayerIndex)))
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
 	{
 		PlayerCharacter->SetDebugInvincible(bEnabled);
+	}
+}
+
+void UCPDebugWidget::HandleApplyDamageClicked()
+{
+	if (!DamageInputText)
+	{
+		return;
+	}
+
+	if (APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
+	{
+		UGameplayStatics::ApplyDamage(PlayerPawn, FCString::Atof(*DamageInputText->GetText().ToString()), nullptr, nullptr, nullptr);
+	}
+}
+
+void UCPDebugWidget::HandleActivatePassiveSkillClicked()
+{
+	ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	if (!PlayerCharacter)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleActivatePassiveSkillClicked - no local ACPPlayerCharacter found"));
+		return;
+	}
+
+	ACPWeaponBase* Weapon = PlayerCharacter->GetCurrentWeapon();
+	if (!Weapon)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleActivatePassiveSkillClicked - player has no weapon equipped"));
+		return;
+	}
+
+	Weapon->ActivatePassiveSkill();
+}
+
+void UCPDebugWidget::HandleStoreItemClicked()
+{
+	if (!ItemCodeInputText || !ItemCountInputText)
+	{
+		return;
+	}
+
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
+	{
+		if (UCPInventoryComponent* Inventory = PlayerCharacter->GetInventoryComponent())
+		{
+			const FName ItemCode(*ItemCodeInputText->GetText().ToString());
+			Inventory->StoreItem(ItemCode, FCString::Atoi(*ItemCountInputText->GetText().ToString()));
+		}
+	}
+}
+
+void UCPDebugWidget::HandleRemoveItemClicked()
+{
+	if (!ItemCodeInputText || !ItemCountInputText)
+	{
+		return;
+	}
+
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
+	{
+		if (UCPInventoryComponent* Inventory = PlayerCharacter->GetInventoryComponent())
+		{
+			const FName ItemCode(*ItemCodeInputText->GetText().ToString());
+			Inventory->RemoveItem(ItemCode, FCString::Atoi(*ItemCountInputText->GetText().ToString()));
+		}
 	}
 }

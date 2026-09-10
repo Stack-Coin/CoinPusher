@@ -1,11 +1,9 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "CPStatTypes.generated.h"
 
-/** Identifies a single modifiable player stat */
+//***** �÷��̾� ���� ����
 UENUM(BlueprintType)
 enum class ECPStatType : uint8
 {
@@ -14,12 +12,10 @@ enum class ECPStatType : uint8
 	AttackPower,
 	MoveSpeed,
 	AttackSpeed,
-	Defense,
 	Level
 };
 
-/** Inclusive Min/Max bounds for a single stat. SetStat/ModifyStat clamp to this range, so augments and
- *  debuffs can never push a stat outside the values designers set here. */
+//***** ���� ����
 USTRUCT(BlueprintType)
 struct FCPStatRange
 {
@@ -35,30 +31,27 @@ struct FCPStatRange
 	float Max = 100.0f;
 };
 
-/** Data for a player's core per-player combat stats. Coin/ticket/experience/level are deliberately NOT
- *  here - they're shared by the whole team and owned by ACPGameMode instead, since team play is planned */
+//***** �÷��̾� ����
 USTRUCT(BlueprintType)
 struct FCPPlayerStats
 {
 	GENERATED_BODY()
 
-	/** Current health */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	float Health = 100.0f;
 
-	/** Base damage dealt by the basic attack */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	float AttackPower = 10.0f;
 
-	/** Movement speed. Applied to CharacterMovementComponent's MaxWalkSpeed */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	float MoveSpeed = 500.0f;
 
-	/** Attack speed multiplier. Divides the base attack cooldown */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	float AttackSpeed = 1.0f;
 
-	/** Defense value */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
-	float Defense = 0.0f;
+	float Experience = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
+	int32 Level = 1;
 };

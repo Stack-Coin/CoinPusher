@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -7,16 +7,17 @@
 #include "CPBTTaskNode_Attack.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
 class CP_API UCPBTTaskNode_Attack : public UBTTaskNode
 {
 	GENERATED_BODY()
-	
+
 public:
 	UCPBTTaskNode_Attack();
 
 protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
+	virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 };

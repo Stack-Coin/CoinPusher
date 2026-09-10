@@ -20,29 +20,16 @@ struct FCPMonsterDefaultStat
 {
 	GENERATED_BODY()
 
+	/** 공격 사이 간격 (초). "Speed"라는 이름과 달리 낮을수록 더 자주(빠르게) 공격함 - 실제로는 쿨타임/주기 값 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float AttackSpeed = 0.f;
-
-	/** 피격 시 위로 뜨는 정도 (LaunchCharacter의 수직 속도, cm/s) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float KnockbackPower = 250.f;
-
-	/** 피격 시 밀려나는 데 걸리는 시간(초). KnockbackDistance를 이 시간 동안 이동할 속도로 환산해서 사용함 (Speed = Distance / Duration) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float KnockbackDuration = 0.2f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float KnockbackDistance = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float DetectRange = 0.f;
+	float AttackInterval = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float CollisionRadius = 0.f;
 
-	/** 정찰 반경 (cm) */
+	/** 캡슐 Half Height (cm). 몬스터 실제 메쉬 크기에 맞춰 지정 - 0이면 BP에 설정된 기존 캡슐 값을 그대로 씀 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float PatrolRadius = 0.f;
+	float CollisionHalfHeight = 0.f;
 
 	/** 공격 사거리 (cm) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
@@ -56,6 +43,14 @@ struct FCPMonsterDefaultStat
 	 * 근접형은 작게, 원거리형은 공격 사거리만큼 크게 잡아서 너무 가까이 붙지 않고 멈추도록 함 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float MoveAcceptableRadius = 0.f;
+
+	/** 다른 몬스터와 겹치지 않게 유지할 최소 여유 간격 (콜리전 반경 합에 추가로 더하는 값, cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float SeparationPadding = 70.f;
+
+	/** 겹쳤을 때 밀어내는 최대 속도 (cm/s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
+	float SeparationSpeed = 400.f;
 };
 
 // 엑셀에서 작업하기 편하도록 구조체 수정
@@ -75,29 +70,16 @@ struct FCPMonsterStatRow : public FTableRowBase
 	float AttackPower = 0.f;
 
 	// 웨이브에 따른 수치 변화 없음 (기존 FCPMonsterDefaultStat 필드를 그대로 평탄화)
+	/** 공격 사이 간격 (초). 낮을수록 더 자주 공격함 (예전 이름 AttackSpeed는 오해 소지가 있어 변경됨) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float AttackSpeed = 0.f;
-
-	/** 피격 시 위로 뜨는 정도 (LaunchCharacter의 수직 속도, cm/s) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float KnockbackPower = 250.f;
-
-	/** 피격 시 밀려나는 데 걸리는 시간(초) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float KnockbackDuration = 0.2f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float KnockbackDistance = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float DetectRange = 0.f;
+	float AttackInterval = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
 	float CollisionRadius = 0.f;
 
-	/** 정찰 반경 (cm) */
+	/** 캡슐 Half Height (cm). 몬스터 실제 메쉬 크기에 맞춰 지정 - 0이면 BP에 설정된 기존 캡슐 값을 그대로 씀 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float PatrolRadius = 0.f;
+	float CollisionHalfHeight = 0.f;
 
 	/** 공격 사거리 (cm) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
@@ -110,6 +92,14 @@ struct FCPMonsterStatRow : public FTableRowBase
 	/** MoveTo(BT) 목표 지점 도착 판정 반경 (cm) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
 	float MoveAcceptableRadius = 0.f;
+
+	/** 다른 몬스터와 유지할 최소 여유 간격 (cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float SeparationPadding = 70.f;
+
+	/** 겹쳤을 때 밀어내는 최대 속도 (cm/s) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
+	float SeparationSpeed = 400.f;
 };
 
 /**

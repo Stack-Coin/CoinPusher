@@ -7,7 +7,9 @@
 #include "CPDroppedItemReceiver.h"
 #include "Components/BoxComponent.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 #include "Player/CPGameMode.h"
+#include "Player/CPPlayerCharacter.h"
 
 ACPDropZone::ACPDropZone()
 {

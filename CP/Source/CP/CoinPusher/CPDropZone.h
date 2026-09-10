@@ -37,7 +37,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone", meta = (ClampMin = 0))
 	float ExperiencePerCoin = 1.0f;
 
-	/** Every time this many coins have been collected here in total, the team (ACPGameMode) is granted 1 ticket */
+	/** Every time this many coins have been collected here in total, the local player is granted 1 ticket */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone", meta = (ClampMin = 1))
 	int32 CoinsPerTicket = 10;
 

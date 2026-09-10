@@ -8,6 +8,7 @@
 #include "Engine/TimerHandle.h"
 #include "Player/CPStatInterface.h"
 #include "Player/CPStatTypes.h"
+#include "Player/CPCoinWallet.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPInteractor.h"
 #include "Player/CPItemInventory.h"
@@ -29,6 +30,14 @@ class UCPWeaponManagerComponent;
 class ACPWeaponBase;
 class ACPRoulette;
 class UCPDebugCollisionShapeComponent;
+class UCPMonsterSpawnManagerComponent;
+class UDataTable;
+struct FCPPlayerLevelStatRow;
+class UTimelineComponent;
+class UCurveFloat;
+class UMaterialInstanceDynamic;
+class UCameraShakeBase;
+class UCPInventoryComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -46,14 +55,23 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerRevived);
  *  here to keep a health bar in sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPPlayerHealthChanged, float, CurrentHealth, float, MaxHealth);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerCoinChanged, int32, NewCoinCount);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerTicketChanged, int32, NewTicketCount);
+
 /**
  *  Top-down / quarter view action prototype character.
  *  - 8-directional WASD movement relative to the fixed camera
  *  - Mouse cursor directed rectangular (box trace) melee attack
  *  - Directional dash with temporary invincibility
+ *  - Movement is never blocked by attacking: while a combo string is in progress, the character's facing
+ *    is locked to the attack direction instead of following movement (see HandleAttackStateChanged),
+ *    then returns to following movement PostAttackRotationDelay seconds after the attack's motion ends
+ *    (see OrientTowardsAttackDirection/ReorientToMovementDirection). GetMovementDirection() exposes the
+ *    current movement direction relative to that facing, for a 4-way movement Blend Space in the Anim BP
  */
 UCLASS(abstract)
-class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable, public ICPReviveProgressProvider
+class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable, public ICPReviveProgressProvider, public ICPCoinWallet
 {
 	GENERATED_BODY()
 
@@ -78,6 +96,18 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCPDebugCollisionShapeComponent* DebugHitboxShape;
 
+	/** 뱀서류 몬스터 웨이브/라운드/보스 스폰을 전담하는 컴포넌트. 매 인스턴스에 자동으로 붙어있고,
+	 *  MonsterClassByType/SpawnWaveEntryTable/RoundInfoTable 기본값은 이 컴포넌트의 생성자
+	 *  (ConstructorHelpers)에서 자동으로 채워짐 - Details 패널에서 개별적으로 덮어쓸 수 있음.
+	 *  See Monster/Spawner/CPMonsterSpawnManagerComponent */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCPMonsterSpawnManagerComponent> MonsterSpawnManager;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UTimelineComponent* HitFlashTimeline;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UCPInventoryComponent* InventoryComponent;
+
 protected:
 
 	/** Move Input Action (WASD / Axis2D) */
@@ -100,14 +130,21 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* RollRouletteAction;
 
-	/** Toggle Camera Mode Input Action (C key) - swaps between split-screen and the single party camera */
 	UPROPERTY(EditAnywhere, Category = "Input")
-	UInputAction* ToggleCameraAction;
+	UInputAction* UseSlotEastAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* UseSlotNorthAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* UseSlotWestAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* UseSlotSouthAction;
 
 protected:
 
-	/** Core per-player combat stats (health, attack power, move speed, attack speed, defense). Coin/ticket/
-	 *  experience/level are intentionally NOT tracked here - see ACPGameMode, they're shared by the team */
+	/** Core per-player combat stats (health, attack power, move speed, attack speed, experience, level) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
 	FCPPlayerStats Stats;
 
@@ -127,57 +164,60 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
 	FCPStatRange AttackSpeedRange = FCPStatRange(0.1f, 5.0f);
 
-	/** Min/Max bounds for Defense. SetStat/ModifyStat clamp to this range */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Ranges")
-	FCPStatRange DefenseRange = FCPStatRange(0.0f, 999.0f);
+	FCPStatRange ExperienceRange = FCPStatRange(0.0f, 100.0f);
 
-	/** Width (left-right) of the rectangular attack hitbox */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
-	float AttackWidth = 100.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|DataTable")
+	TObjectPtr<UDataTable> BaseStatTable;
 
-	/** Length (along the attack direction) of the rectangular attack hitbox */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
-	float AttackLength = 150.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|DataTable")
+	TObjectPtr<UDataTable> LevelStatTable;
 
-	/** Height of the rectangular attack hitbox */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
-	float AttackHeight = 100.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
+	TObjectPtr<UCurveFloat> HitFlashCurve;
 
-	/** Distance the 
-	hitbox is offset in front of the character */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (Units = "cm"))
-	float AttackOffset = 50.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash", meta = (ClampMin = 0.01))
+	float HitFlashSpeed = 2.0f;
 
-	/** Minimum time that must pass between attacks */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
+	FLinearColor HitFlashColor = FLinearColor::Red;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
+	FName HitFlashAmountParameterName = TEXT("FlashAmount");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
+	FName HitFlashColorParameterName = TEXT("FlashColor");
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> HitFlashMIDs;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitCameraShake")
+	TSubclassOf<UCameraShakeBase> HitCameraShakeClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitCameraShake", meta = (ClampMin = 0))
+	float HitCameraShakeIntensity = 1.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category="Wallet")
+	int32 CoinCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category="Wallet")
+	int32 TicketCount = 0;
+
+	/** After an attack's motion actually ends (attack montage finished, or the last combo swing was
+	 *  dispatched if no montage is assigned - see ACPWeaponBase::OnAttackStateChanged), how long to keep
+	 *  facing the attack direction before rotating back to face the movement direction again. 0 = rotate
+	 *  back immediately. Tune this in BP */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "s"))
-	float AttackCooldown = 0.5f;
-
-	/** How long the debug attack box is drawn for when bDrawDebugAttackBox is enabled */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack", meta = (ClampMin = 0, Units = "s"))
-	float AttackDuration = 0.1f;
-
-	/** If true, draws the attack hitbox for debugging */
-	UPROPERTY(EditAnywhere, Category="Stats|Attack")
-	bool bDrawDebugAttackBox = false;
-
-	/** Distance moved by the forward lunge triggered when attacking while moving */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
-	float AttackLungeDistance = 150.0f;
-
-	/** Duration of the attack lunge movement */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "s"))
-	float AttackLungeDuration = 0.15f;
-
-	/** Minimum current speed required for an attack to trigger the forward lunge, instead of attacking in place */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm/s"))
-	float AttackLungeMinSpeed = 10.0f;
+	float PostAttackRotationDelay = 0.3f;
 
 	/** Move input below this magnitude (stick axis value in [0, 1]) is treated as zero, so gamepad stick
 	 *  drift/noise doesn't register as movement (or, for a gamepad player, as an attack direction) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Move", meta = (ClampMin = 0, ClampMax = 1))
 	float MoveInputDeadzone = 0.15f;
 
-	/** True while a weapon combo string is in progress. Blocks DoMove/movement-driven rotation until the weapon reports it finished/was cancelled */
+	/** True while a weapon combo string is in progress. Movement itself is NOT blocked while this is true -
+	 *  only the movement-driven rotation is: the character's facing is locked to the attack direction
+	 *  instead of following movement input (see HandleAttackStateChanged/OrientTowardsAttackDirection) */
 	bool bIsAttackLocked = false;
 
 	/** Distance covered by a single dash */
@@ -193,7 +233,7 @@ protected:
 	float DashCooldown = 1.0f;
 
 	/** Converts ApplyKnockback's Distance into a launch speed: Speed = Distance / KnockbackDuration
-	 *  (same convention as DashDistance/DashDuration and AttackLungeDistance/AttackLungeDuration) */
+	 *  (same convention as DashDistance/DashDuration) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Knockback", meta = (ClampMin = 0.01, Units = "s"))
 	float KnockbackDuration = 0.2f;
 
@@ -241,9 +281,6 @@ protected:
 	 *  double up (or a mismatched call double-remove) an InvincibilityRequestCount entry */
 	bool bIsDebugInvincible = false;
 
-	/** Game time the last attack was performed */
-	float LastAttackTime = -1000.0f;
-
 	/** Game time the last dash was performed */
 	float LastDashTime = -1000.0f;
 
@@ -256,6 +293,10 @@ protected:
 
 	/** Timer used to end the dash state after DashDuration */
 	FTimerHandle DashDurationTimerHandle;
+
+	/** Fires ReorientToMovementDirection() after PostAttackRotationDelay once an attack's motion actually
+	 *  ends. Restarted/cleared by HandleAttackStateChanged and DoDash */
+	FTimerHandle PostAttackRotationTimerHandle;
 
 	/** True while Health is at 0 and the character is lying down, uncontrollable, waiting to be revived */
 	bool bIsDowned = false;
@@ -339,8 +380,13 @@ protected:
 	/** Called for RollRoulette input */
 	void RollRoulette(const FInputActionValue& Value);
 
-	/** Called for ToggleCamera input. Swaps split-screen/single-camera via ACPGameMode::ToggleCameraMode */
-	void ToggleCamera(const FInputActionValue& Value);
+	void UseSlotEast(const FInputActionValue& Value);
+
+	void UseSlotNorth(const FInputActionValue& Value);
+
+	void UseSlotWest(const FInputActionValue& Value);
+
+	void UseSlotSouth(const FInputActionValue& Value);
 
 	/** Bound to WeaponManager->OnWeaponChanged. Subscribes to the newly equipped weapon's OnAttackStateChanged */
 	UFUNCTION()
@@ -374,9 +420,8 @@ protected:
 	 *  while bDrawDebugReviveRange is true */
 	void DrawDebugReviveRangeShape() const;
 
-	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Reacts to PlayerWeapon (the legacy
-	 *  unarmed attack box) and PlayerRevive (ReviveDetectionRange) - the other categories are handled by
-	 *  DebugHitboxShape directly */
+	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Reacts to PlayerRevive
+	 *  (ReviveDetectionRange) - the other categories are handled by DebugHitboxShape directly */
 	UFUNCTION()
 	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
 
@@ -426,9 +471,13 @@ protected:
 	/** Resolves a WASD input vector into a world space direction relative to the fixed camera yaw */
 	FVector GetWorldDirectionFromInput(const FVector2D& InputVector) const;
 
-	/** Resolves the current attack/aim direction: for a gamepad player, the current/last movement
-	 *  direction (see GetLastMovementWorldDirection) - no separate aim stick. For a keyboard/mouse
-	 *  player, the direction from the character to the mouse cursor's world location, as before */
+	/** Resolves the current attack/aim direction. Checks the gamepad's own left stick live (raw
+	 *  EKeys::Gamepad_LeftX/Y, independent of any Enhanced Input mapping/device-ownership classification) -
+	 *  if it's currently being pushed, aims in the current/last movement direction (see
+	 *  GetLastMovementWorldDirection; there's no separate aim stick). Otherwise aims at the mouse cursor's
+	 *  world location (deprojected against a horizontal plane at the character's height - not a collision
+	 *  trace, so it doesn't depend on the floor blocking any particular channel). This lets the same
+	 *  controller freely mix mouse aiming and gamepad-stick aiming rather than being locked to one */
 	FVector GetAttackDirection() const;
 
 	/** Converts LastMoveInputVector to a world-space direction, falling back to the character's current
@@ -436,13 +485,16 @@ protected:
 	 *  gamepad, the attack direction */
 	FVector GetLastMovementWorldDirection() const;
 
-	/** Runs the rectangular box trace attack and applies damage to anything hit */
-	void PerformAttack();
 
-	/** Faces the character toward the mouse cursor, then lunges it forward by AttackLungeDistance if it was
-	 *  moving fast enough (in its current movement direction) when the attack started. Called right after a
-	 *  weapon attack successfully begins */
-	void OrientAndLungeForAttack();
+	/** Snaps the character to face the current attack/aim direction (see GetAttackDirection). Called once
+	 *  when a combo string starts (see HandleAttackStateChanged) - movement itself is left untouched, so
+	 *  the player can keep moving freely while the character's facing stays locked onto the attack direction */
+	void OrientTowardsAttackDirection();
+
+	/** Re-enables normal movement-driven rotation (CharacterMovementComponent turns the character to face
+	 *  its movement direction again). Fires on PostAttackRotationTimerHandle, PostAttackRotationDelay
+	 *  seconds after an attack's motion ends (see HandleAttackStateChanged) */
+	void ReorientToMovementDirection();
 
 	/** Ends the dash movement and invincibility window */
 	void EndDash();
@@ -455,6 +507,19 @@ protected:
 
 	/** Pushes current stat values onto the systems that use them (e.g. MoveSpeed -> MaxWalkSpeed) */
 	void ApplyStatsToGameplay();
+
+	void InitStatsFromDataTable();
+
+	const FCPPlayerLevelStatRow* FindLevelStatRow(int32 InLevel) const;
+
+	float GetRequiredExperienceForLevel(int32 InLevel) const;
+
+	void PlayHitFlash();
+
+	UFUNCTION()
+	void HandleHitFlashUpdate(float Value);
+
+	void PlayHitCameraShake();
 
 	/** Recomputes CurrentInteractable as the closest valid entry in NearbyInteractables */
 	void RefreshCurrentInteractable();
@@ -476,6 +541,27 @@ public:
 	virtual float GetStat(ECPStatType StatType) const override;
 
 	// ~end ICPStatInterface
+
+	// ~begin ICPCoinWallet
+
+	virtual void AddCoin(int32 Amount) override;
+
+	virtual int32 GetCoinAmount() const override { return CoinCount; }
+
+	virtual bool HasEnoughCoin(int32 Amount) const override { return CoinCount >= Amount; }
+
+	virtual bool TrySpendCoin(int32 Amount) override;
+
+	// ~end ICPCoinWallet
+
+	UFUNCTION(BlueprintCallable, Category="Wallet")
+	void AddTicket(int32 Amount = 1);
+
+	UFUNCTION(BlueprintPure, Category="Wallet")
+	int32 GetTicketCount() const { return TicketCount; }
+
+	UFUNCTION(BlueprintCallable, Category="Wallet")
+	bool TrySpendTicket(int32 Amount = 1);
 
 	// ~begin ICPInteractor
 
@@ -545,6 +631,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnCPPlayerHealthChanged OnHealthChanged;
 
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnCPPlayerCoinChanged OnCoinChanged;
+
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnCPPlayerTicketChanged OnTicketChanged;
+
 	/** Assigns the RadialGaugeComponent this character drives to show revive progress. Called once by
 	 *  ACPGameMode right after this character is created (see ACPGameMode::AttachReviveGaugeToPlayer) */
 	void SetReviveGaugeComponent(UCPRadialGaugeComponent* InComponent) { ReviveGaugeComponent = InComponent; }
@@ -556,9 +648,19 @@ public:
 	UFUNCTION(BlueprintPure, Category="Dash")
 	bool IsDashing() const { return bIsDashing; }
 
-	/** Returns true while a weapon combo string is in progress (movement/rotation input is locked out) */
+	/** Returns true while a weapon combo string is in progress (facing is locked to the attack direction -
+	 *  see bIsAttackLocked) */
 	UFUNCTION(BlueprintPure, Category="Combat")
 	bool IsAttackLocked() const { return bIsAttackLocked; }
+
+	/** Current movement direction in degrees relative to the character's own current facing (0 = forward,
+	 *  +90 = right, -90 = left, ±180 = backward) - feed this into a 4-way (forward/left/right/backward)
+	 *  movement Blend Space in the Animation Blueprint. Based on current velocity and is always relative to
+	 *  however the character is currently facing, so it stays correct even while attacking has rotated the
+	 *  character away from its movement direction (e.g. moving backward relative to the attack facing while
+	 *  swinging a weapon correctly reads as ~180 / backward) */
+	UFUNCTION(BlueprintPure, Category="Animation")
+	float GetMovementDirection() const;
 
 	/** Returns true while the character is invincible, for any reason (dash, post-revive window, or a
 	 *  debug override) */
@@ -578,4 +680,7 @@ public:
 
 	/** Returns WeaponManager subobject **/
 	FORCEINLINE class UCPWeaponManagerComponent* GetWeaponManager() const { return WeaponManager; }
+	FORCEINLINE class UCPMonsterSpawnManagerComponent* GetMonsterSpawnManager() const { return MonsterSpawnManager; }
+
+	FORCEINLINE class UCPInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 };
