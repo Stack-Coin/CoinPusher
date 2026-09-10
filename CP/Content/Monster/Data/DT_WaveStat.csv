@@ -1,0 +1,10 @@
+---,MonsterType,Wave,AddMaxHealth,AddMoveSpeed,AddAttackPower
+Normal_1,Normal,1,0,0,0
+Normal_2,Normal,2,5,0,1
+Normal_3,Normal,3,10,0,2
+Tanker_1,Tanker,1,0,0,0
+Tanker_2,Tanker,2,10,0,1
+Tanker_3,Tanker,3,20,0,1
+Ranged_1,Ranged,1,0,0,0
+Ranged_2,Ranged,2,3,0,1
+Ranged_3,Ranged,3,6,0,2

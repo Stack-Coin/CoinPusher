@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -12,12 +12,12 @@ enum class ECPWavePhase : uint8
 {
 	Spawning     UMETA(DisplayName = "Spawning"),      // 몬스터 무리를 생성하는 중
 	WaveWait     UMETA(DisplayName = "Wave Wait"),      // 웨이브 사이 대기 중
-	RoundWait    UMETA(DisplayName = "Round Wait"),     // 마지막 웨이브 종료 후 보스 등장 대기 중
+	RoundWait    UMETA(DisplayName = "Round Wait"),     // 마지막 웨이브와 함께 보스 등장을 대기 중
 	Finished     UMETA(DisplayName = "Finished")        // 라운드(보스 포함) 종료
 };
 
 USTRUCT(BlueprintType)
-struct FCPSpawnWaveEntryRow : public FTableRowBase
+struct FCPMonsterWaveInfoRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
@@ -66,7 +66,7 @@ struct FCPSpawnWaveEntryRow : public FTableRowBase
  *  별도 테이블로 쪼개지 않고 여기 모아뒀습니다.)
  */
 USTRUCT(BlueprintType)
-struct FCPRoundInfoRow : public FTableRowBase
+struct FCPMonsterRoundInfoRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
@@ -88,7 +88,9 @@ struct FCPRoundInfoRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss")
 	int32 BossSpawnerIndex = 0;
 
-	/** 마지막 웨이브 종료 후, 보스 등장까지 대기시간(초) - 기획서의 "라운드 대기시간" */
+	/** 마지막 웨이브가 시작되는 순간부터 카운트다운을 시작해서, 이 시간 후에 보스가 등장합니다 -
+	 *  기획서의 "라운드 대기시간". 마지막 웨이브 전멸을 기다리지 않으므로, 마지막 웨이브 몹과
+	 *  보스가 겹쳐서 함께 등장하는 페이즈를 만들기 위한 값입니다 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
 	float RoundEndWaitTime = 10.0f;
 
@@ -105,4 +107,16 @@ struct FCPRoundInfoRow : public FTableRowBase
 	 *  무적 해제도 몽타주 종료 이벤트가 아니라 이 시간을 그대로 타이머로 써서 데이터로 제어됨 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
 	float RoarDuration = 2.0f;
+
+	// ----- 보스 전용 라운드 스탯 보정치. DT_RoundStat과 별개로, 보스 관련 값은 전부 여기(RoundInfo)에서만
+	// 관리함 - ACPMonsterBoss::ApplyBossWaveStat으로 전달되어 스폰 직후 BaseStat 위에 더해짐 -----
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss|Stat")
+	float AddBossMaxHealth = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss|Stat")
+	float AddBossMoveSpeed = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss|Stat")
+	float AddBossAttackPower = 0.f;
 };

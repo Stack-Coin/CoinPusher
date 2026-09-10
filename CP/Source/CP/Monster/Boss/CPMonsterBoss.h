@@ -23,10 +23,14 @@ class CP_API ACPMonsterBoss : public ACPMonsterBase
 public:
 	ACPMonsterBoss();
 
-	/** 스포너가 SpawnBoss()에서 RoundInfoTable(FCPRoundInfoRow)의 해당 Round 행을 찾은 직후 호출:
-	 *  그 행의 RoarHealthPercentThreshold/SlamCooldown/RoarDuration 값으로 덮어씀. 호출되지 않으면
-	 *  (레벨에 직접 배치해서 테스트하는 경우 등) 아래 Blueprint 디테일 패널에 넣어둔 기본값을 그대로 사용함 */
-	void ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration);
+	/** 스포너가 SpawnBoss()에서 RoundInfoTable(FCPMonsterRoundInfoRow)의 해당 Round 행을 찾은 직후 호출:
+	 *  그 행의 RoarHealthPercentThreshold/SlamCooldown/RoarDuration 값으로 덮어쓰고, AddBossMaxHealth/
+	 *  AddBossMoveSpeed/AddBossAttackPower를 (스폰 시 이미 적용된) 기본 스탯 위에 추가로 더합니다.
+	 *  보스 관련 라운드 보정치는 DT_RoundStat이 아니라 전부 여기(RoundInfo) 한 곳에서만 관리됨.
+	 *  호출되지 않으면(레벨에 직접 배치해서 테스트하는 경우 등) 아래 Blueprint 디테일 패널에 넣어둔
+	 *  기본값을 그대로 사용함 */
+	void ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration,
+		float InAddMaxHealth = 0.f, float InAddMoveSpeed = 0.f, float InAddAttackPower = 0.f);
 
 protected:
 	virtual void Tick(float DeltaSeconds) override;

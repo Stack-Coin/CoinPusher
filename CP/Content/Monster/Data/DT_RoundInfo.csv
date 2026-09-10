@@ -1,0 +1,2 @@
+---,Round,SpawnerCount,SpawnerRadius,BossMonsterType,BossSpawnerIndex,RoundEndWaitTime,RoarHealthPercentThreshold,SlamCooldown,RoarDuration,AddBossMaxHealth,AddBossMoveSpeed,AddBossAttackPower
+R1,1,10,3000,Boss,0,10,0.5,4,2,150,0,5

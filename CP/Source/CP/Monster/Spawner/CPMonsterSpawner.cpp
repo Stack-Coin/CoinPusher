@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Monster/Spawner/CPMonsterSpawner.h"
@@ -26,11 +26,13 @@ ACPMonsterSpawner::ACPMonsterSpawner()
 	SpawnDirection->SetupAttachment(RootComponent);
 }
 
-ACPMonsterBase* ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount, float InRowSpacingY, int32 InWave)
+TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave)
 {
+	TArray<ACPMonsterBase*> SpawnedMonsters;
+
 	if (!IsValid(MonsterClass) || InCount <= 0 || !GetWorld())
 	{
-		return nullptr;
+		return SpawnedMonsters;
 	}
 
 	FTransform BaseTransform = SpawnCapsule->GetComponentTransform();
@@ -49,7 +51,7 @@ ACPMonsterBase* ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> M
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	ACPMonsterBase* LastSpawned = nullptr;
+	SpawnedMonsters.Reserve(InCount);
 
 	for (int32 i = 0; i < InCount; ++i)
 	{
@@ -61,10 +63,10 @@ ACPMonsterBase* ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> M
 
 		if (ACPMonsterBase* SpawnedMonster = GetWorld()->SpawnActor<ACPMonsterBase>(MonsterClass, SpawnTransform, SpawnParams))
 		{
-			SpawnedMonster->ApplyWaveStat(InWave);
-			LastSpawned = SpawnedMonster;
+			SpawnedMonster->ApplyWaveStat(InRound, InWave);
+			SpawnedMonsters.Add(SpawnedMonster);
 		}
 	}
 
-	return LastSpawned;
+	return SpawnedMonsters;
 }

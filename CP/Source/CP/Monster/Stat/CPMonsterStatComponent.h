@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -19,7 +19,7 @@ public:
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "Stat")
-	void InitStat(ECPMonsterType InMonsterType, int32 InWave);
+	void InitStat(ECPMonsterType InMonsterType, int32 InRound, int32 InWave);
 
 private:
 	static FName GetMonsterTypeRowName(ECPMonsterType InType);
@@ -36,7 +36,7 @@ public:
 	// 기획자
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Wave")
 	float MaxHealth = 0.f;
-	
+
 	// 읽기 전용
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stat|Wave")
 	float CurrentHealth = 0.f;

@@ -75,10 +75,10 @@ public:
 	// StatComponent의 값을 참조
 	virtual UCPMonsterStatComponent* GetAIStatComponent() const override;
 
-	/** 매니저/스포너가 스폰 직후 호출: 지정한 웨이브 번호 기준으로 스탯을 다시 계산해 적용합니다.
-	 *  (BeginPlay는 항상 1웨이브 기준으로 초기화하므로, 실제 웨이브에 맞춰 덮어쓸 때 사용) */
+	/** 매니저/스포너가 스폰 직후 호출: 지정한 라운드/웨이브 번호 기준으로 스탯을 다시 계산해 적용합니다.
+	 *  (BeginPlay는 항상 1라운드/1웨이브 기준으로 초기화하므로, 실제 라운드/웨이브에 맞춰 덮어쓸 때 사용) */
 	UFUNCTION(BlueprintCallable, Category = "Stat")
-	void ApplyWaveStat(int32 InWave);
+	void ApplyWaveStat(int32 InRound, int32 InWave);
 
 	// Wave별
 	virtual float GetAIMaxHealth() override;

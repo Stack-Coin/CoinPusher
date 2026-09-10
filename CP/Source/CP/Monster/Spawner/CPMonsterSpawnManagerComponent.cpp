@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
@@ -82,7 +82,7 @@ void UCPMonsterSpawnManagerComponent::LoadAsset()
 
 void UCPMonsterSpawnManagerComponent::ApplyRoundInfo(int32 InRound)
 {
-	const FCPRoundInfoRow* RoundInfo = FindRoundInfoRow(InRound);
+	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(InRound);
 
 	const int32 ResolvedSpawnerCount = RoundInfo ? RoundInfo->SpawnerCount : SpawnerCount;
 	const float ResolvedSpawnerRadius = RoundInfo ? RoundInfo->SpawnerRadius : SpawnerRadius;
@@ -101,6 +101,9 @@ void UCPMonsterSpawnManagerComponent::ApplyRoundInfo(int32 InRound)
 		}
 	}
 	ActiveJobs.Reset();
+
+	// 이번 라운드에서(웨이브들에 걸쳐 누적으로) 스폰된 몬스터 생존 수를 새로 세기 시작
+	WaveAliveMonsterCount = 0;
 
 	CreateSpawnerRing(ResolvedSpawnerCount, ResolvedSpawnerRadius);
 }
@@ -173,7 +176,7 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 {
 	const int32 WaveNumber = InWaveIndex + 1; // 데이터 테이블의 Wave 컬럼은 1부터 시작
 
-	TArray<FCPSpawnWaveEntryRow*> Entries;
+	TArray<FCPMonsterWaveInfoRow*> Entries;
 	GetWaveEntries(CurrentRound, WaveNumber, Entries);
 
 	if (Entries.IsEmpty())
@@ -186,12 +189,20 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 	CurrentWaveIndex = InWaveIndex;
 	CurrentPhase = ECPWavePhase::Spawning;
 
+	// 다음 웨이브 엔트리가 없으면 이번이 이 라운드의 마지막 웨이브 - 마지막 웨이브는 기본 몹 전멸을
+	// 기다리지 않고, 웨이브가 시작되는 순간 바로 보스 타이머도 함께 돌려서 "마지막 웨이브 몹 + 보스"가
+	// 같은 페이즈에 함께 등장하도록 함 (예전처럼 마지막 웨이브를 다 잡아야 보스가 나오고, 그 뒤에 같은
+	// 몹이 또 한 번 스폰되는 이중 스폰 문제를 없앰)
+	TArray<FCPMonsterWaveInfoRow*> NextEntries;
+	GetWaveEntries(CurrentRound, WaveNumber + 1, NextEntries);
+	bFinalWaveOfRound = NextEntries.IsEmpty();
+
 	ActiveJobs.Reset();
 	WaveSpawnTotalSeconds = 0.f;
 	WaveStartWorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 	CurrentWaveEndWaitTime = Entries[0]->WaveEndWaitTime; // 같은 웨이브의 행들은 동일한 값을 넣는다고 가정
 
-	for (const FCPSpawnWaveEntryRow* Entry : Entries)
+	for (const FCPMonsterWaveInfoRow* Entry : Entries)
 	{
 		FCPActiveSpawnJob Job;
 		Job.MonsterClass = MonsterClassByType.FindRef(Entry->MonsterType);
@@ -215,6 +226,13 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 		GetWorld()->GetTimerManager().SetTimer(ActiveJobs[JobIndex].TimerHandle, TimerDelegate, Entry->SpawnInterval, true, 0.f);
 	}
 
+	if (bFinalWaveOfRound)
+	{
+		// 마지막 웨이브는 스폰 규칙이 있든 없든, 이 시점에 곧바로 보스 타이머를 시작함(전멸 대기 없음)
+		StartBossWave();
+		return;
+	}
+
 	// 이번 웨이브에 유효한 스폰 규칙이 하나도 없다면 곧바로 다음 단계로 진행
 	if (ActiveJobs.IsEmpty())
 	{
@@ -222,7 +240,7 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 	}
 }
 
-void UCPMonsterSpawnManagerComponent::GetWaveEntries(int32 InRound, int32 InWave, TArray<FCPSpawnWaveEntryRow*>& OutEntries) const
+void UCPMonsterSpawnManagerComponent::GetWaveEntries(int32 InRound, int32 InWave, TArray<FCPMonsterWaveInfoRow*>& OutEntries) const
 {
 	OutEntries.Reset();
 
@@ -231,10 +249,10 @@ void UCPMonsterSpawnManagerComponent::GetWaveEntries(int32 InRound, int32 InWave
 		return;
 	}
 
-	TArray<FCPSpawnWaveEntryRow*> AllRows;
-	WaveInfoTable->GetAllRows<FCPSpawnWaveEntryRow>(TEXT("UCPMonsterSpawnManagerComponent::GetWaveEntries"), AllRows);
+	TArray<FCPMonsterWaveInfoRow*> AllRows;
+	WaveInfoTable->GetAllRows<FCPMonsterWaveInfoRow>(TEXT("UCPMonsterSpawnManagerComponent::GetWaveEntries"), AllRows);
 
-	for (FCPSpawnWaveEntryRow* Row : AllRows)
+	for (FCPMonsterWaveInfoRow* Row : AllRows)
 	{
 		if (Row && Row->Round == InRound && Row->Wave == InWave)
 		{
@@ -245,19 +263,36 @@ void UCPMonsterSpawnManagerComponent::GetWaveEntries(int32 InRound, int32 InWave
 
 void UCPMonsterSpawnManagerComponent::StartBossWave()
 {
+	// 이 함수가 실제로 몇 번, 언제 호출되는지 확인용 - 반복 호출되면 RoundWaitTimer가 매번 리셋되어
+	// SpawnBoss()가 영영 안 불릴 수 있음
+	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] StartBossWave() 진입 (Round %d, WorldTime %.2f, 이전 Phase %d)"),
+		CurrentRound, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.f, (int32)CurrentPhase);
+
 	CurrentPhase = ECPWavePhase::RoundWait;
 
-	const FCPRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
+	// 이 함수는 마지막 웨이브 시작과 동시에 호출되므로, 지금 이 시점엔 그 웨이브의 ActiveJobs가 아직
+	// 기본 몹을 스폰하는 중일 수 있음 - 그대로 계속 진행되며, 여기서 몹을 별도로 다시 스폰하지 않음
+	// (마지막 웨이브 몹 + 보스가 같은 페이즈에 함께 등장하고, 중복 스폰도 없음)
+	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
 	const float WaitTime = RoundInfo ? RoundInfo->RoundEndWaitTime : 0.f;
+
+	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] StartBossWave() - SpawnBoss()를 %.2f초 뒤에 예약합니다 (RoundInfo %s)."),
+		WaitTime, RoundInfo ? TEXT("찾음") : TEXT("못 찾음(nullptr)"));
 
 	GetWorld()->GetTimerManager().SetTimer(RoundWaitTimer, this, &UCPMonsterSpawnManagerComponent::SpawnBoss, WaitTime, false);
 }
 
 void UCPMonsterSpawnManagerComponent::SpawnBoss()
 {
-	const FCPRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
+	// 타이머 콜백이 실제로 호출됐는지 확인용 - 이 로그조차 안 뜨면 RoundWaitTimer가 애초에 발동을
+	// 안 한 것(예: WaitTime이 0 이하로 계산됐거나, StartBossWave()가 반복 호출되어 계속 리셋됨)
+	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss() 타이머 콜백 진입 (Round %d, WorldTime %.2f)"),
+		CurrentRound, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.f);
+
+	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
 	if (!RoundInfo)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - RoundInfoTable에 Round %d 행이 없습니다."), CurrentRound);
 		CurrentPhase = ECPWavePhase::Finished;
 		return;
 	}
@@ -265,12 +300,14 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 	ACPMonsterSpawner* BossSpawner = SpawnersByIndex.FindRef(RoundInfo->BossSpawnerIndex);
 	if (!IsValid(BossSpawner))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - BossSpawnerIndex %d에 해당하는 스포너가 없습니다 (SpawnerCount 범위를 벗어남)."), RoundInfo->BossSpawnerIndex);
 		CurrentPhase = ECPWavePhase::Finished;
 		return;
 	}
 
 	if (!IsSpawnerLocationValid(BossSpawner->GetActorLocation()))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - BossSpawnerIndex %d 위치가 네브메시 밖으로 판단됐습니다."), RoundInfo->BossSpawnerIndex);
 		CurrentPhase = ECPWavePhase::Finished;
 		return;
 	}
@@ -278,11 +315,13 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 	TSubclassOf<ACPMonsterBase> BossClass = MonsterClassByType.FindRef(RoundInfo->BossMonsterType);
 	if (!IsValid(BossClass))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - BossMonsterType(%d)에 해당하는 몬스터 클래스를 LoadAsset()에서 찾지 못했습니다."), (int32)RoundInfo->BossMonsterType);
 		CurrentPhase = ECPWavePhase::Finished;
 		return;
 	}
 
-	ACPMonsterBase* SpawnedBoss = BossSpawner->SpawnMonsterRow(BossClass, 1, 0.f, GetWaveCount());
+	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, 1, 0.f, CurrentRound, GetWaveCount());
+	ACPMonsterBase* SpawnedBoss = SpawnedBossRow.IsValidIndex(0) ? SpawnedBossRow[0] : nullptr;
 	if (SpawnedBoss)
 	{
 		ActiveBoss = SpawnedBoss;
@@ -291,11 +330,13 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		// RoundInfoTable 행에 담긴 Boss 전용 값(포효 임계치/슬램 쿨타임/포효 지속시간)을 스폰된 인스턴스에 적용
 		if (ACPMonsterBoss* Boss = Cast<ACPMonsterBoss>(SpawnedBoss))
 		{
-			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown, RoundInfo->RoarDuration);
+			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown, RoundInfo->RoarDuration,
+				RoundInfo->AddBossMaxHealth, RoundInfo->AddBossMoveSpeed, RoundInfo->AddBossAttackPower);
 		}
 	}
 	else
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - SpawnMonsterRow가 액터를 생성하지 못했습니다."));
 		CurrentPhase = ECPWavePhase::Finished;
 	}
 }
@@ -348,6 +389,19 @@ bool UCPMonsterSpawnManagerComponent::IsSpawnerLocationValid(const FVector& InLo
 	return NavSys->ProjectPointToNavigation(InLocation, OutNavLocation, FVector(ProjectionExtentXY, ProjectionExtentXY, ProjectionExtentZ));
 }
 
+bool UCPMonsterSpawnManagerComponent::IsWaveSpawningComplete() const
+{
+	for (const FCPActiveSpawnJob& Job : ActiveJobs)
+	{
+		if (Job.SpawnedCount < Job.CountPerSpawnPoint)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void UCPMonsterSpawnManagerComponent::EndWave()
 {
 	CurrentPhase = ECPWavePhase::WaveWait;
@@ -368,7 +422,15 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 	{
 		if (IsValid(Spawner))
 		{
-			Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentWaveIndex + 1);
+			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, CurrentWaveIndex + 1);
+			for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
+			{
+				if (IsValid(SpawnedMonster))
+				{
+					++WaveAliveMonsterCount;
+					SpawnedMonster->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleWaveMonsterDied);
+				}
+			}
 		}
 	}
 
@@ -385,15 +447,18 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 	}
 
 	// 이 Job은 끝났으니, 다른 Job들도 전부 끝났는지 확인 (예전엔 CheckWaveComplete()로 분리했던 부분)
-	for (const FCPActiveSpawnJob& OtherJob : ActiveJobs)
+	if (!IsWaveSpawningComplete())
 	{
-		if (OtherJob.SpawnedCount < OtherJob.CountPerSpawnPoint)
-		{
-			return; // 아직 안 끝난 Job이 있음
-		}
+		return; // 아직 안 끝난 Job이 있음
 	}
 
-	EndWave();
+	// 마지막 웨이브라면 StartWave()에서 이미 StartBossWave()를 호출해뒀으므로 여기서는 할 일이 없음 -
+	// 스폰만 끝났을 뿐, 보스 등장/다음 라운드 전환은 전멸 여부와 무관하게 타이머(RoundEndWaitTime)
+	// 기준으로 이미 진행 중임
+	if (!bFinalWaveOfRound)
+	{
+		EndWave();
+	}
 }
 
 void UCPMonsterSpawnManagerComponent::HandleWaveWaitFinished()
@@ -401,8 +466,25 @@ void UCPMonsterSpawnManagerComponent::HandleWaveWaitFinished()
 	StartWave(CurrentWaveIndex + 1);
 }
 
+void UCPMonsterSpawnManagerComponent::HandleWaveMonsterDied()
+{
+	// 화면 표시 등에 쓰일 수 있는 생존 카운트만 갱신함 - 이제 보스 등장은 전멸 여부와 무관하게
+	// 타이머(RoundEndWaitTime)로만 결정되므로, 여기서 StartBossWave()를 호출하지 않음
+	WaveAliveMonsterCount = FMath::Max(0, WaveAliveMonsterCount - 1);
+}
+
 void UCPMonsterSpawnManagerComponent::HandleBossDied()
 {
+	// 보스와 함께 등장했던 마지막 웨이브의 스폰 타이머가 아직 안 끝났을 수 있으므로 먼저 멈춤
+	// (다음 라운드로 넘어가든 게임이 끝나든 더 이상 스폰되면 안 됨)
+	if (UWorld* World = GetWorld())
+	{
+		for (FCPActiveSpawnJob& Job : ActiveJobs)
+		{
+			World->GetTimerManager().ClearTimer(Job.TimerHandle);
+		}
+	}
+
 	// 기획서: 보스 사망시 나머지 일반 몬스터도 즉시 제거
 	TArray<AActor*> RemainingMonsters;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBase::StaticClass(), RemainingMonsters);
@@ -416,25 +498,35 @@ void UCPMonsterSpawnManagerComponent::HandleBossDied()
 	}
 
 	ActiveBoss = nullptr;
-	CurrentPhase = ECPWavePhase::Finished;
 
-	// 프로토타입: 라운드가 1개뿐이라 여기서 종료합니다.
-	// 라운드가 여러 개가 되면: ++CurrentRound; ApplyRoundInfo(CurrentRound); CurrentWaveIndex = 0;
-	// StartWave(0); 순서로 여기서 호출하면 됩니다 (ApplyRoundInfo가 새 라운드의 스포너 링을
-	// 재생성하고 나서 웨이브를 시작해야 하므로 이 순서가 중요합니다).
+	// 다음 라운드 정보가 있으면(=RoundInfoTable에 CurrentRound+1 행이 있으면) 이어서 다음 라운드를 시작하고,
+	// 없으면 이번이 마지막 라운드라는 뜻이므로 여기서 종료함. 승리/패배 처리는 아직 여기서 하지 않고,
+	// 이 분기(else)가 "마지막 라운드 보스 사망" 시점을 데이터 기반으로 감지하는 지점이라 나중에
+	// 게임 승리 처리를 추가하고 싶으면 여기에 붙이면 됨
+	if (FindRoundInfoRow(CurrentRound + 1))
+	{
+		++CurrentRound;
+		ApplyRoundInfo(CurrentRound);
+		CurrentWaveIndex = 0;
+		StartWave(0);
+	}
+	else
+	{
+		CurrentPhase = ECPWavePhase::Finished;
+	}
 }
 
-FCPRoundInfoRow* UCPMonsterSpawnManagerComponent::FindRoundInfoRow(int32 InRound) const
+FCPMonsterRoundInfoRow* UCPMonsterSpawnManagerComponent::FindRoundInfoRow(int32 InRound) const
 {
 	if (!RoundInfoTable)
 	{
 		return nullptr;
 	}
 
-	TArray<FCPRoundInfoRow*> AllRows;
-	RoundInfoTable->GetAllRows<FCPRoundInfoRow>(TEXT("UCPMonsterSpawnManagerComponent::FindRoundInfoRow"), AllRows);
+	TArray<FCPMonsterRoundInfoRow*> AllRows;
+	RoundInfoTable->GetAllRows<FCPMonsterRoundInfoRow>(TEXT("UCPMonsterSpawnManagerComponent::FindRoundInfoRow"), AllRows);
 
-	for (FCPRoundInfoRow* Row : AllRows)
+	for (FCPMonsterRoundInfoRow* Row : AllRows)
 	{
 		if (Row && Row->Round == InRound)
 		{
@@ -452,11 +544,11 @@ int32 UCPMonsterSpawnManagerComponent::GetWaveCount() const
 		return 0;
 	}
 
-	TArray<FCPSpawnWaveEntryRow*> AllRows;
-	WaveInfoTable->GetAllRows<FCPSpawnWaveEntryRow>(TEXT("UCPMonsterSpawnManagerComponent::GetWaveCount"), AllRows);
+	TArray<FCPMonsterWaveInfoRow*> AllRows;
+	WaveInfoTable->GetAllRows<FCPMonsterWaveInfoRow>(TEXT("UCPMonsterSpawnManagerComponent::GetWaveCount"), AllRows);
 
 	int32 MaxWave = 0;
-	for (const FCPSpawnWaveEntryRow* Row : AllRows)
+	for (const FCPMonsterWaveInfoRow* Row : AllRows)
 	{
 		if (Row && Row->Round == CurrentRound)
 		{
@@ -480,7 +572,7 @@ int32 UCPMonsterSpawnManagerComponent::GetSpawnElapsedSeconds() const
 
 float UCPMonsterSpawnManagerComponent::GetRoundEndWaitSeconds() const
 {
-	const FCPRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
+	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
 	return RoundInfo ? RoundInfo->RoundEndWaitTime : 0.f;
 }
 
