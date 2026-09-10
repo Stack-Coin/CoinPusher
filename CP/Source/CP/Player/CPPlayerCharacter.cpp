@@ -9,22 +9,29 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerInput.h"
+#include "InputCoreTypes.h"
 #include "EnhancedInputComponent.h"
 #include "InputActionValue.h"
-#include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
+#include "KismetAnimationLibrary.h"
 #include "TimerManager.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPItemEffect.h"
 #include "Weapon/CPWeaponManagerComponent.h"
 #include "Weapon/CPWeaponBase.h"
 #include "Roulette/CPRoulette.h"
-#include "Player/CPTopDownPlayerController.h"
-#include "Player/CPGameMode.h"
 #include "UI/CPRadialGaugeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
 #include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
+#include "Player/Stat/CPPlayerStatTableTypes.h"
+#include "Player/Inventory/CPInventoryComponent.h"
+#include "Components/TimelineComponent.h"
+#include "Components/MeshComponent.h"
+#include "Curves/CurveFloat.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Camera/CameraShakeBase.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -92,13 +99,44 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel7, ECR_Overlap);
 
 	MonsterSpawnManager = CreateDefaultSubobject<UCPMonsterSpawnManagerComponent>(TEXT("MonsterSpawnManager"));
+	HitFlashTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("HitFlashTimeline"));
+
+	UCurveFloat* DefaultHitFlashCurve = CreateDefaultSubobject<UCurveFloat>(TEXT("HitFlashDefaultCurve"));
+	DefaultHitFlashCurve->FloatCurve.AddKey(0.0f, 1.0f);
+	DefaultHitFlashCurve->FloatCurve.AddKey(1.0f, 0.0f);
+	HitFlashCurve = DefaultHitFlashCurve;
+
+	InventoryComponent = CreateDefaultSubobject<UCPInventoryComponent>(TEXT("InventoryComponent"));
 }
 
 void ACPPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	InitStatsFromDataTable();
 	ApplyStatsToGameplay();
+
+	TArray<UMeshComponent*> PlayerMeshComponents;
+	GetComponents<UMeshComponent>(PlayerMeshComponents);
+	for (UMeshComponent* PlayerMeshComponent : PlayerMeshComponents)
+	{
+		for (int32 MaterialIndex = 0; MaterialIndex < PlayerMeshComponent->GetNumMaterials(); ++MaterialIndex)
+		{
+			if (UMaterialInstanceDynamic* MID = PlayerMeshComponent->CreateAndSetMaterialInstanceDynamic(MaterialIndex))
+			{
+				HitFlashMIDs.Add(MID);
+			}
+		}
+	}
+
+	if (HitFlashTimeline && HitFlashCurve)
+	{
+		FOnTimelineFloat HitFlashUpdateEvent;
+		HitFlashUpdateEvent.BindUFunction(this, FName("HandleHitFlashUpdate"));
+		HitFlashTimeline->AddInterpFloat(HitFlashCurve, HitFlashUpdateEvent);
+		HitFlashTimeline->SetLooping(false);
+		HitFlashTimeline->SetPlayRate(HitFlashSpeed);
+	}
 
 	ReviveDetectionRange->SetSphereRadius(ReviveDetectionRadius);
 	ReviveDetectionRange->ShapeColor = DebugReviveRangeColor;
@@ -106,7 +144,6 @@ void ACPPlayerCharacter::BeginPlay()
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
 	{
 		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPPlayerCharacter::HandleDebugCollisionVisibilityChanged);
-		bDrawDebugAttackBox = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::PlayerWeapon);
 		SetReviveRangeDebugDrawEnabled(Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::PlayerRevive));
 	}
 	else if (bDrawDebugReviveRange)
@@ -118,11 +155,7 @@ void ACPPlayerCharacter::BeginPlay()
 
 void ACPPlayerCharacter::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
 {
-	if (Category == ECPDebugCollisionCategory::PlayerWeapon)
-	{
-		bDrawDebugAttackBox = bVisible;
-	}
-	else if (Category == ECPDebugCollisionCategory::PlayerRevive)
+	if (Category == ECPDebugCollisionCategory::PlayerRevive)
 	{
 		SetReviveRangeDebugDrawEnabled(bVisible);
 	}
@@ -151,7 +184,10 @@ void ACPPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::StartDash);
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::Interact);
 		EnhancedInputComponent->BindAction(RollRouletteAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::RollRoulette);
-		EnhancedInputComponent->BindAction(ToggleCameraAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::ToggleCamera);
+		EnhancedInputComponent->BindAction(UseSlotEastAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::UseSlotEast);
+		EnhancedInputComponent->BindAction(UseSlotNorthAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::UseSlotNorth);
+		EnhancedInputComponent->BindAction(UseSlotWestAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::UseSlotWest);
+		EnhancedInputComponent->BindAction(UseSlotSouthAction, ETriggerEvent::Started, this, &ACPPlayerCharacter::UseSlotSouth);
 	}
 	else
 	{
@@ -176,14 +212,38 @@ void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Rollin"));
-	Roulette->Roll();
+	Roulette->Roll(this);
 }
 
-void ACPPlayerCharacter::ToggleCamera(const FInputActionValue& Value)
+void ACPPlayerCharacter::UseSlotEast(const FInputActionValue& Value)
 {
-	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+	if (InventoryComponent)
 	{
-		GameMode->ToggleCameraMode();
+		InventoryComponent->UseSlotItem(0);
+	}
+}
+
+void ACPPlayerCharacter::UseSlotNorth(const FInputActionValue& Value)
+{
+	if (InventoryComponent)
+	{
+		InventoryComponent->UseSlotItem(1);
+	}
+}
+
+void ACPPlayerCharacter::UseSlotWest(const FInputActionValue& Value)
+{
+	if (InventoryComponent)
+	{
+		InventoryComponent->UseSlotItem(2);
+	}
+}
+
+void ACPPlayerCharacter::UseSlotSouth(const FInputActionValue& Value)
+{
+	if (InventoryComponent)
+	{
+		InventoryComponent->UseSlotItem(3);
 	}
 }
 
@@ -223,7 +283,7 @@ void ACPPlayerCharacter::Interact(const FInputActionValue& Value)
 
 void ACPPlayerCharacter::DoMove(float Right, float Forward)
 {
-	if (Controller == nullptr || bIsAttackLocked || bIsDowned)
+	if (Controller == nullptr || bIsDowned)
 	{
 		return;
 	}
@@ -239,32 +299,19 @@ void ACPPlayerCharacter::DoMove(float Right, float Forward)
 
 void ACPPlayerCharacter::DoAttack()
 {
-	if (bIsAttackLocked || bIsDowned)
+	if (bIsDowned)
 	{
 		return;
 	}
 
-	// Armed: the weapon owns its own CanAttack/AttackInterval timing, so just forward the request to it
+	// ACPWeaponBase::CanAttack() already no-ops this while a combo string is in progress - no need to also
+	// gate on bIsAttackLocked here. Facing (see OrientTowardsAttackDirection) is handled by
+	// HandleAttackStateChanged, triggered by the weapon's own OnAttackStateChanged the moment this actually
+	// starts a new attack
 	if (WeaponManager && WeaponManager->GetCurrentWeapon())
 	{
-		if (WeaponManager->Attack())
-		{
-			OrientAndLungeForAttack();
-		}
-		return;
+		WeaponManager->Attack();
 	}
-
-	// Unarmed fallback: legacy bare-hand box-trace attack, preserved for backward compatibility
-	const float EffectiveAttackCooldown = Stats.AttackSpeed > 0.0f ? (AttackCooldown / Stats.AttackSpeed) : AttackCooldown;
-
-	const float CurrentTime = GetWorld()->GetTimeSeconds();
-	if (CurrentTime - LastAttackTime < EffectiveAttackCooldown)
-	{
-		return;
-	}
-	LastAttackTime = CurrentTime;
-
-	PerformAttack();
 }
 
 ACPWeaponBase* ACPPlayerCharacter::EquipWeapon(TSubclassOf<ACPWeaponBase> WeaponClass)
@@ -297,13 +344,19 @@ void ACPPlayerCharacter::DoDash()
 	LastDashTime = CurrentTime;
 
 	// Dash interrupts an in-progress attack: cancel the weapon's swing (which releases the attack lock via
-	// HandleAttackStateChanged) so the dash below isn't blocked and doesn't fight the attack's facing/lunge
+	// HandleAttackStateChanged) so the dash below doesn't fight the attack's facing lock
 	if (bIsAttackLocked)
 	{
 		if (ACPWeaponBase* CurrentWeapon = WeaponManager ? WeaponManager->GetCurrentWeapon() : nullptr)
 		{
 			CurrentWeapon->CancelAttack();
 		}
+
+		// CancelAttack's HandleAttackStateChanged(false) would normally wait PostAttackRotationDelay before
+		// resuming movement-driven rotation - a dash is a decisive movement action though, so resume right
+		// away instead of leaving the character facing the old attack direction through the dash
+		GetWorldTimerManager().ClearTimer(PostAttackRotationTimerHandle);
+		ReorientToMovementDirection();
 	}
 
 	DashDirection = GetLastMovementWorldDirection();
@@ -329,9 +382,21 @@ void ACPPlayerCharacter::HandleAttackStateChanged(bool bIsAttacking)
 {
 	bIsAttackLocked = bIsAttacking;
 
-	// Movement input is already blocked outright while locked (see DoMove) - this additionally stops the
-	// movement component from turning the character to face residual velocity while the lock is engaged
-	GetCharacterMovement()->bOrientRotationToMovement = !bIsAttacking;
+	if (bIsAttacking)
+	{
+		// A new combo string just started: stop the movement component from turning the character to face
+		// movement, and snap to face the attack direction instead. Movement itself is left alone - the
+		// player can keep moving freely, just without the character turning to follow it
+		GetWorldTimerManager().ClearTimer(PostAttackRotationTimerHandle);
+		GetCharacterMovement()->bOrientRotationToMovement = false;
+		OrientTowardsAttackDirection();
+	}
+	else
+	{
+		// The attack's motion just ended (montage finished, or last swing dispatched if no montage) - keep
+		// facing the attack direction for a bit longer before resuming movement-driven rotation
+		GetWorldTimerManager().SetTimer(PostAttackRotationTimerHandle, this, &ACPPlayerCharacter::ReorientToMovementDirection, PostAttackRotationDelay, false);
+	}
 }
 
 void ACPPlayerCharacter::DoInteract()
@@ -379,94 +444,67 @@ FVector ACPPlayerCharacter::GetLastMovementWorldDirection() const
 	return Direction;
 }
 
+float ACPPlayerCharacter::GetMovementDirection() const
+{
+	return UKismetAnimationLibrary::CalculateDirection(GetVelocity(), GetActorRotation());
+}
+
 FVector ACPPlayerCharacter::GetAttackDirection() const
 {
-	// Gamepad player: attack in the current/last movement direction instead of aiming with a mouse
-	// cursor (a gamepad player has no meaningful cursor position, and there's no separate aim stick)
-	if (const ACPTopDownPlayerController* TopDownController = Cast<ACPTopDownPlayerController>(GetController()))
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
 	{
-		if (!TopDownController->IsUsingKeyboardAndMouse())
+		return GetActorForwardVector();
+	}
+
+	// Checked live every time, instead of asking "which device does this player own" (that's a per-player
+	// classification meant for local multiplayer/the lobby - it's meaningless when testing this level
+	// directly, and it forces an either/or choice). This way the same controller can freely mix mouse
+	// aiming and gamepad-stick aiming from one attack to the next
+	if (PC->PlayerInput)
+	{
+		const float GamepadX = PC->PlayerInput->GetKeyValue(EKeys::Gamepad_LeftX);
+		const float GamepadY = PC->PlayerInput->GetKeyValue(EKeys::Gamepad_LeftY);
+		if (FVector2D(GamepadX, GamepadY).Size() >= MoveInputDeadzone)
 		{
 			return GetLastMovementWorldDirection();
 		}
 	}
 
-	FVector Direction = GetActorForwardVector();
-
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	// Mouse: intersect the deprojected cursor ray with a horizontal plane at the character's own height,
+	// instead of GetHitResultUnderCursor - that depends on the floor mesh actually blocking ECC_Visibility
+	// (or nothing else unexpectedly blocking it first), and silently falls back to "just face forward" the
+	// moment it doesn't. This plane intersection is pure math, so it can't fail because of level collision setup
+	FVector RayOrigin, RayDirection;
+	if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDirection) && !FMath::IsNearlyZero(RayDirection.Z))
 	{
-		FHitResult CursorHit;
-		if (PC->GetHitResultUnderCursor(ECC_Visibility, false, CursorHit))
+		const float CharacterZ = GetActorLocation().Z;
+		const float DistanceToPlane = (CharacterZ - RayOrigin.Z) / RayDirection.Z;
+
+		if (DistanceToPlane > 0.0f)
 		{
-			FVector ToCursor = CursorHit.Location - GetActorLocation();
+			FVector ToCursor = (RayOrigin + RayDirection * DistanceToPlane) - GetActorLocation();
 			ToCursor.Z = 0.0f;
 
 			if (!ToCursor.IsNearlyZero())
 			{
-				Direction = ToCursor.GetSafeNormal();
+				return ToCursor.GetSafeNormal();
 			}
 		}
 	}
 
-	return Direction;
+	return GetActorForwardVector();
 }
 
-void ACPPlayerCharacter::OrientAndLungeForAttack()
+void ACPPlayerCharacter::OrientTowardsAttackDirection()
 {
 	const FVector AimDirection = GetAttackDirection();
 	SetActorRotation(FRotator(0.0f, AimDirection.Rotation().Yaw, 0.0f));
-
-	const FVector CurrentVelocity = GetVelocity();
-	const float CurrentSpeed = CurrentVelocity.Size2D();
-	if (CurrentSpeed < AttackLungeMinSpeed)
-	{
-		return;
-	}
-
-	const FVector LungeDirection = CurrentVelocity.GetSafeNormal2D();
-	const float LungeSpeed = AttackLungeDuration > 0.0f ? (AttackLungeDistance / AttackLungeDuration) : AttackLungeDistance;
-	LaunchCharacter(LungeDirection * LungeSpeed, true, true);
 }
 
-void ACPPlayerCharacter::PerformAttack()
+void ACPPlayerCharacter::ReorientToMovementDirection()
 {
-	const FVector AttackDirection = GetAttackDirection();
-	const FVector BoxCenter = GetActorLocation() + AttackDirection * AttackOffset;
-	const FRotator BoxRotation = AttackDirection.Rotation();
-	const FVector BoxHalfExtent(AttackLength * 0.5f, AttackWidth * 0.5f, AttackHeight * 0.5f);
-
-	TArray<AActor*> ActorsToIgnore;
-	ActorsToIgnore.Add(this);
-
-	TArray<FHitResult> HitResults;
-	UKismetSystemLibrary::BoxTraceMulti(
-		this,
-		BoxCenter,
-		BoxCenter,
-		BoxHalfExtent,
-		BoxRotation,
-		UEngineTypes::ConvertToTraceType(ECC_Pawn),
-		false,
-		ActorsToIgnore,
-		bDrawDebugAttackBox ? EDrawDebugTrace::ForDuration : EDrawDebugTrace::None,
-		HitResults,
-		true,
-		FLinearColor::Red,
-		FLinearColor::Green,
-		AttackDuration);
-
-	// A single actor can report multiple hit results (e.g. capsule + mesh), so only
-	// process each unique target once per attack.
-	TSet<AActor*> HitActors;
-	for (const FHitResult& Hit : HitResults)
-	{
-		AActor* HitActor = Hit.GetActor();
-		if (HitActor && !HitActors.Contains(HitActor))
-		{
-			HitActors.Add(HitActor);
-			UGameplayStatics::ApplyDamage(HitActor, Stats.AttackPower, GetController(), this, nullptr);
-		}
-	}
+	GetCharacterMovement()->bOrientRotationToMovement = true;
 }
 
 void ACPPlayerCharacter::EndDash()
@@ -510,6 +548,9 @@ float ACPPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	{
 		return 0.0f;
 	}
+
+	PlayHitFlash();
+	PlayHitCameraShake();
 
 	SetStat(ECPStatType::Health, GetStat(ECPStatType::Health) - DamageAmount);
 
@@ -686,6 +727,144 @@ void ACPPlayerCharacter::ApplyStatsToGameplay()
 	GetCharacterMovement()->MaxWalkSpeed = Stats.MoveSpeed;
 }
 
+void ACPPlayerCharacter::PlayHitFlash()
+{
+	if (!HitFlashTimeline)
+	{
+		return;
+	}
+
+	for (UMaterialInstanceDynamic* MID : HitFlashMIDs)
+	{
+		if (MID)
+		{
+			MID->SetVectorParameterValue(HitFlashColorParameterName, HitFlashColor);
+		}
+	}
+
+	HitFlashTimeline->SetPlayRate(HitFlashSpeed);
+	HitFlashTimeline->PlayFromStart();
+}
+
+void ACPPlayerCharacter::HandleHitFlashUpdate(float Value)
+{
+	for (UMaterialInstanceDynamic* MID : HitFlashMIDs)
+	{
+		if (MID)
+		{
+			MID->SetScalarParameterValue(HitFlashAmountParameterName, Value);
+		}
+	}
+}
+
+void ACPPlayerCharacter::PlayHitCameraShake()
+{
+	if (!HitCameraShakeClass)
+	{
+		return;
+	}
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->ClientStartCameraShake(HitCameraShakeClass, HitCameraShakeIntensity);
+	}
+}
+
+void ACPPlayerCharacter::InitStatsFromDataTable()
+{
+	if (!BaseStatTable)
+	{
+		return;
+	}
+
+	static const FName RowName(TEXT("Default"));
+	if (const FCPPlayerBaseStatRow* Row = BaseStatTable->FindRow<FCPPlayerBaseStatRow>(RowName, TEXT("InitStatsFromDataTable")))
+	{
+		HealthRange = FCPStatRange(Row->HealthMin, Row->HealthMax);
+		AttackPowerRange = FCPStatRange(Row->AttackPowerMin, Row->AttackPowerMax);
+		MoveSpeedRange = FCPStatRange(Row->MoveSpeedMin, Row->MoveSpeedMax);
+		AttackSpeedRange = FCPStatRange(Row->AttackSpeedMin, Row->AttackSpeedMax);
+
+		Stats.Health = Row->Health;
+		Stats.AttackPower = Row->AttackPower;
+		Stats.MoveSpeed = Row->MoveSpeed;
+		Stats.AttackSpeed = Row->AttackSpeed;
+	}
+}
+
+const FCPPlayerLevelStatRow* ACPPlayerCharacter::FindLevelStatRow(int32 InLevel) const
+{
+	if (!LevelStatTable)
+	{
+		return nullptr;
+	}
+
+	const FName RowName(*FString::FromInt(InLevel));
+	return LevelStatTable->FindRow<FCPPlayerLevelStatRow>(RowName, TEXT("FindLevelStatRow"), false);
+}
+
+float ACPPlayerCharacter::GetRequiredExperienceForLevel(int32 InLevel) const
+{
+	if (const FCPPlayerLevelStatRow* Row = FindLevelStatRow(InLevel))
+	{
+		return Row->RequiredExperience;
+	}
+
+	return ExperienceRange.Max;
+}
+
+void ACPPlayerCharacter::AddCoin(int32 Amount)
+{
+	if (Amount <= 0)
+	{
+		return;
+	}
+
+	CoinCount += Amount;
+
+	OnCoinChanged.Broadcast(CoinCount);
+}
+
+bool ACPPlayerCharacter::TrySpendCoin(int32 Amount)
+{
+	if (!HasEnoughCoin(Amount))
+	{
+		return false;
+	}
+
+	CoinCount -= Amount;
+
+	OnCoinChanged.Broadcast(CoinCount);
+
+	return true;
+}
+
+void ACPPlayerCharacter::AddTicket(int32 Amount)
+{
+	if (Amount <= 0)
+	{
+		return;
+	}
+
+	TicketCount += Amount;
+
+	OnTicketChanged.Broadcast(TicketCount);
+}
+
+bool ACPPlayerCharacter::TrySpendTicket(int32 Amount)
+{
+	if (Amount <= 0 || TicketCount < Amount)
+	{
+		return false;
+	}
+
+	TicketCount -= Amount;
+
+	OnTicketChanged.Broadcast(TicketCount);
+
+	return true;
+}
+
 void ACPPlayerCharacter::ModifyStat(ECPStatType StatType, float Delta)
 {
 	SetStat(StatType, GetStat(StatType) + Delta);
@@ -708,11 +887,30 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 	case ECPStatType::AttackSpeed:
 		Stats.AttackSpeed = FMath::Clamp(NewValue, AttackSpeedRange.Min, AttackSpeedRange.Max);
 		break;
-	case ECPStatType::Defense:
-		Stats.Defense = FMath::Clamp(NewValue, DefenseRange.Min, DefenseRange.Max);
+	case ECPStatType::Experience:
+	{
+		float RemainingExperience = FMath::Max(NewValue, 0.0f);
+		float RequiredExperience = GetRequiredExperienceForLevel(Stats.Level);
+		while (RequiredExperience > 0.0f && RemainingExperience >= RequiredExperience)
+		{
+			RemainingExperience -= RequiredExperience;
+			++Stats.Level;
+
+			if (const FCPPlayerLevelStatRow* LevelRow = FindLevelStatRow(Stats.Level))
+			{
+				HealthRange.Max += LevelRow->AddHealth;
+				Stats.Health += LevelRow->AddHealth;
+			}
+
+			RequiredExperience = GetRequiredExperienceForLevel(Stats.Level);
+		}
+		Stats.Experience = RemainingExperience;
+		break;
+	}
+	case ECPStatType::Level:
+		Stats.Level = FMath::Max(FMath::RoundToInt(NewValue), 1);
 		break;
 	default:
-		// Experience/Level are owned by ACPGameMode now (team-shared) - not tracked per player
 		break;
 	}
 
@@ -731,10 +929,11 @@ float ACPPlayerCharacter::GetStat(ECPStatType StatType) const
 		return Stats.MoveSpeed;
 	case ECPStatType::AttackSpeed:
 		return Stats.AttackSpeed;
-	case ECPStatType::Defense:
-		return Stats.Defense;
+	case ECPStatType::Experience:
+		return Stats.Experience;
+	case ECPStatType::Level:
+		return static_cast<float>(Stats.Level);
 	default:
-		// Experience/Level are owned by ACPGameMode now (team-shared) - not tracked per player
 		break;
 	}
 

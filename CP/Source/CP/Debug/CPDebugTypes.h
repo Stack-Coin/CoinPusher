@@ -15,7 +15,8 @@ enum class ECPDebugCollisionCategory : uint8
 	PlayerHitbox,
 
 	/** Both players' current weapon hit-scan shape (ACPMeleeWeapon), projectile collision (ACPProjectile),
-	 *  and the legacy unarmed attack box (ACPPlayerCharacter) */
+	 *  the legacy unarmed attack box (ACPPlayerCharacter), and passive skill ranges (ACPMeteor,
+	 *  ACPMeteorGroundZone, ACPOrbitingCrescent) */
 	PlayerWeapon,
 
 	/** Monster capsule collision (ACPMonsterBase) */

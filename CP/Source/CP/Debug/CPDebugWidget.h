@@ -15,8 +15,8 @@ class UButton;
 /**
  *  UCPDebugWidget
  *  F1 debug overlay - replaces the old UCPStatWidget for this purpose. Two panel areas:
- *   - Player info: Player1InfoText/Player2InfoText show every stat (ICPStatInterface) and the currently
- *     equipped weapon name (ICPWeaponEquipper) for local players 0 and 1.
+ *   - Player info: PlayerInfoText shows every stat (ICPStatInterface) and the currently
+ *     equipped weapon name (ICPWeaponEquipper) for the local player.
  *   - Collision: one checkbox per ECPDebugCollisionCategory. Checking it tells UCPDebugCollisionSubsystem
  *     to draw that category's collision shape(s) as a wireframe; unchecking hides it again.
  *  No layout/design is provided - place the TextBlocks/CheckBoxes (matching these variable names) in the
@@ -29,19 +29,15 @@ class CP_API UCPDebugWidget : public UUserWidget
 
 protected:
 
-	/** Player 1 (local player index 0)'s stats + current weapon */
+	/** The local player's stats + current weapon */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
-	UTextBlock* Player1InfoText;
+	UTextBlock* PlayerInfoText;
 
-	/** Player 2 (local player index 1)'s stats + current weapon */
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
-	UTextBlock* Player2InfoText;
-
-	/** Toggles ECPDebugCollisionCategory::PlayerHitbox - both players' capsule collision */
+	/** Toggles ECPDebugCollisionCategory::PlayerHitbox - the player's capsule collision */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* PlayerHitboxCheckBox;
 
-	/** Toggles ECPDebugCollisionCategory::PlayerWeapon - both players' weapon hit-scan/projectile collision */
+	/** Toggles ECPDebugCollisionCategory::PlayerWeapon - the player's weapon hit-scan/projectile collision */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* PlayerWeaponCheckBox;
 
@@ -57,7 +53,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* MonsterDetectRangeCheckBox;
 
-	/** Toggles ECPDebugCollisionCategory::PlayerRevive - both players' revive detection range */
+	/** Toggles ECPDebugCollisionCategory::PlayerRevive - the player's revive detection range */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* PlayerReviveCheckBox;
 
@@ -73,25 +69,42 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* TeamCoinInputText;
 
-	/** Adds TeamCoinInputText's value to the team coin count via ACPGameMode::AddCoin */
+	/** Adds TeamCoinInputText's value to the local player's coin count via ACPPlayerCharacter::AddCoin */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* SetTeamCoinButton;
 
-	/** Amount added to the team ticket count when SetTeamTicketButton is clicked (see ACPGameMode::AddTeamTickets) */
+	/** Amount added to the local player's ticket count when SetTeamTicketButton is clicked (see ACPPlayerCharacter::AddTicket) */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* TeamTicketInputText;
 
-	/** Adds TeamTicketInputText's value to the team ticket count via ACPGameMode::AddTeamTickets */
+	/** Adds TeamTicketInputText's value to the local player's ticket count via ACPPlayerCharacter::AddTicket */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* SetTeamTicketButton;
 
-	/** Toggles invincibility for local player 0 (see ACPPlayerCharacter::SetDebugInvincible) */
+	/** Toggles invincibility for the local player (see ACPPlayerCharacter::SetDebugInvincible) */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
-	UCheckBox* Player1InvincibleCheckBox;
+	UCheckBox* PlayerInvincibleCheckBox;
 
-	/** Toggles invincibility for local player 1 (see ACPPlayerCharacter::SetDebugInvincible) */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
-	UCheckBox* Player2InvincibleCheckBox;
+	UEditableText* DamageInputText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* ApplyDamageButton;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* ActivatePassiveSkillButton;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* ItemCodeInputText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* ItemCountInputText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* StoreItemButton;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* RemoveItemButton;
 
 protected:
 
@@ -101,11 +114,11 @@ protected:
 	/** Refreshes the player info text every frame while visible */
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-	/** Pulls current stats/weapon for local players 0 and 1 into Player1InfoText/Player2InfoText */
+	/** Pulls current stats/weapon for the local player into PlayerInfoText */
 	void RefreshPlayerInfo();
 
-	/** Builds the multi-line stat/weapon readout for the local player at PlayerIndex (0 or 1) */
-	FString BuildPlayerInfoString(int32 PlayerIndex) const;
+	/** Builds the multi-line stat/weapon readout for the local player */
+	FString BuildPlayerInfoString() const;
 
 	/** Sets CheckBox's initial checked state from Subsystem without triggering its OnCheckStateChanged, then binds Handler to it */
 	void InitializeCheckBox(UCheckBox* CheckBox, ECPDebugCollisionCategory Category);
@@ -137,21 +150,30 @@ protected:
 	UFUNCTION()
 	void HandleItemPickupCheckChanged(bool bIsChecked);
 
-	/** Bound to SetTeamCoinButton. Parses TeamCoinInputText and adds it via ACPGameMode::AddCoin */
+	/** Bound to SetTeamCoinButton. Parses TeamCoinInputText and adds it via ACPPlayerCharacter::AddCoin */
 	UFUNCTION()
 	void HandleSetTeamCoinClicked();
 
-	/** Bound to SetTeamTicketButton. Parses TeamTicketInputText and adds it via ACPGameMode::AddTeamTickets */
+	/** Bound to SetTeamTicketButton. Parses TeamTicketInputText and adds it via ACPPlayerCharacter::AddTicket */
 	UFUNCTION()
 	void HandleSetTeamTicketClicked();
 
 	UFUNCTION()
-	void HandlePlayer1InvincibleCheckChanged(bool bIsChecked);
+	void HandlePlayerInvincibleCheckChanged(bool bIsChecked);
+
+	/** Casts UGameplayStatics::GetPlayerPawn(GetWorld(), 0) to ACPPlayerCharacter and calls
+	 *  SetDebugInvincible(bEnabled) on it, if valid */
+	void SetPlayerDebugInvincible(bool bEnabled);
 
 	UFUNCTION()
-	void HandlePlayer2InvincibleCheckChanged(bool bIsChecked);
+	void HandleApplyDamageClicked();
 
-	/** Casts UGameplayStatics::GetPlayerPawn(GetWorld(), PlayerIndex) to ACPPlayerCharacter and calls
-	 *  SetDebugInvincible(bEnabled) on it, if valid. Shared by HandlePlayer1/2InvincibleCheckChanged */
-	void SetPlayerDebugInvincible(int32 PlayerIndex, bool bEnabled);
+	UFUNCTION()
+	void HandleActivatePassiveSkillClicked();
+
+	UFUNCTION()
+	void HandleStoreItemClicked();
+
+	UFUNCTION()
+	void HandleRemoveItemClicked();
 };

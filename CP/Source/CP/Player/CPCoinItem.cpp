@@ -2,7 +2,6 @@
 
 #include "Player/CPCoinItem.h"
 #include "Player/CPCoinWallet.h"
-#include "Player/CPGameMode.h"
 #include "Player/CPInteractor.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -70,7 +69,7 @@ void ACPCoinItem::Interact(AActor* Interactor)
 		return;
 	}
 
-	ICPCoinWallet* Wallet = GetWorld() ? Cast<ICPCoinWallet>(GetWorld()->GetAuthGameMode()) : nullptr;
+	ICPCoinWallet* Wallet = Cast<ICPCoinWallet>(Interactor);
 	if (!Wallet)
 	{
 		return;

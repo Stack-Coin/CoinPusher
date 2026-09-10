@@ -6,6 +6,8 @@
 #include "Player/CPItemEffect.h"
 #include "CPItemTypes.generated.h"
 
+class UTexture2D;
+
 /**
  *  Data for a single item. Assigning EffectClass is the extension point for item effects -
  *  new effects are added as new UCPItemEffect subclasses, without touching pickup/inventory code.
@@ -30,4 +32,10 @@ struct FCPItemData
 	/** Effect applied when this item is acquired. None = no effect (the default for every current item) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item")
 	TSubclassOf<UCPItemEffect> EffectClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item")
+	TObjectPtr<UTexture2D> Icon;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item", meta = (MustImplement = "/Script/CP.CPUsableItem"))
+	TSubclassOf<UObject> UseEffectClass;
 };
