@@ -144,7 +144,12 @@ void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCate
 
 void ACPMonsterBase::AttackHitCheck()
 {
-	const FVector SweepStart = GetActorLocation();
+	// 스윕 시작점을 액터 피벗(캡슐 중심)이 아니라 "자기 몸통 표면"에서 출발하도록 자신의
+	// 콜리전 반경만큼 앞으로 밀어줌. 기존엔 피벗에서 AttackRange만큼만 재서, 일반/탱커처럼
+	// 캡슐이 작은 몬스터는 티가 안 났지만 보스처럼 캡슐이 큰 몬스터는 실제 몸통 밖으로 뻗는
+	// 유효 사거리가 그만큼 짧아져서 육안상 딱 붙어있어도 스윕이 플레이어까지 안 닿는 문제가 있었음
+	const float SelfRadius = GetAICollisionRadius();
+	const FVector SweepStart = GetActorLocation() + GetActorForwardVector() * SelfRadius;
 	const FVector SweepEnd = SweepStart + GetActorForwardVector() * GetAIAttackRange();
 	constexpr float SweepRadius = 10.f;
 
@@ -160,6 +165,18 @@ void ACPMonsterBase::AttackHitCheck()
 		FCollisionShape::MakeSphere(SweepRadius),
 		Params
 	);
+
+	// [임시 디버그] 실제 스윕 범위/결과 확인용 - AnimNotify는 호출되는데 데미지가 안 들어가는 경우와
+	// AnimNotify 자체가 안 불리는 경우를 구분하기 위함
+	UE_LOG(LogTemp, Warning,
+		TEXT("[임시 디버그] %s AttackHitCheck - SelfRadius=%.1f, AttackRange=%.1f, Start=%s, End=%s, bResult=%d, HitActor=%s"),
+		*GetName(),
+		SelfRadius,
+		GetAIAttackRange(),
+		*SweepStart.ToString(),
+		*SweepEnd.ToString(),
+		bResult ? 1 : 0,
+		(bResult && HitResult.GetActor()) ? *HitResult.GetActor()->GetName() : TEXT("NULL"));
 
 	if (bDrawDebugAttackRange)
 	{
@@ -300,12 +317,21 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	// 포효 등으로 무적 상태면 데미지 무시
 	if (HasCCState(ECPMonsterCCState::Invulnerable))
 	{
+		// [임시 디버그] 무적 상태에서 들어온 데미지가 실제로 무시되는지 확인용
+		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s TakeDamage 무시됨(무적) - DamageAmount=%.1f, CurrentCCState=%d, CurrentHealth=%.1f"),
+			*GetName(), DamageAmount, static_cast<uint8>(CurrentCCState), StatComponent ? StatComponent->CurrentHealth : -1.f);
 		return 0.f;
 	}
 
 	if (StatComponent)
 	{
+		const float HealthBefore = StatComponent->CurrentHealth;
 		StatComponent->CurrentHealth -= DamageAmount;
+
+		// [임시 디버그] 무적이 아닐 때 실제로 얼마나 깎이는지, bIsDead/bPendingDeath 상태 확인용
+		UE_LOG(LogTemp, Warning,
+			TEXT("[임시 디버그] %s TakeDamage 적용됨 - DamageAmount=%.1f, HealthBefore=%.1f, HealthAfter=%.1f, bIsDead=%d, bPendingDeath=%d"),
+			*GetName(), DamageAmount, HealthBefore, StatComponent->CurrentHealth, bIsDead, bPendingDeath);
 
 		// 체력이 0 이하여도 바로 죽이지 않고, 공격자가 TakeDamage 직후 별도로 거는 ApplyKnockback이
 		// 먼저 재생될 시간(KnockbackDuration)을 준 다음에 실제 Dead()를 호출함

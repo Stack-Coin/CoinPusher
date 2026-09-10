@@ -32,6 +32,12 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void AttackByAI() override;
 
+	/** 한 번도 포효하지 않은 채로(bArmedForRoar가 true인 채로) 죽는 경우(예: 큰 데미지를 한 번에
+	 *  맞아 50% 임계치 구간을 그냥 건너뛰고 죽는 경우), 죽기 직전에 포효를 강제로 한 번 재생하고
+	 *  그게 끝난 뒤에야 실제 사망 처리(Super::Dead())를 하도록 오버라이드함.
+	 *  이미 한 번이라도 포효했다면(bArmedForRoar==false) 평소처럼 바로 죽음 */
+	virtual void Dead() override;
+
 public:
 	/** BT의 ShouldRoar 데코레이터가 매 틱 확인: 무장 상태(bArmedForRoar)이고, 체력비율이 임계치 밑이면 true */
 	bool ShouldRoar();
@@ -62,4 +68,8 @@ private:
 	FAICharacterAttackFinished OnRoarFinished;
 	bool bArmedForRoar = true;
 	float LastSlamTime = -1000.f;
+
+	/** Dead()가 죽기 직전 강제 포효를 재생 중인 동안 true - 그 포효의 종료 델리게이트가 다시
+	 *  Dead()를 부르므로, 재진입을 막기 위한 가드 */
+	bool bFinalRoarPlaying = false;
 };

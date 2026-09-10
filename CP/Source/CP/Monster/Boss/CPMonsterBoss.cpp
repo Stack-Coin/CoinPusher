@@ -2,6 +2,7 @@
 
 
 #include "Monster/Boss/CPMonsterBoss.h"
+#include "Monster/CPMonsterAIController.h"
 
 ACPMonsterBoss::ACPMonsterBoss()
 {
@@ -32,7 +33,6 @@ void ACPMonsterBoss::Tick(float DeltaSeconds)
 void ACPMonsterBoss::AttackByAI()
 {
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
-
 
 	// 슬램 쿨타임이 다 찼으면 슬램, 아니면 기본 공격
 	if (SlamMontage && (Now - LastSlamTime) >= SlamCooldown)
@@ -94,4 +94,40 @@ void ACPMonsterBoss::HandleRoarMontageEnded(UAnimMontage* Montage, bool bInterru
 {
 	RemoveCCState(ECPMonsterCCState::Invulnerable);
 	OnRoarFinished.ExecuteIfBound();
+}
+
+void ACPMonsterBoss::Dead()
+{
+	// [임시 디버그] 죽음 처리가 몇 번이나, 어떤 상태로 호출되는지 확인용 - 강제 포효 없이 바로
+	// Super::Dead()로 빠지는지, 강제 포효 경로를 타는지 구분
+	UE_LOG(LogTemp, Warning,
+		TEXT("[임시 디버그] %s Boss::Dead() 호출 - bIsDead=%d, bFinalRoarPlaying=%d, bArmedForRoar=%d, RoarMontage=%s, CurrentCCState=%d"),
+		*GetName(), bIsDead, bFinalRoarPlaying, bArmedForRoar, RoarMontage ? TEXT("Valid") : TEXT("NULL"), static_cast<uint8>(CurrentCCState));
+
+	// 이미 한 번이라도 포효했다면(bArmedForRoar==false) 여기서 더 할 일 없이 평소대로 바로 죽음.
+	// 재진입 가드(bFinalRoarPlaying)는 지금 재생 중인 강제 포효가 끝나 다시 이 함수가 호출됐을 때
+	// 또 포효를 걸지 않고 바로 Super::Dead()로 넘어가게 해줌
+	if (bIsDead || bFinalRoarPlaying || !bArmedForRoar || !RoarMontage)
+	{
+		Super::Dead();
+		return;
+	}
+
+	bFinalRoarPlaying = true;
+
+	// 포효가 끝날 때까지는 더 움직이거나 공격하지 않도록 AI/이동을 먼저 멈춤
+	if (ACPMonsterAIController* AIController = GetController<ACPMonsterAIController>())
+	{
+		AIController->StopAI();
+	}
+
+	// BT의 Roar 태스크를 거치지 않고 직접 호출하는 것이므로, 델리게이트도 직접 걸어줌 -
+	// 포효가 끝나면 바로 실제 사망 처리(Super::Dead())로 이어짐
+	FAICharacterAttackFinished FinalRoarFinished;
+	FinalRoarFinished.BindLambda([this]()
+	{
+		Super::Dead();
+	});
+	SetRoarDelegate(FinalRoarFinished);
+	RoarByAI();
 }
