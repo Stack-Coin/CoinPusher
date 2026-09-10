@@ -10,8 +10,14 @@
 #include "Blueprint/UserWidget.h"
 #include "Debug/CPDebugWidget.h"
 
+#include "Kismet/GameplayStatics.h"
+#include "CoinPusher/CPCoinPusher.h"
+#include "CoinPusher/CPCoinPusherViewCaptureComponent.h"
+#include "CoinPusher/CPCoinPusherCaptureWidget.h"
+
 ACPTopDownPlayerController::ACPTopDownPlayerController()
 {
+	CaptureWidgetClass = UCPCoinPusherCaptureWidget::StaticClass();
 	DefaultMouseCursor = EMouseCursor::Crosshairs;
 }
 
@@ -25,6 +31,8 @@ void ACPTopDownPlayerController::BeginPlay()
 	FInputModeGameAndUI InputMode;
 	InputMode.SetHideCursorDuringCapture(false);
 	SetInputMode(InputMode);
+
+	GetWorldTimerManager().SetTimerForNextTick(this, &ACPTopDownPlayerController::SetupCaptureWidget);
 }
 
 bool ACPTopDownPlayerController::IsUsingKeyboardAndMouse() const
@@ -94,3 +102,57 @@ bool ACPTopDownPlayerController::GetCursorWorldLocation(FVector& OutWorldLocatio
 
 	return false;
 }
+
+
+
+
+
+
+//캡처 위젯 설정
+
+namespace
+{
+	// 전용 테스트 액터(ACPCoinPusherCaptureTestActor)가 없는 레벨(예: 실제 BP_CoinPusher가 배치된
+	// 테스트 레벨)에서도 동작하도록, 없으면 실제 ACPCoinPusher를 대신 찾는다
+	AActor* FindCaptureSourceActor(const UObject* WorldContextObject)
+	{
+		return UGameplayStatics::GetActorOfClass(WorldContextObject, ACPCoinPusher::StaticClass());
+	}
+
+	UCPCoinPusherViewCaptureComponent* GetCaptureComponent(AActor* SourceActor)
+	{
+		if (ACPCoinPusher* CoinPusher = Cast<ACPCoinPusher>(SourceActor))
+		{
+			return CoinPusher->GetViewCaptureComponent();
+		}
+
+		return nullptr;
+	}
+}
+
+
+void ACPTopDownPlayerController::SetupCaptureWidget()
+{
+	if (!CaptureWidgetClass)
+	{
+		return;
+	}
+
+	UCPCoinPusherViewCaptureComponent* CaptureComponent = GetCaptureComponent(FindCaptureSourceActor(this));
+	if (!CaptureComponent)
+	{
+		return;
+	}
+
+	UCPCoinPusherCaptureWidget* CaptureWidget = CreateWidget<UCPCoinPusherCaptureWidget>(this, CaptureWidgetClass);
+	if (!CaptureWidget)
+	{
+		return;
+	}
+
+	// UCPCoinPusherViewportClient가 Player 카메라를 오른쪽으로 축소해뒀으므로, 이 위젯은
+	// AddToPlayerScreen이 아니라 뷰포트 전체 기준으로 추가되어야 왼쪽 영역까지 그릴 수 있다
+	CaptureWidget->AddToViewport(0);
+	CaptureWidget->SetCaptureTexture(CaptureComponent->GetViewRenderTarget());
+}
+

@@ -11,6 +11,7 @@ class UStaticMeshComponent;
 class USceneComponent;
 //class ACPInput;
 class ACPNexus;
+class ACPCoin;
 
 UCLASS(abstract)
 class CP_API ACPDispenser : public AActor
@@ -69,6 +70,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Dispenser")
 	void DispenseItemByID(FName ItemID, int32 SpawnCount, ECPDispenserSpawnType SpawnType = ECPDispenserSpawnType::CoinPusherItem, bool bLaunch = true);
 
+	//ItemRegistry에서 ItemID(CoinPusherItem 타입)로 조회한 클래스를 1개 생성하고 ACPCoin으로 캐스팅해 반환
+	//(실패 시 nullptr). DispenseItemByID()와 달리 스폰 직후 스폰된 액터에 접근해야 하는 호출부
+	//(예: CoinType을 지정해야 하는 ACPCoinPusher::SpawnBigCoin())를 위한 함수
+	UFUNCTION(BlueprintCallable, Category="Dispenser")
+	ACPCoin* DispenseCoinByID(FName ItemID, bool bLaunch = true);
+
 	//소유자(ACPCoinPusher)가 LinkedInput을 설정할 때 사용. 기존에 연결되어 있던 Input의 델리게이트는 해제하고 새 Input에 다시 바인딩한다
 	UFUNCTION(BlueprintCallable, Category="Dispenser")
 	void SetLinkedInput(ACPNexus* NewLinkedInput);
@@ -76,8 +83,9 @@ public:
 protected:
 
 	//ClassToSpawn을 SpawnPoint에서 생성. bLaunch가 true이고 RootComponent가 물리 시뮬레이션 중인
-	//프리미티브라면 발사 속도를 부여 (DispenseItem/DispenseItemByID가 공유하는 실제 스폰 로직)
-	void SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLaunch);
+	//프리미티브라면 발사 속도를 부여 (DispenseItem/DispenseItemByID/DispenseCoinByID가 공유하는 실제 스폰 로직).
+	//스폰된 액터(실패 시 nullptr)를 반환
+	AActor* SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLaunch);
 
 	//연결된 Input이 상호작용 하는 멤버 함수
 	UFUNCTION()

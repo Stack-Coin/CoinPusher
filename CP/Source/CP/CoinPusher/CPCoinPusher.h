@@ -4,13 +4,20 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "CPCoinTypes.h"
 #include "CPCoinPusher.generated.h"
 
 class UStaticMeshComponent;
 class UBoxComponent;
 class UChildActorComponent;
+class USpringArmComponent;
+class UCPCoinPusherViewCaptureComponent;
 class ACPDispenser;
 class ACPDropZone;
+class ACPPassiveCoinConvertArea;
+class ACPCoinThrowArea;
+class ACPCoinTowerSpawner;
+class ACPPusher;
 class ACPNexus;
 
 /**Broadcast whenever this CoinPusher's health changes as a result of damage */
@@ -48,11 +55,7 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UBoxComponent* FrontWall;
 
-	//추가 박스 콜리전 (Floor에 부착). 용도는 BP에서 자유롭게 확장
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	UBoxComponent* ExtraBox;
-
-	//ExtraBox에 부착되는 비주얼 메시 (콜리전 없음 - 순수 비주얼)
+	//추가 비주얼 메시 (콜리전 없음, Floor에 부착). 용도는 BP에서 자유롭게 확장
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* ExtraBoxMesh;
 
@@ -74,6 +77,35 @@ class CP_API ACPCoinPusher : public AActor
 	//DropZone ActorComponent (컴포넌트를 통한 Has-a)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* DropZoneComponent;
+
+	//PassiveCoinConvertArea ActorComponent (컴포넌트를 통한 Has-a) - 영역 안 코인을 Passive로 전환시키는 트리거 볼륨
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UChildActorComponent* PassiveCoinConvertAreaComponent;
+
+	//MonsterCoinConvertArea ActorComponent (컴포넌트를 통한 Has-a) - PassiveCoinConvertAreaComponent와는
+	//별개의 인스턴스로, 영역 안 Normal 코인을 Monster로 전환시키는 전용 트리거 볼륨
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UChildActorComponent* MonsterCoinConvertAreaComponent;
+
+	//CoinThrowArea ActorComponent (컴포넌트를 통한 Has-a) - ActiveWaveThrow()가 순차적으로 활성화시키는 던지기 볼륨 5개
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TArray<TObjectPtr<UChildActorComponent>> CoinThrowAreaComponents;
+
+	//CoinTowerSpawner ActorComponent (컴포넌트를 통한 Has-a) - SpawnTower()로 원형 코인 타워를 스폰/상승시키는 액터
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UChildActorComponent* CoinTowerSpawnerComponent;
+
+	//ViewCaptureComponent를 붙여서 위치/각도를 잡아주는 SpringArm. ArmLength/각도를 BP나 디테일
+	//패널에서 바로 조정할 수 있고, bDoCollisionTest를 켜면 벽 등에 캡처 카메라가 파묻히는 것도 방지 가능
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* ViewCaptureBoom;
+
+	//이 CoinPusher를 비추는 SceneCaptureComponent2D. ViewCaptureBoom 끝(소켓)에 붙어서 동작하며,
+	//자체 RenderTarget을 만든다. 화면에 실제로 띄우는 건 PlayerController가 이 RenderTarget을
+	//UCPCoinPusherCaptureWidget에 연결해줘야 한다 (UCPCoinPusherViewportClient가 Player 카메라를
+	//오른쪽으로 축소해서 왼쪽 자리를 비워둔다). 위치/회전은 ViewCaptureBoom을 통해 BP에서 조정
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UCPCoinPusherViewCaptureComponent* ViewCaptureComponent;
 
 public:
 	ACPCoinPusher();
@@ -98,12 +130,30 @@ protected:
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	int32 InitialCoinDropCount = 10;
 
+	//SpawnBigCoin()이 스폰할 코인의 ItemID (ItemRegistry에 Big 코인으로 쓸 CoinPusherItem 클래스가 등록돼 있어야 함)
+	UPROPERTY(EditAnywhere, Category="CoinPusher")
+	FName BigCoinItemID = TEXT("100");
+
+	//SpawnMonsterCoin()이 스폰할 코인의 ItemID (ItemRegistry에 코인으로 쓸 CoinPusherItem 클래스가 등록돼 있어야 함)
+	UPROPERTY(EditAnywhere, Category="CoinPusher")
+	FName MonsterCoinItemID = TEXT("100");
+
 	//게임 시작 후 FrontWall을 제거하기까지 대기하는 시간(초)
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
 	float FrontWallRemovalDelay = 3.0f;
 
 	//FrontWall 제거 타이머 핸들
 	FTimerHandle FrontWallRemovalTimerHandle;
+
+	//ActiveWaveThrow()가 CoinThrowAreaComponents를 순차적으로 활성화할 때, 각 CoinThrowArea 사이의 대기 시간(초)
+	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
+	float WaveThrowInterval = 0.15f;
+
+	//ActiveWaveThrow() 진행 중 다음에 활성화할 CoinThrowAreaComponents의 인덱스
+	int32 WaveThrowIndex = 0;
+
+	//ActiveWaveThrow() 순차 실행 타이머 핸들
+	FTimerHandle WaveThrowTimerHandle;
 
 protected:
 
@@ -131,7 +181,7 @@ public:
 public:
 
 	//DispenserComponentA/B가 스폰된 직후 InputA/InputB를 각 Dispenser에 연결하고,
-	//DropZone에 ItemRespawnDispenser를 전달
+	//DropZone에 ItemRespawnDispenser를 전달하고, CoinTowerSpawner에 Pusher를 전달
 	virtual void PostInitializeComponents() override;
 
 	//천장 Dispenser들이 게임 시작 시 코인을 드롭
@@ -173,15 +223,23 @@ public:
 	FORCEINLINE UBoxComponent* GetRightWall() const { return RightWall; }
 	FORCEINLINE UBoxComponent* GetBackWall() const { return BackWall; }
 	FORCEINLINE UBoxComponent* GetFrontWall() const { return FrontWall; }
-	FORCEINLINE UBoxComponent* GetExtraBox() const { return ExtraBox; }
 	FORCEINLINE UStaticMeshComponent* GetExtraBoxMesh() const { return ExtraBoxMesh; }
 	FORCEINLINE UChildActorComponent* GetPusherComponent() const { return PusherComponent; }
+	FORCEINLINE UChildActorComponent* GetCoinTowerSpawnerComponent() const { return CoinTowerSpawnerComponent; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentA() const { return DispenserComponentA; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }
 	FORCEINLINE UChildActorComponent* GetDropZoneComponent() const { return DropZoneComponent; }
+	FORCEINLINE UChildActorComponent* GetPassiveCoinConvertAreaComponent() const { return PassiveCoinConvertAreaComponent; }
+	FORCEINLINE UChildActorComponent* GetMonsterCoinConvertAreaComponent() const { return MonsterCoinConvertAreaComponent; }
 	FORCEINLINE const TArray<TObjectPtr<UChildActorComponent>>& GetCeilingDispenserComponents() const { return CeilingDispenserComponents; }
+	FORCEINLINE const TArray<TObjectPtr<UChildActorComponent>>& GetCoinThrowAreaComponents() const { return CoinThrowAreaComponents; }
+	FORCEINLINE USpringArmComponent* GetViewCaptureBoom() const { return ViewCaptureBoom; }
+	FORCEINLINE UCPCoinPusherViewCaptureComponent* GetViewCaptureComponent() const { return ViewCaptureComponent; }
 
 	//ChildActorComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPPusher* GetPusher() const;
+
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDispenser* GetDispenserA() const;
 
@@ -195,9 +253,47 @@ public:
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPDropZone* GetDropZone() const;
 
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPPassiveCoinConvertArea* GetPassiveCoinConvertArea() const;
+
+	//MonsterCoinConvertAreaComponent가 실제로 스폰한 액터 인스턴스 반환
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPPassiveCoinConvertArea* GetMonsterCoinConvertArea() const;
+
+	//Index번째 CoinThrowArea가 실제로 스폰한 액터 인스턴스 반환
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPCoinThrowArea* GetCoinThrowArea(int32 Index) const;
+
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPCoinTowerSpawner* GetCoinTowerSpawner() const;
+
 	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출.
 	//천장 Dispenser(CeilingDispenserComponents) 중 하나를 랜덤하게 골라 그 Dispenser의
-	//DispenseItemByID()로 위임한다
+	//DispenseItemByID()로 위임한다. CoinType이 Normal이 아니면 스폰된 각 액터가 실제로 ACPCoin일
+	//때만 SetCoinType(CoinType)을 호출한다 (코인이 아닌 아이템이면 무시됨)
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
-	void ItemSpawn(FName ItemID, int32 SpawnCount);
+	void ItemSpawn(FName ItemID, int32 SpawnCount, ECPCoinType CoinType = ECPCoinType::Normal);
+
+	//천장 Dispenser 중 하나를 랜덤하게 골라(매번 다시 고름) BigCoinItemID로 지정된 코인을 Count개
+	//스폰하고 각각 CoinType을 Big으로 전환한다
+	UFUNCTION(BlueprintCallable, Category="CoinPusher")
+	void SpawnBigCoin(int32 Count = 1);
+
+	//천장 Dispenser 중 하나를 랜덤하게 골라(매번 다시 고름) MonsterCoinItemID로 지정된 코인을 Num개
+	//스폰하고 각각 CoinType을 Monster로 전환한다
+	UFUNCTION(BlueprintCallable, Category="CoinPusher")
+	void SpawnMonsterCoin(int32 Num = 1);
+
+	//CoinThrowAreaComponents 5개를 WaveThrowInterval 간격으로 순차적으로 ActiveThrow() 시킨다
+	UFUNCTION(BlueprintCallable, Category="CoinPusher")
+	void ActiveWaveThrow();
+
+protected:
+
+	//ActiveWaveThrow() 진행 중 WaveThrowTimerHandle에 의해 반복 호출됨 - 다음 CoinThrowArea를 활성화하고 인덱스를 진행
+	void HandleWaveThrowTick();
+
+	//CeilingDispenserComponents 중 실제로 스폰된 ACPDispenser들 가운데 하나를 랜덤하게 골라 반환 (없으면 nullptr).
+	//ItemSpawn()/SpawnBigCoin()/SpawnMonsterCoin()이 공유하는 선택 로직
+	ACPDispenser* PickRandomValidCeilingDispenser() const;
 };

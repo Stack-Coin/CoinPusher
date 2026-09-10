@@ -4,25 +4,23 @@
 #include "CPCoinPusher.h"
 #include "CPDispenser.h"
 #include "CPDropZone.h"
+#include "CPPassiveCoinConvertArea.h"
+#include "CPCoinThrowArea.h"
+#include "CPCoinTowerSpawner.h"
+#include "CPPusher.h"
+#include "CPCoin.h"
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
+#include "CPCoinPusherViewCaptureComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "TimerManager.h"
 
 ACPCoinPusher::ACPCoinPusher()
 {
 	PrimaryActorTick.bCanEverTick = false;
-
-	// 추가 박스 콜리전 + 그 자식으로 붙는 비주얼 메시. 용도는 BP에서 확장
-	/*ExtraBox = CreateDefaultSubobject<UBoxComponent>(TEXT("ExtraBox"));
-	RootComponent = ExtraBox;
-
-	ExtraBox->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f));
-	ExtraBox->SetCollisionProfileName(FName("Custom"));
-	*/
-
 
 	// 코인이 놓이는 바닥. RootComponent로 지정해 실제 충돌의 기준이 되도록 함.
 	Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
@@ -31,11 +29,11 @@ ACPCoinPusher::ACPCoinPusher()
 
 	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
 	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
-	//Floor->SetupAttachment(ExtraBoxMesh);
 
-	//ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
-	//ExtraBoxMesh->SetupAttachment(Floor);
-	//ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// 추가 비주얼 메시 (콜리전 없음, Floor에 부착). 용도는 BP에서 자유롭게 확장
+	ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
+	ExtraBoxMesh->SetupAttachment(Floor);
+	ExtraBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
 	Body->SetupAttachment(Floor);
@@ -82,6 +80,41 @@ ACPCoinPusher::ACPCoinPusher()
 
 	DropZoneComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("DropZoneComponent"));
 	DropZoneComponent->SetupAttachment(Floor);
+
+	PassiveCoinConvertAreaComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PassiveCoinConvertAreaComponent"));
+	PassiveCoinConvertAreaComponent->SetupAttachment(Floor);
+
+	MonsterCoinConvertAreaComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("MonsterCoinConvertAreaComponent"));
+	MonsterCoinConvertAreaComponent->SetupAttachment(Floor);
+
+	// ActiveWaveThrow()가 순차적으로 활성화시키는 CoinThrowArea 5개
+	CoinThrowAreaComponents.SetNum(5);
+	for (int32 Index = 0; Index < CoinThrowAreaComponents.Num(); ++Index)
+	{
+		const FName ComponentName(*FString::Printf(TEXT("CoinThrowAreaComponent%d"), Index));
+		UChildActorComponent* CoinThrowAreaComponent = CreateDefaultSubobject<UChildActorComponent>(ComponentName);
+		CoinThrowAreaComponent->SetupAttachment(Floor);
+		CoinThrowAreaComponents[Index] = CoinThrowAreaComponent;
+	}
+
+	// SpawnTower()로 원형 코인 타워를 스폰/상승시키는 CoinTowerSpawner (컴포넌트를 통한 Has-a)
+	CoinTowerSpawnerComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("CoinTowerSpawnerComponent"));
+	CoinTowerSpawnerComponent->SetupAttachment(Floor);
+
+	// ViewCaptureComponent를 SpringArm 소켓에 붙여서 동작. 기본값은 위에서 내려다보는 구도이고,
+	// ArmLength/각도는 ViewCaptureBoom을 통해 BP에서 조정.
+	// ACPPartyCamera의 CameraBoom과 달리 이 Boom은 CoinPusher 자신(Floor)의 회전을 그대로 따라가야
+	// 한다 - bInherit*를 꺼두면 레벨에 배치된 CoinPusher의 실제 회전과 무관하게 캡처 카메라가 항상
+	// 고정된 월드 방향만 보게 되어, 배치 각도에 따라 엉뚱한 곳(바닥 밑, 허공 등)을 비출 수 있다
+	ViewCaptureBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("ViewCaptureBoom"));
+	ViewCaptureBoom->SetupAttachment(Floor);
+	ViewCaptureBoom->TargetArmLength = 400.0f;
+	ViewCaptureBoom->SetRelativeRotation(FRotator(-70.0f, 0.0f, 0.0f));
+	ViewCaptureBoom->bUsePawnControlRotation = false;
+	ViewCaptureBoom->bDoCollisionTest = false;
+
+	ViewCaptureComponent = CreateDefaultSubobject<UCPCoinPusherViewCaptureComponent>(TEXT("ViewCaptureComponent"));
+	ViewCaptureComponent->SetupAttachment(ViewCaptureBoom, USpringArmComponent::SocketName);
 }
 
 void ACPCoinPusher::PostInitializeComponents()
@@ -106,6 +139,13 @@ void ACPCoinPusher::PostInitializeComponents()
 	if (ACPDropZone* DropZone = GetDropZone())
 	{
 		DropZone->SetItemRespawnDispenser(ItemRespawnDispenser);
+	}
+
+	//CoinTowerSpawner도 ChildActorComponent로 스폰되는 인스턴스라, 스폰/상승 동안 멈춰야 할 Pusher를
+	//레벨(BP)에서 직접 편집할 수 없다. 같은 CoinPusher가 소유한 Pusher를 대신 전달해 준다
+	if (ACPCoinTowerSpawner* CoinTowerSpawner = GetCoinTowerSpawner())
+	{
+		CoinTowerSpawner->SetTargetPusher(GetPusher());
 	}
 }
 
@@ -173,6 +213,11 @@ void ACPCoinPusher::HandleDestroyed()
 	}
 }
 
+ACPPusher* ACPCoinPusher::GetPusher() const
+{
+	return PusherComponent ? Cast<ACPPusher>(PusherComponent->GetChildActor()) : nullptr;
+}
+
 ACPDispenser* ACPCoinPusher::GetDispenserA() const
 {
 	return DispenserComponentA ? Cast<ACPDispenser>(DispenserComponentA->GetChildActor()) : nullptr;
@@ -198,6 +243,31 @@ ACPDropZone* ACPCoinPusher::GetDropZone() const
 	return DropZoneComponent ? Cast<ACPDropZone>(DropZoneComponent->GetChildActor()) : nullptr;
 }
 
+ACPPassiveCoinConvertArea* ACPCoinPusher::GetPassiveCoinConvertArea() const
+{
+	return PassiveCoinConvertAreaComponent ? Cast<ACPPassiveCoinConvertArea>(PassiveCoinConvertAreaComponent->GetChildActor()) : nullptr;
+}
+
+ACPPassiveCoinConvertArea* ACPCoinPusher::GetMonsterCoinConvertArea() const
+{
+	return MonsterCoinConvertAreaComponent ? Cast<ACPPassiveCoinConvertArea>(MonsterCoinConvertAreaComponent->GetChildActor()) : nullptr;
+}
+
+ACPCoinTowerSpawner* ACPCoinPusher::GetCoinTowerSpawner() const
+{
+	return CoinTowerSpawnerComponent ? Cast<ACPCoinTowerSpawner>(CoinTowerSpawnerComponent->GetChildActor()) : nullptr;
+}
+
+ACPCoinThrowArea* ACPCoinPusher::GetCoinThrowArea(int32 Index) const
+{
+	if (!CoinThrowAreaComponents.IsValidIndex(Index) || !CoinThrowAreaComponents[Index])
+	{
+		return nullptr;
+	}
+
+	return Cast<ACPCoinThrowArea>(CoinThrowAreaComponents[Index]->GetChildActor());
+}
+
 void ACPCoinPusher::RemoveFrontWall()
 {
 	if (FrontWall)
@@ -207,7 +277,62 @@ void ACPCoinPusher::RemoveFrontWall()
 	}
 }
 
-void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
+void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount, ECPCoinType CoinType)
+{
+	// CoinType이 지정되면 스폰된 액터에 SetCoinType()을 호출해야 하므로, 스폰된 인스턴스를
+	// 돌려주는 DispenseCoinByID()로 하나씩 스폰한다 (ACPCoin이 아니면 nullptr이라 자연히 무시됨)
+	for (int32 Index = 0; Index < SpawnCount; ++Index)
+	{
+		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+		if (!Dispenser)
+		{
+			return;
+		}
+
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(ItemID))
+		{
+			SpawnedCoin->SetCoinType(CoinType);
+		}
+	}
+}
+
+void ACPCoinPusher::SpawnBigCoin(int32 Count)
+{
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+		if (!Dispenser)
+		{
+			continue;
+		}
+
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(BigCoinItemID))
+		{
+			// Big 코인이 CoinPusher의 Collision에 부딪혔을 때 ActiveWaveThrow()를 호출할 대상을 직접 알려줌
+			SpawnedCoin->SetOwningCoinPusher(this);
+			SpawnedCoin->SetCoinType(ECPCoinType::Big);
+		}
+	}
+}
+
+void ACPCoinPusher::SpawnMonsterCoin(int32 Num)
+{
+	for (int32 Index = 0; Index < Num; ++Index)
+	{
+		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+		if (!Dispenser)
+		{
+			continue;
+		}
+
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(MonsterCoinItemID))
+		{
+			SpawnedCoin->SetCoinType(ECPCoinType::Monster);
+		}
+	}
+}
+
+ACPDispenser* ACPCoinPusher::PickRandomValidCeilingDispenser() const
 {
 	TArray<ACPDispenser*> ValidCeilingDispensers;
 	ValidCeilingDispensers.Reserve(CeilingDispenserComponents.Num());
@@ -227,10 +352,43 @@ void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 
 	if (ValidCeilingDispensers.Num() == 0)
 	{
+		return nullptr;
+	}
+
+	const int32 RandomIndex = FMath::RandRange(0, ValidCeilingDispensers.Num() - 1);
+	return ValidCeilingDispensers[RandomIndex];
+}
+
+void ACPCoinPusher::ActiveWaveThrow()
+{
+	if (CoinThrowAreaComponents.Num() == 0)
+	{
 		return;
 	}
 
-	//천장 Dispenser 중 하나를 랜덤하게 골라 그쪽에서 Spawn되도록 위임
-	const int32 RandomIndex = FMath::RandRange(0, ValidCeilingDispensers.Num() - 1);
-	ValidCeilingDispensers[RandomIndex]->DispenseItemByID(ItemID, SpawnCount);
+	WaveThrowIndex = 0;
+
+	// 0초 뒤(즉시) 첫 CoinThrowArea를 활성화하고, 이후 WaveThrowInterval마다 다음 것을 순차적으로 활성화
+	GetWorldTimerManager().SetTimer(WaveThrowTimerHandle, this, &ACPCoinPusher::HandleWaveThrowTick, WaveThrowInterval, true, 0.0f);
+}
+
+void ACPCoinPusher::HandleWaveThrowTick()
+{
+	if (!CoinThrowAreaComponents.IsValidIndex(WaveThrowIndex))
+	{
+		GetWorldTimerManager().ClearTimer(WaveThrowTimerHandle);
+		return;
+	}
+
+	if (ACPCoinThrowArea* ThrowArea = GetCoinThrowArea(WaveThrowIndex))
+	{
+		ThrowArea->ActiveThrow();
+	}
+
+	++WaveThrowIndex;
+
+	if (!CoinThrowAreaComponents.IsValidIndex(WaveThrowIndex))
+	{
+		GetWorldTimerManager().ClearTimer(WaveThrowTimerHandle);
+	}
 }

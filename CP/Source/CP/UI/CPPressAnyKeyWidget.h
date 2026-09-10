@@ -34,14 +34,33 @@ protected:
 	UPROPERTY(EditAnywhere, Category="UI Switch")
 	bool bRemoveSelfOnSwitch = true;
 
+	/** 첫 입력이 감지된 후 NextWidgetClass로 전환하기까지 대기하는 시간(초). 0이면(기본값) 즉시
+	 *  전환한다 - 연출을 위해 잠깐 대기해야 하는 화면(예: 타이틀 화면)에서만 늘려주면 된다 */
+	UPROPERTY(EditAnywhere, Category="UI Switch", meta = (ClampMin = 0))
+	float SwitchDelay = 0.0f;
+
+	/** SwitchDelay 대기 후 실제 전환(SwitchToNextWidget)을 실행하는 타이머 핸들 */
+	FTimerHandle SwitchTimerHandle;
+
 	/** 이 위젯이 살아있는 동안 등록해두는 전역 입력 프로세서. NativeDestruct에서 해제한다 */
 	TSharedPtr<IInputProcessor> AnyKeyInputProcessor;
 
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
-	/** 입력이 감지됐을 때 공통으로 처리하는 내부 함수 - 델리게이트 Broadcast + (설정된 경우) 위젯 전환 */
+	/** 입력이 감지됐을 때 공통으로 처리하는 내부 함수 - 델리게이트 Broadcast 후
+	 *  ScheduleSwitchToNextWidget()을 호출 */
 	void HandleAnyKeyPressed(FKey PressedKey);
+
+	/** NextWidgetClass가 설정되어 있으면 SwitchDelay만큼 기다렸다가(0이면 즉시) SwitchToNextWidget()을
+	 *  실행되도록 예약한다. 하위 클래스가 전환 타이밍을 직접 제어하고 싶으면(예: 전환 전에 연출을
+	 *  재생한 뒤 자기 타이밍에 SwitchToNextWidget()을 호출) 이 함수를 오버라이드하면 된다 */
+	virtual void ScheduleSwitchToNextWidget();
+
+	/** NextWidgetClass가 설정되어 있으면 그 위젯을 생성해 화면에 띄우고, bRemoveSelfOnSwitch면
+	 *  이 위젯 자신을 제거한다. 하위 클래스가 자신만의 조건/딜레이로 직접 전환을 실행하고 싶을 때도
+	 *  재사용할 수 있도록 protected로 둠 */
+	void SwitchToNextWidget();
 
 public:
 

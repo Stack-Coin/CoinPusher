@@ -10,12 +10,12 @@ ACPPusher::ACPPusher()
 
 	RootComponent = PushPlate = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PushPlate"));
 
-	//Ãæµ¹ Ã³¸®
+	//ï¿½æµ¹ Ã³ï¿½ï¿½
 	PushPlate->SetMobility(EComponentMobility::Movable);
 	PushPlate->SetCollisionProfileName(FName("BlockAll"));
 	PushPlate->SetSimulatePhysics(false);
 
-	//NaveMesh »ý¼º Â÷´Ü
+	//NaveMesh ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 	PushPlate->bNavigationRelevant = false;
 }
 
@@ -23,24 +23,27 @@ void ACPPusher::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//»ó´ëÀ§Ä¡¸¦ °¡Àå µÚ·Î ‹¯°Ü Á³À» ¶§ À§Ä¡·Î »ç¿ë
+	//ï¿½ï¿½ï¿½ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ú·ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½ï¿½ï¿½
 	StartRelativeLocation = PushPlate->GetRelativeLocation();
-	LastPushOffset = 0.0f;
 }
 
 void ACPPusher::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (bIsPaused)
+	{
+		return;
+	}
+
 	ElapsedTime += DeltaTime;
 
 	// 0..1 oscillation using a sine wave so the plate eases in and out at the ends of its stroke
 	const float Alpha = (FMath::Sin(ElapsedTime * CycleSpeed * 2.0f * PI) + 1.0f) * 0.5f;
-	const float TargetPushOffset = PushDistance * Alpha;
+	const float PushOffset = PushDistance * Alpha;
 
-	//Àý´ë À§Ä¡¸¦ ¸Å ÇÁ·¹ÀÓ ´Ù½Ã ¼³Á¤ÇÏ´Â ´ë½Å, Á÷Àü ÇÁ·¹ÀÓ°úÀÇ Â÷ÀÌ¸¸Å­ AddLocalOffsetÀ¸·Î ÀÌµ¿
-	const float DeltaOffset = TargetPushOffset - LastPushOffset;
-	PushPlate->AddLocalOffset(FVector(DeltaOffset, 0.0f, 0.0f));
-
-	LastPushOffset = TargetPushOffset;
+	// StartRelativeLocation(ì™•ë³µ ìš´ë™ì˜ ê¸°ì¤€ ìœ„ì¹˜) ê¸°ì¤€ ì ˆëŒ€ ìœ„ì¹˜ë¡œ ë§¤ í‹± ë‹¤ì‹œ ê³„ì‚°í•´ì„œ ì ìš© - ì¼ì‹œì •ì§€
+	// ì¤‘ ì™¸ë¶€ì—ì„œ ì•¡í„°ê°€ ë‹¤ë¥¸ ê³³ìœ¼ë¡œ ì˜®ê²¨ì ¸ ìžˆì—ˆë”ë¼ë„, ìž¬ê°œë˜ëŠ” ìˆœê°„ ì´ ê¸°ì¤€ ìœ„ì¹˜ë¥¼ ë°”íƒ•ìœ¼ë¡œ í•œ ì˜¬ë°”ë¥¸
+	// ì§€ì ìœ¼ë¡œ ìžë™ ë³µê·€í•˜ë©° ì§„í–‰ëœë‹¤
+	PushPlate->SetRelativeLocation(StartRelativeLocation + FVector(PushOffset, 0.0f, 0.0f));
 }

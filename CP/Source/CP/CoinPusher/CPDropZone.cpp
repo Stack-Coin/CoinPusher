@@ -4,6 +4,7 @@
 #include "CPDropZone.h"
 #include "CPCoinPusherItem.h"
 #include "CPDispenser.h"
+#include "CPDroppedItemReceiver.h"
 #include "Components/BoxComponent.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -27,7 +28,7 @@ ACPDropZone::ACPDropZone()
 	CollectionVolume->OnComponentBeginOverlap.AddDynamic(this, &ACPDropZone::OnVolumeBeginOverlap);
 }
 
-void ACPDropZone::AddCollectedCoins(int32 Amount)
+void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType CoinType)
 {
 	if (Amount <= 0)
 	{
@@ -38,20 +39,14 @@ void ACPDropZone::AddCollectedCoins(int32 Amount)
 
 	OnCoinCollected.Broadcast(CollectedCoinCount);
 
-	// Grants ExperiencePerCoin * Amount experience to the team - experience is shared/team-owned (ACPGameMode), not per player
-	if (ExperiencePerCoin != 0.0f)
+	//떨어진 아이템의 정보(ItemID/개수, 코인이면 CoinType까지)를 GameMode로 전달.
+	//GetAuthGameMode()가 ICPDroppedItemReceiver를 구현하는 경우에만 전달되므로, 실제 게임의 GameMode든
+	//테스트용 GameMode든 이 인터페이스만 구현하면 받을 수 있다
+	if (!ItemID.IsNone())
 	{
-		if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+		if (ICPDroppedItemReceiver* Receiver = GetWorld() ? Cast<ICPDroppedItemReceiver>(GetWorld()->GetAuthGameMode()) : nullptr)
 		{
-			GameMode->AddTeamExperience(ExperiencePerCoin * static_cast<float>(Amount));
-		}
-	}
-
-	if (CollectedCoinCount % CoinsPerTicket == 0)
-	{
-		if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
-		{
-			PlayerCharacter->AddTicket(1);
+			Receiver->ReceiveDroppedItem(ItemID, Amount, CoinType);
 		}
 	}
 }
@@ -67,10 +62,16 @@ void ACPDropZone::RecordCollectedItem(FName ItemCode)
 
 	OnItemCollected.Broadcast(ItemCode);
 
-	//����(CoinPusher)���� ������ �� Dispenser�� ������ ���ʿ� ���� ItemID�� ������� ��û
+	//CoinPusher가 지정해둔 재생성 담당 Dispenser에게 같은 ItemID로 재생성 요청
 	if (ItemRespawnDispenser)
 	{
 		ItemRespawnDispenser->DispenseItemByID(ItemCode, 1, ECPDispenserSpawnType::WorldItem);
+	}
+
+	//떨어진 아이템의 정보를 GameMode로 전달 (Item은 코인이 아니므로 CoinType은 기본값 Normal)
+	if (ICPDroppedItemReceiver* Receiver = GetWorld() ? Cast<ICPDroppedItemReceiver>(GetWorld()->GetAuthGameMode()) : nullptr)
+	{
+		Receiver->ReceiveDroppedItem(ItemCode, 1);
 	}
 }
 
