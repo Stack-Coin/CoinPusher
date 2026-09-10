@@ -175,4 +175,3 @@ void ACPGameMode::AddTeamExperience(float Amount)
 
 	TeamLevel = FMath::Clamp(TeamLevel, FMath::RoundToInt32(TeamLevelRange.Min), FMath::RoundToInt32(TeamLevelRange.Max));
 }
-}
