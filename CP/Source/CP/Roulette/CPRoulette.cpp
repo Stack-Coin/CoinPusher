@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "Engine/DataTable.h"
 #include "Player/CPGameMode.h"
+#include "Log/CPLogCategories.h"
 
 namespace
 {
@@ -184,7 +185,7 @@ void ACPRoulette::HandleRouletteResultDetermined(int32 ResultIndex)
 
 	bIsRolling = false;
 
-	UE_LOG(LogTemp, Warning, TEXT("[ACPRoulette] Roulette Result - ItemID: %s, SpawnCount: %d"),
+	UE_LOG(LogRoulette, Warning, TEXT("[ACPRoulette] Roulette Result - ItemID: %s, SpawnCount: %d"),
 		*PendingResultItemID.ToString(), PendingResultSpawnCount);
 
 	OnPickedUp.Broadcast(PendingResultItemID, PendingResultSpawnCount);

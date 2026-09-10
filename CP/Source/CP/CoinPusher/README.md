@@ -118,7 +118,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   `ACPDropZone`은 `GetAuthGameMode()`가 이 인터페이스를 구현하는지만 확인하고 캐스팅해서 호출하므로
   실제 게임의 GameMode든 테스트용 GameMode든 이 인터페이스만 구현하면 드랍 정보를 받을 수 있다
   (구현 안 하면 그냥 아무 일도 일어나지 않음). `CoinPusher/Test/ACPCoinPusherItemSpawnTestGameMode`가
-  구현체 예시 — 받은 정보를 `UE_LOG(LogTemp, Warning, ...)`로 표시해 DropZone이 실제로 보냈는지 확인 가능
+  구현체 예시 — 받은 정보를 `UE_LOG(LogDropZone, Warning, ...)`로 표시해 DropZone이 실제로 보냈는지 확인 가능
 
 ### ACPDropZone
 - `CollectionVolume`(UBoxComponent)에 `ICPCoinPusherItem`을 구현하는 오브젝트가 겹치면(OnComponentBeginOverlap) 감지해 `Item->OnDroppedInZone(this)` 호출 — Coin/Item 등 구체 타입은 전혀 모름
@@ -249,6 +249,22 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   - Z키: possessing `ACPTopDownPlayerController::ShowEndingResult(true)` 호출 — Ending 위젯에 Clear 결과 표시
   - X키: 같은 방식으로 `ShowEndingResult(false)` 호출 — Ending 위젯에 Lose 결과 표시
   - `ACPCoinPusherItemSpawnTestGameMode`(위 Pawn을 DefaultPawnClass로) — `ICPDroppedItemReceiver`를 구현해 DropZone의 드랍 정보 전달을 로그로 확인 가능. `PlayerControllerClass`는 `ACPCoinPusherItemSpawnTestPlayerController`(`ACPTopDownPlayerController` 상속)로 지정되어 있어, 실제 게임과 동일한 `PauseAction`(게임패드 Menu/키보드 Escape)으로 InGamePause 메뉴도 함께 테스트할 수 있다 — Input Action/위젯 클래스는 BP에서 채워야 하므로 자세한 준비 절차는 `UI/README.md`의 에디터 체크리스트 9-10번 참고
+- **Pawn 없이 CoinPusher 기능만 테스트**: `ACPCoinPusherFunctionTestActor`(`AActor` 상속, Pawn이 아님) —
+  레벨에 배치만 하면 그 레벨에서 어떤 Pawn을 조작 중이든 상관없이 넘버패드로 `ACPCoinPusher`의 랩퍼
+  함수들을 테스트할 수 있다. `BeginPlay()`에서 `EnableInput()`으로 첫 번째 로컬 `PlayerController`의
+  입력 스택에 이 Actor 자신의 `InputComponent`를 직접 얹어두기 때문에(Pawn의
+  `SetupPlayerInputComponent`처럼 possess에 의존하지 않음) 동작한다. `TargetCoinPusher`/`TargetRoulette`는
+  `ACPCoinPusherItemSpawnTestPawn`과 동일하게 직접 지정하거나 비워두면 자동으로 찾음
+  - Numpad1: `ItemSpawn(NormalCoinItemID, 1)` - 일반 코인 1개 스폰
+  - Numpad2: `SpawnBigCoin(BigCoinItemID, 1)` - Big 코인 1개 스폰
+  - Numpad3: `ConvertActive(PassiveConvertItemID, PassiveConvertCount)` - Passive로 변환(기본 5개)
+  - Numpad4: `HPConvertActive(HPConvertItemID, HPConvertCount)` - HP로 변환(기본 5개)
+  - Numpad5: `MonsterConvertActive(MonsterConvertItemID, MonsterConvertCount)` - Monster로 변환(기본 5개)
+  - Numpad6: `SpawnMonsterCoin(MonsterCoinItemID, MonsterCoinSpawnCount)` - Monster 코인 스폰(기본 5개)
+  - Numpad7: `TargetRoulette->Roll()`
+  - Numpad8: `SpawnTower(CoinTowerItemID, CoinTowerFloorCount)` - 코인 타워 소환(기본 25층)
+  - 각 ItemID 프로퍼티는 `ACPCoinPusherItemSpawnTestPawn`과 마찬가지로 `TargetCoinPusher->ItemDataTable`에
+    해당 CoinType(Big/Passive/HP/Monster/CoinTower)으로 등록된 행을 가리켜야 랩퍼의 검증을 통과해 실제로 동작함
 
 ## Roulette 연동
 

@@ -88,7 +88,7 @@ true인 경우에만 `ItemSpawn(ItemID, SpawnCount)`으로 천장 Dispenser 중 
 
 - `ACPCoinPusherItemSpawnTestPawn` : R 키를 누르면 `TargetRoulette->Roll()`을 호출 (미지정 시
   `BeginPlay`에서 레벨에 배치된 아무 `ACPRoulette`나 자동으로 찾아 사용, `TargetCoinPusher`와 동일한
-  방식). 시작 여부(`bool` 반환값)를 `UE_LOG(LogTemp, Warning, ...)`으로 표시. 당첨 결과 자체는
+  방식). 시작 여부(`bool` 반환값)를 `UE_LOG(LogRoulette, Warning, ...)`으로 표시. 당첨 결과 자체는
   `TargetRoulette`의 `LinkedRoulette`로 연결된 `ACPCoinPusher`(있다면)의 `HandleRoulettePickedUp()`으로
   자동 전달되므로 이 Pawn이 직접 결과를 처리하지 않음
 

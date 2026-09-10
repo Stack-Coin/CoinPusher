@@ -4,6 +4,7 @@
 #include "CPCoinTowerSpawner.h"
 #include "CPCoin.h"
 #include "CPPusher.h"
+#include "Log/CPLogCategories.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
 
@@ -109,7 +110,7 @@ void ACPCoinTowerSpawner::SpawnTower(FName ItemID, int32 N)
 
 void ACPCoinTowerSpawner::SpawnTowerCoins(int32 FloorCount)
 {
-	UE_LOG(LogTemp, Warning, TEXT("Spawning"));
+	UE_LOG(LogCoinPusher, Warning, TEXT("Spawning"));
 	UWorld* World = GetWorld();
 	if (!World)
 	{

@@ -1,5 +1,8 @@
 #include "Player/Inventory/CPInventoryComponent.h"
 #include "Player/Inventory/CPUsableItem.h"
+#include "Player/CPPlayerCharacter.h"
+#include "CoinPusher/CPCoinPusher.h"
+#include "Roulette/CPRoulette.h"
 
 UCPInventoryComponent::UCPInventoryComponent()
 {
@@ -8,8 +11,32 @@ UCPInventoryComponent::UCPInventoryComponent()
 	Slots.SetNum(NumSlots);
 }
 
+void UCPInventoryComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(GetOwner()))
+	{
+		if (ACPCoinPusher* CoinPusher = PlayerCharacter->GetCoinPusher())
+		{
+			if (ACPRoulette* LinkedRoulette = CoinPusher->GetLinkedRoulette())
+			{
+				LinkedRoulette->OnPickedUp.AddDynamic(this, &UCPInventoryComponent::HandleRoulettePickedUp);
+			}
+		}
+	}
+}
+
+void UCPInventoryComponent::HandleRoulettePickedUp(FName ItemID, int32 Count)
+{
+	UE_LOG(LogTemp, Warning,TEXT("Inventory <- OnDropped Broadcast"))
+	StoreItem(ItemID, Count);
+}
+
 bool UCPInventoryComponent::StoreItem(FName ItemCode, int32 Count)
 {
+	UE_LOG(LogTemp, Warning, TEXT("StoreItem called - ItemCode: %s, Count: %d"), *ItemCode.ToString(), Count);
+
 	if (Count <= 0)
 	{
 		return false;
@@ -20,6 +47,7 @@ bool UCPInventoryComponent::StoreItem(FName ItemCode, int32 Count)
 		if (Slot.Item.ItemCode == ItemCode)
 		{
 			Slot.Count += Count;
+			UE_LOG(LogTemp, Warning, TEXT("StoreItem updated - ItemCode: %s, Updated Count: %d"), *ItemCode.ToString(), Slot.Count);
 			OnInventoryChanged.Broadcast();
 			return true;
 		}

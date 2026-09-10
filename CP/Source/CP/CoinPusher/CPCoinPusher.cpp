@@ -14,6 +14,7 @@
 #include "CPCoinPusherViewCaptureComponent.h"
 #include "../Roulette/CPRoulette.h"
 #include "Datatables/CPItemData.h"
+#include "Log/CPLogCategories.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
@@ -200,7 +201,7 @@ void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
 
 	CurrentHealth = FMath::Max(0.0f, CurrentHealth - Damage);
 
-	UE_LOG(LogTemp, Warning, TEXT("%f"), CurrentHealth);
+	UE_LOG(LogCoinPusher, Warning, TEXT("%f"), CurrentHealth);
 	OnDamaged.Broadcast(Damage, DamageCauser);
 
 	if (CurrentHealth <= 0.0f)

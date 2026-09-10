@@ -242,6 +242,7 @@ public:
 	FORCEINLINE USpringArmComponent* GetViewCaptureBoom() const { return ViewCaptureBoom; }
 	FORCEINLINE UCPCoinPusherViewCaptureComponent* GetViewCaptureComponent() const { return ViewCaptureComponent; }
 	FORCEINLINE UDataTable* GetItemDataTable() const { return ItemDataTable; }
+	FORCEINLINE ACPRoulette* GetLinkedRoulette() const { return LinkedRoulette; }
 
 	//ChildActorComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
 	UFUNCTION(BlueprintPure, Category="CoinPusher")

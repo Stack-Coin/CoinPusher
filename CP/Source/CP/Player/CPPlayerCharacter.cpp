@@ -19,6 +19,7 @@
 #include "Weapon/CPWeaponManagerComponent.h"
 #include "Weapon/CPWeaponBase.h"
 #include "Roulette/CPRoulette.h"
+#include "CoinPusher/CPCoinPusher.h"
 #include "UI/CPRadialGaugeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
@@ -105,6 +106,16 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	HitFlashCurve = DefaultHitFlashCurve;
 
 	InventoryComponent = CreateDefaultSubobject<UCPInventoryComponent>(TEXT("InventoryComponent"));
+}
+
+void ACPPlayerCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	if (!CoinPusher)
+	{
+		CoinPusher = Cast<ACPCoinPusher>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPCoinPusher::StaticClass()));
+	}
 }
 
 void ACPPlayerCharacter::BeginPlay()

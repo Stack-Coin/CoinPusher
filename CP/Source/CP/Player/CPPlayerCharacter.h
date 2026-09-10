@@ -38,6 +38,7 @@ class UCurveFloat;
 class UMaterialInstanceDynamic;
 class UCameraShakeBase;
 class UCPInventoryComponent;
+class ACPCoinPusher;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -376,12 +377,26 @@ protected:
 	//�귿
 	TObjectPtr<ACPRoulette> Roulette;
 
+	/** 레벨에 배치된 ACPCoinPusher 참조. PostInitializeComponents()에서 자동으로 찾아 채워지며,
+	 *  InventoryComponent가 자신의 BeginPlay()에서(=이 캐릭터의 나머지 BeginPlay 로직보다도 먼저 실행됨)
+	 *  GetOwner()를 통해 이 값을 읽어 CoinPusher의 LinkedRoulette에 접근해야 하므로, (RollRoulette()의
+	 *  Roulette처럼) 첫 사용 시점에 지연 조회하지 않고 컴포넌트들의 BeginPlay보다 먼저 실행되는
+	 *  PostInitializeComponents()에서 미리 채워둔다 */
+	TObjectPtr<ACPCoinPusher> CoinPusher;
+
 public:
 
 	/** Constructor */
 	ACPPlayerCharacter();
 
+	/** 레벨에 배치된 ACPCoinPusher 참조 반환 (PostInitializeComponents()에서 자동으로 채워짐, 없으면 nullptr) */
+	FORCEINLINE ACPCoinPusher* GetCoinPusher() const { return CoinPusher; }
+
 protected:
+
+	/** CoinPusher를 (이 캐릭터의 BeginPlay보다, 그리고 InventoryComponent 등 소유 컴포넌트들의
+	 *  BeginPlay보다도 먼저) 미리 찾아 채워둔다 */
+	virtual void PostInitializeComponents() override;
 
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;

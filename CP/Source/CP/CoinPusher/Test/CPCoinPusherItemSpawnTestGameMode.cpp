@@ -3,6 +3,7 @@
 #include "CPCoinPusherItemSpawnTestGameMode.h"
 #include "CPCoinPusherItemSpawnTestPlayerController.h"
 #include "CPCoinPusherItemSpawnTestPawn.h"
+#include "Log/CPLogCategories.h"
 #include "UObject/Class.h"
 
 ACPCoinPusherItemSpawnTestGameMode::ACPCoinPusherItemSpawnTestGameMode()
@@ -13,6 +14,6 @@ ACPCoinPusherItemSpawnTestGameMode::ACPCoinPusherItemSpawnTestGameMode()
 
 void ACPCoinPusherItemSpawnTestGameMode::ReceiveDroppedItem(FName ItemID, int32 Count, ECPCoinType CoinType)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestGameMode] Received dropped item - ItemID: %s, Count: %d, CoinType: %s"),
+	UE_LOG(LogDropZone, Warning, TEXT("[ACPCoinPusherItemSpawnTestGameMode] Received dropped item - ItemID: %s, Count: %d, CoinType: %s"),
 		*ItemID.ToString(), Count, *UEnum::GetValueAsString(CoinType));
 }
