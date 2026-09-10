@@ -61,15 +61,25 @@ struct FCPSpawnWaveEntryRow : public FTableRowBase
 };
 
 /**
- * 라운드의 마지막(보스) 설정. 라운드 1개당 1행입니다.
+ * 라운드 단위 설정. 라운드 1개당 1행입니다.
+ * (스포너 링 구성값 + 보스 설정을 함께 담습니다 - 어차피 라운드 전환 시점에 한 번에 적용되는 값들이라
+ *  별도 테이블로 쪼개지 않고 여기 모아뒀습니다.)
  */
 USTRUCT(BlueprintType)
-struct FCPBossWaveRow : public FTableRowBase
+struct FCPRoundInfoRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round")
 	int32 Round = 1;
+
+	/** 이 라운드에서 오너(플레이어)를 중심으로 생성할 스포너 개수 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round", meta = (ClampMin = 0))
+	int32 SpawnerCount = 8;
+
+	/** 이 라운드에서 스포너들을 배치할 반경(cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round", meta = (ClampMin = 0))
+	float SpawnerRadius = 1500.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss")
 	ECPMonsterType BossMonsterType = ECPMonsterType::Boss;
@@ -81,4 +91,18 @@ struct FCPBossWaveRow : public FTableRowBase
 	/** 마지막 웨이브 종료 후, 보스 등장까지 대기시간(초) - 기획서의 "라운드 대기시간" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
 	float RoundEndWaitTime = 10.0f;
+
+	/** 체력이 이 비율 밑으로 떨어지면 포효(무적) 발동 - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float RoarHealthPercentThreshold = 0.5f;
+
+	/** 슬램(내려찍기) 공격 쿨타임(초) - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
+	float SlamCooldown = 4.0f;
+
+	/** 포효(무적) 지속시간(초) - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨.
+	 *  포효 몽타주는 원본 길이와 상관없이 이 시간에 딱 맞춰 재생 속도가 자동 조절되고,
+	 *  무적 해제도 몽타주 종료 이벤트가 아니라 이 시간을 그대로 타이머로 써서 데이터로 제어됨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
+	float RoarDuration = 2.0f;
 };

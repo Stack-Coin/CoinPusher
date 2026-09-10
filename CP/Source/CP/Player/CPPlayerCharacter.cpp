@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Player/CPPlayerCharacter.h"
 #include "Camera/CameraComponent.h"
@@ -24,6 +24,7 @@
 #include "UI/CPRadialGaugeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
+#include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
 #include "Player/Stat/CPPlayerStatTableTypes.h"
 #include "Player/Inventory/CPInventoryComponent.h"
 #include "Components/TimelineComponent.h"
@@ -93,6 +94,11 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	DebugHitboxShape->Category = ECPDebugCollisionCategory::PlayerHitbox;
 	DebugHitboxShape->SetTargetComponent(GetCapsuleComponent());
 
+	// kohMS
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel7, ECR_Overlap);
+
+	MonsterSpawnManager = CreateDefaultSubobject<UCPMonsterSpawnManagerComponent>(TEXT("MonsterSpawnManager"));
 	HitFlashTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("HitFlashTimeline"));
 
 	UCurveFloat* DefaultHitFlashCurve = CreateDefaultSubobject<UCurveFloat>(TEXT("HitFlashDefaultCurve"));

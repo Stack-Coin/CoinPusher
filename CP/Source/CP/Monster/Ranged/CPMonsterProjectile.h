@@ -21,7 +21,7 @@ public:
 
 	virtual void BeginPlay() override;
 
-	void Init(float InDamageAmount, float InKnockbackDistance, AController* InInstigatorController, AActor* InDamageCauser);
+	void Init(float InDamageAmount, AController* InInstigatorController, AActor* InDamageCauser);
 
 protected:
 	UFUNCTION()
@@ -58,7 +58,6 @@ protected:
 
 protected:
 	float DamageAmount = 0.f;
-	float KnockbackDistance = 0.f;
 	TWeakObjectPtr<AController> InstigatorController;
 	TWeakObjectPtr<AActor> DamageCauserActor;
 };

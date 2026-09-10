@@ -16,10 +16,11 @@ EBTNodeResult::Type UCPBTTaskNode_MoveTo::ExecuteTask(UBehaviorTreeComponent& Ow
 		if (ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(AIController->GetPawn()))
 		{
 			const float StatAcceptableRadius = AIPawn->GetAIMoveAcceptableRadius();
-			if (StatAcceptableRadius > 0.f)
+			if (StatAcceptableRadius >= 0.f)
 			{
 				AcceptableRadius = StatAcceptableRadius;
 			}
+
 		}
 	}
 

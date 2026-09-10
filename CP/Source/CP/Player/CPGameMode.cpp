@@ -5,9 +5,6 @@
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
-#include "Nexus/CPGoddess.h"
-#include "Nexus/CPNexus.h"
-#include "Monster/Spawner/CPMonsterSpawnManager.h"
 #include "Monster/Spawner/CPUserWidget_WaveStatus.h"
 #include "Player/CPPlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
@@ -25,24 +22,6 @@ ACPGameMode::ACPGameMode()
 void ACPGameMode::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// KohMs // Goddess가 죽으면 패배
-	if (ACPGoddess* Goddess = Cast<ACPGoddess>(UGameplayStatics::GetActorOfClass(this, ACPGoddess::StaticClass())))
-	{
-		Goddess->OnGoddessDead.AddUniqueDynamic(this, &ACPGameMode::HandleGoddessDead);
-	}
-
-	// KohMS // 웨이브 진행 상황을 화면에 텍스트로 표시 (레벨에 배치된 매니저의 상태를 그대로 보여줍니다)
-	WaveStatusSourceManager = Cast<ACPMonsterSpawnManager>(UGameplayStatics::GetActorOfClass(this, ACPMonsterSpawnManager::StaticClass()));
-	if (WaveStatusSourceManager)
-	{
-		WaveStatusWidget = CreateWidget<UCPUserWidget_WaveStatus>(GetWorld(), UCPUserWidget_WaveStatus::StaticClass());
-		if (WaveStatusWidget)
-		{
-			WaveStatusWidget->AddToViewport();
-			GetWorld()->GetTimerManager().SetTimer(WaveStatusUpdateTimer, this, &ACPGameMode::UpdateWaveStatusDisplay, 0.2f, true);
-		}
-	}
 
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 	{
@@ -196,57 +175,4 @@ void ACPGameMode::AddTeamExperience(float Amount)
 
 	TeamLevel = FMath::Clamp(TeamLevel, FMath::RoundToInt32(TeamLevelRange.Min), FMath::RoundToInt32(TeamLevelRange.Max));
 }
-
-// KohMS
-void ACPGameMode::UpdateWaveStatusDisplay()
-{
-	if (!WaveStatusSourceManager || !WaveStatusWidget)
-	{
-		return;
-	}
-
-	const ECPWavePhase Phase = WaveStatusSourceManager->GetCurrentPhase();
-
-	int32 ProgressSeconds = 0;
-	int32 TotalSeconds = 0;
-
-	switch (Phase)
-	{
-	case ECPWavePhase::Spawning:
-		ProgressSeconds = WaveStatusSourceManager->GetSpawnElapsedSeconds();
-		TotalSeconds = WaveStatusSourceManager->GetSpawnTotalSeconds();
-		break;
-
-	case ECPWavePhase::WaveWait:
-		TotalSeconds = FMath::RoundToInt(WaveStatusSourceManager->GetWaveIntervalSeconds());
-		ProgressSeconds = FMath::Clamp(TotalSeconds - FMath::CeilToInt(WaveStatusSourceManager->GetWaveWaitSecondsRemaining()), 0, TotalSeconds);
-		break;
-
-	case ECPWavePhase::RoundWait:
-		TotalSeconds = FMath::RoundToInt(WaveStatusSourceManager->GetRoundEndWaitSeconds());
-		ProgressSeconds = FMath::Clamp(TotalSeconds - FMath::CeilToInt(WaveStatusSourceManager->GetRoundWaitSecondsRemaining()), 0, TotalSeconds);
-		break;
-
-	default:
-		break;
-	}
-
-	WaveStatusWidget->UpdateWaveStatus(
-		WaveStatusSourceManager->GetCurrentWaveIndex() + 1,
-		WaveStatusSourceManager->GetWaveCount(),
-		Phase,
-		ProgressSeconds,
-		TotalSeconds);
-}
-
-void ACPGameMode::HandleGoddessDead()
-{
-	if (bIsGameOver)
-	{
-		return;
-	}
-
-	bIsGameOver = true;
-
-	UE_LOG(LogTemp, Warning, TEXT("[CPGameMode] Defeat! Goddess has fallen."));
 }

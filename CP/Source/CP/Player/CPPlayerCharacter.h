@@ -30,6 +30,7 @@ class UCPWeaponManagerComponent;
 class ACPWeaponBase;
 class ACPRoulette;
 class UCPDebugCollisionShapeComponent;
+class UCPMonsterSpawnManagerComponent;
 class UDataTable;
 struct FCPPlayerLevelStatRow;
 class UTimelineComponent;
@@ -95,6 +96,12 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCPDebugCollisionShapeComponent* DebugHitboxShape;
 
+	/** 뱀서류 몬스터 웨이브/라운드/보스 스폰을 전담하는 컴포넌트. 매 인스턴스에 자동으로 붙어있고,
+	 *  MonsterClassByType/SpawnWaveEntryTable/RoundInfoTable 기본값은 이 컴포넌트의 생성자
+	 *  (ConstructorHelpers)에서 자동으로 채워짐 - Details 패널에서 개별적으로 덮어쓸 수 있음.
+	 *  See Monster/Spawner/CPMonsterSpawnManagerComponent */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCPMonsterSpawnManagerComponent> MonsterSpawnManager;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UTimelineComponent* HitFlashTimeline;
 
@@ -673,6 +680,7 @@ public:
 
 	/** Returns WeaponManager subobject **/
 	FORCEINLINE class UCPWeaponManagerComponent* GetWeaponManager() const { return WeaponManager; }
+	FORCEINLINE class UCPMonsterSpawnManagerComponent* GetMonsterSpawnManager() const { return MonsterSpawnManager; }
 
 	FORCEINLINE class UCPInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 };

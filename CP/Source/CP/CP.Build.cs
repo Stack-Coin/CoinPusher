@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 
@@ -24,7 +24,7 @@ public class CP : ModuleRules
 			"GameplayTasks"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "ApplicationCore", "AnimGraphRuntime" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "ApplicationCore", "AnimGraphRuntime", "Landscape" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"CP",

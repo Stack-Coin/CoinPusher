@@ -13,13 +13,13 @@
 ACPMonsterAIController::ACPMonsterAIController()
 {
 	// Data
-	static ConstructorHelpers::FObjectFinder<UBehaviorTree> BTAssetRef(TEXT("/Script/AIModule.BehaviorTree'/Game/Monster/AI/BT_MonsterBase.BT_MonsterBase'"));
+	static ConstructorHelpers::FObjectFinder<UBehaviorTree> BTAssetRef(TEXT("/Script/AIModule.BehaviorTree'/Game/Monster/AI/BT_Monster.BT_Monster'"));
 	if (BTAssetRef.Object != nullptr)
 	{
 		MonsterBT = BTAssetRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<UBlackboardData> BBAssetRef(TEXT("/Script/AIModule.BlackboardData'/Game/Monster/AI/BB_MonsterBase.BB_MonsterBase'"));
+	static ConstructorHelpers::FObjectFinder<UBlackboardData> BBAssetRef(TEXT("/Script/AIModule.BlackboardData'/Game/Monster/AI/BB_Monster.BB_Monster'"));
 	if (BBAssetRef.Object != nullptr) 
 	{
 		MonsterBB = BBAssetRef.Object;
