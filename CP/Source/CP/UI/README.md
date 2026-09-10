@@ -88,7 +88,12 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 - `UCPPressAnyKeyWidget` : `FCPAnyInputProcessor`를 `NativeConstruct`에서 등록(`NativeDestruct`
   에서 해제)해서 아무 키/마우스/게임패드 입력이든 감지해 `OnAnyKeyPressed`(BlueprintAssignable)
   를 Broadcast. `NextWidgetClass`를 지정해두면 BP 작업 없이도 자동으로 그 위젯으로 전환됨
-  (타이틀 화면 "Press Any Button" 등)
+  (타이틀 화면 "Press Any Button" 등). `SwitchDelay`(EditAnywhere, 기본 0초)를 0보다 크게 주면
+  첫 입력 후 그 시간만큼 기다렸다가 전환(이미 대기 중이면 추가 입력이 들어와도 다시 잡지 않음) -
+  0이면 기존처럼 즉시 전환. `HandleAnyKeyPressed`는 Broadcast 후 `ScheduleSwitchToNextWidget()`
+  (protected, `virtual`)을 호출해 위 딜레이/전환 예약을 수행 - 하위 클래스가 이 함수를 오버라이드해
+  전환 전에 자기만의 연출(점멸 등)을 넣고 원하는 타이밍에 직접 `SwitchToNextWidget()`(protected)을
+  호출하도록 재정의할 수 있다 (`UCPStartScreenWidget` 참고)
 
   > **왜 `NativeOnKeyDown`/`SetUserFocus` 대신 `IInputProcessor`인가**: 처음엔
   > `NativeOnKeyDown`/`NativeOnMouseButtonDown` + `SetUserFocus`로 구현했었는데, 실제로
@@ -98,6 +103,39 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   > 키 이벤트가 라우팅되는 Slate User가 서로 어긋나 포커스가 있어도 이벤트가 전달되지 않음.
   > `IInputProcessor`는 Slate가 포커스/히트테스트로 이벤트를 어디로 보낼지 정하기 이전 단계에서
   > 가로채므로 이 두 문제 모두와 무관하게 항상 동작한다
+
+### 시작 화면 / 게임 설명 화면 (컨트롤러 선택)
+
+두 화면 모두 `UCPPressAnyKeyWidget`을 상속해 `FCPAnyInputProcessor` 기반 "아무 입력이나 감지" 방식을
+그대로 재사용하고, `ECPControllerType`(`GameMode/CPControllerType.h`, `KeyboardMouse`/`GamePad`)과
+`UCPControllerTypeSubsystem`(`GameMode/`, `UGameInstanceSubsystem`)으로 "어떤 컨트롤러를 쓰는지"를
+화면 전환·레벨 전환 이후에도 들고 다닌다 (`UCPPlayerRegistrySubsystem`과 같은 이유로 GameInstance
+서브시스템을 사용 - "몇 번째 플레이어인지"가 아니라 "장치 종류"라는 별개의 관심사라 서브시스템도 분리).
+
+- `UCPStartScreenWidget` : `BackGroundImage`(WBP에 배치만, 별도 바인딩 불필요)와
+  `GamePadImage`/`KeyBoardImage`(둘 다 `BindWidgetOptional`), "Press Any Key" 안내 텍스트로
+  구성되는 시작 화면. `OnAnyKeyPressed`에 바인딩된 `HandleControllerInputDetected(PressedKey)`가
+  (점멸 시작 전까지) `PressedKey.IsGamepadKey()`로 게임패드/키보드·마우스를 구분해 반대쪽 아이콘은
+  숨기고(`Collapsed`) 방금 사용한 장치 쪽 아이콘은 다시 보이게(`SelfHitTestInvisible`) 한 뒤, 그
+  결과를 `UCPControllerTypeSubsystem::SetSelectedControllerType()`에 매 입력마다 기록한다 - 게임패드를
+  눌렀다 키보드를 누르면 반대로 토글되며, 최종적으로 마지막에 사용한 장치의 아이콘만 남는다.
+  부모의 `ScheduleSwitchToNextWidget()`을 오버라이드해서, 화면에 남아있는(=선택된) 아이콘을
+  `BlinkCount`(EditAnywhere, 기본 3)번 `BlinkInterval`(EditAnywhere, 기본 0.5초) 간격으로 점멸시킨
+  뒤에야(꺼짐→켜짐을 `BlinkCount`번, 즉 토글 `BlinkCount*2`번 - 항상 켜진 채로 끝남) `SwitchToNextWidget()`
+  을 호출해 다음 화면으로 전환한다 - 부모의 `SwitchDelay`는 이 위젯에서는 쓰이지 않음(오버라이드가
+  자체 타이밍으로 직접 전환을 호출). 점멸 시퀀스가 한 번 시작되면(`bHasStartedBlink`) 이후 입력은
+  `HandleControllerInputDetected`에서 무시되어 선택이 다시 바뀌지 않는다. WBP Class Defaults에서는
+  `NextWidgetClass`에 `UCPGameExplanationWidget` 상속 WBP만 지정하면 됨
+- `UCPGameExplanationWidget` : 시작 화면에서 선택된 컨트롤러에 따라 `GamePadImage` 또는
+  `KeyBoardImage`(둘 다 `BindWidgetOptional`) 중 하나만 보이도록 `NativeConstruct`에서
+  `UCPControllerTypeSubsystem::GetSelectedControllerType()`을 조회해 반영하고, "Press Any Key to
+  Start" 안내 텍스트는 WBP에 고정 배치. `OnAnyKeyPressed`에 바인딩된
+  `HandleSelectedControllerKeyPressed(PressedKey)`가 `PressedKey.IsGamepadKey()`를 선택된 컨트롤러
+  종류와 비교해서, **일치하지 않는 입력은 무시**하고(예: 게임패드를 선택했는데 키보드를 누르면
+  아무 반응 없음) 일치할 때만 `NextLevelName`(EditAnywhere)으로 `UGameplayStatics::OpenLevel()`을
+  호출 - `UCPControllerTypeSubsystem`이 GameInstance에 붙어 있어 레벨이 바뀌어도 선택 정보가 남으므로
+  별도 파라미터 전달 없이 다음 레벨에서 그대로 조회 가능. 부모의 `NextWidgetClass`는 설정하지 않음
+  (다음 화면이 아니라 다음 레벨로 이동하므로)
 
 ### 게임 종료 화면
 
@@ -157,14 +195,33 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 "이전" 단계에서 이벤트를 가로채므로 위 두 문제 모두와 무관하게 항상 동작한다. 그래서 두
 위젯 모두 포커스/입력 모드를 전혀 건드리지 않고, `FCPAnyInputProcessor`만으로 입력을 감지한다.
 
+## 테스트용 GameMode/PlayerController (`UI/Test`)
+
+시작 화면 → 게임 설명 화면 흐름만 따로 떼어서(레벨 블루프린트나 실제 게임플레이 GameMode 없이)
+확인할 수 있는 최소 구성 세트. `CoinPusher/Test`의 GameMode들과 같은 패턴 - 실제 프로젝트 GameMode
+(`ACPGameMode` 등)를 상속하지 않고 가벼운 `AGameModeBase`로 둬서 다른 시스템(팀 리소스, 로컬
+멀티플레이어 생성 등)의 초기화와 무관하게 UI 흐름만 독립적으로 켜볼 수 있다.
+
+- `ACPStartScreenTestGameMode` : `ACPLobbyGameMode`와 동일한 패턴 - `BeginPlay`에서
+  `StartWidgetClass`(보통 `UCPStartScreenWidget` 상속 WBP)를 자동으로 `CreateWidget` + `AddToViewport`
+  해준다. `DefaultPawnClass`는 비워두고(순수 UI 테스트라 Pawn 불필요), `PlayerControllerClass`는
+  생성자에서 `ACPStartScreenTestPlayerController`로 자동 지정
+- `ACPStartScreenTestPlayerController` : `ACPLobbyPlayerController`와 동일한 이유로 Input Mapping
+  Context를 추가하지 않는 최소 구성 PlayerController(`UCPStartScreenWidget`/`UCPGameExplanationWidget`
+  이 각자 `FCPAnyInputProcessor`로 입력을 직접 가로채므로 PlayerController가 입력 모드/포커스를
+  따로 관리할 필요가 없음). 디버그용으로 `EKeys::AnyKey`를 걸어, 입력이 감지될 때마다
+  `UCPControllerTypeSubsystem::GetSelectedControllerType()`을 로그로 찍어줘서 이미지 토글이
+  눈으로 확인하기 어려운 환경(원격 데스크톱 등)에서도 Output Log만으로 동작을 확인할 수 있다
+
 ## 에디터에서 준비해야 할 것
 
 모든 C++ 클래스는 `UCLASS(abstract)`라 실제 사용하려면 Blueprint가 필요하다:
 
 1. 각 Widget 클래스(`UCPHealthBarWidget`, `UCPRadialGaugeWidget`, `UCPCoinCountWidget`,
-   `UCPTicketCountWidget`, `UCPTimeDisplayWidget`, `UCPPressAnyKeyWidget`, `UCPPlayerJoinWidget`)
-   를 부모로 하는 WBP를 만들고 비주얼(ProgressBar/Image/TextBlock 등, `BindWidgetOptional`
-   변수와 이름을 맞춰서 배치)과 표시 문구(`DisplayFormat` 등)를 채운다
+   `UCPTicketCountWidget`, `UCPTimeDisplayWidget`, `UCPPressAnyKeyWidget`, `UCPPlayerJoinWidget`,
+   `UCPStartScreenWidget`, `UCPGameExplanationWidget`)를 부모로 하는 WBP를 만들고 비주얼
+   (ProgressBar/Image/TextBlock 등, `BindWidgetOptional` 변수와 이름을 맞춰서 배치)과 표시 문구
+   (`DisplayFormat`, "Press Any Key" 안내 텍스트 등)를 채운다
 2. 값을 표시하고 싶은 곳(적/캐릭터 BP, HUD, GameMode 등)에 해당 컴포넌트를 Add Component로
    붙이거나 위젯을 `CreateWidget` + `AddToViewport`
 3. 실제 값을 들고 있는 쪽의 `BlueprintAssignable` 델리게이트(`ACPGameMode::OnTeamCoinCountChanged`
@@ -186,3 +243,17 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 6. 게임 오버/클리어는 `UCPGameOverWidget`/`UCPGameClearWidget`을 부모로 WBP를 만들고, 게임
    종료 조건이 발생하는 지점(GameMode, 체력 0 등)에서 `CreateWidget` + `AddToViewport`로 띄운다.
    `UCPGameClearWidget`의 `NextLevelName`은 WBP Class Defaults에서 지정
+7. 시작 화면 → 게임 설명 화면 흐름: `UCPStartScreenWidget` 상속 WBP를 만들어 `BackGroundImage`/
+   `GamePadImage`/`KeyBoardImage`/안내 텍스트를 배치하고, `NextWidgetClass`에 `UCPGameExplanationWidget`
+   상속 WBP를 지정한다(전환 타이밍은 `SwitchDelay`가 아니라 `BlinkCount`/`BlinkInterval`로 제어됨 -
+   기본값 그대로 두면 선택된 아이콘이 0.5초 간격으로 3번 점멸한 뒤 전환). `UCPGameExplanationWidget` 상속 WBP에도
+   `GamePadImage`/`KeyBoardImage`/"Press Any Key to Start" 텍스트를 배치하고 `NextLevelName`에 이동할
+   레벨을 지정한다. 이 WBP를 (`ACPLobbyGameMode`처럼) 레벨 시작 시 자동으로 띄워주는 GameMode의
+   `StartWidgetClass` 등에 지정하면, 레벨을 열자마자 시작 화면 → 게임 설명 화면 → 다음 레벨까지
+   레벨 블루프린트 작업 없이 자동으로 이어진다
+8. 위 흐름만 독립적으로 테스트하고 싶으면 `ACPStartScreenTestGameMode`를 상속하는 BP GameMode를
+   만들어 `StartWidgetClass`에 7번에서 만든 `UCPStartScreenWidget` 상속 WBP를 지정한 뒤, 테스트용
+   레벨의 World Settings → GameMode Override에 그 BP를 지정한다. `PlayerControllerClass`는 생성자가
+   `ACPStartScreenTestPlayerController`로 자동 지정해주므로 별도 설정 불필요 - 레벨을 PIE로 열면
+   바로 시작 화면부터 테스트할 수 있고, `EKeys::AnyKey` 입력마다 현재 선택된 컨트롤러 종류가 Output
+   Log에 찍힌다
