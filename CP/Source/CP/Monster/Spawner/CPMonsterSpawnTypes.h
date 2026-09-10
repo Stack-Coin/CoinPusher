@@ -99,4 +99,10 @@ struct FCPRoundInfoRow : public FTableRowBase
 	/** 슬램(내려찍기) 공격 쿨타임(초) - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
 	float SlamCooldown = 4.0f;
+
+	/** 포효(무적) 지속시간(초) - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨.
+	 *  포효 몽타주는 원본 길이와 상관없이 이 시간에 딱 맞춰 재생 속도가 자동 조절되고,
+	 *  무적 해제도 몽타주 종료 이벤트가 아니라 이 시간을 그대로 타이머로 써서 데이터로 제어됨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
+	float RoarDuration = 2.0f;
 };

@@ -288,10 +288,10 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		ActiveBoss = SpawnedBoss;
 		SpawnedBoss->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBossDied);
 
-		// RoundInfoTable 행에 담긴 Boss 전용 값(포효 임계치/슬램 쿨타임)을 스폰된 인스턴스에 적용
+		// RoundInfoTable 행에 담긴 Boss 전용 값(포효 임계치/슬램 쿨타임/포효 지속시간)을 스폰된 인스턴스에 적용
 		if (ACPMonsterBoss* Boss = Cast<ACPMonsterBoss>(SpawnedBoss))
 		{
-			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown);
+			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown, RoundInfo->RoarDuration);
 		}
 	}
 	else

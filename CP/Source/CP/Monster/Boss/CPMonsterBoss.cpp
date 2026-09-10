@@ -3,16 +3,18 @@
 
 #include "Monster/Boss/CPMonsterBoss.h"
 #include "Monster/CPMonsterAIController.h"
+#include "TimerManager.h"
 
 ACPMonsterBoss::ACPMonsterBoss()
 {
 	MonsterType = ECPMonsterType::Boss;
 }
 
-void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown)
+void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration)
 {
 	RoarHealthPercentThreshold = InRoarHealthPercentThreshold;
 	SlamCooldown = InSlamCooldown;
+	RoarDuration = InRoarDuration;
 }
 
 void ACPMonsterBoss::Tick(float DeltaSeconds)
@@ -67,26 +69,34 @@ void ACPMonsterBoss::RoarByAI()
 	bArmedForRoar = false;
 
 	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
-	if (AnimInstance && RoarMontage)
+	if (AnimInstance && RoarMontage && RoarDuration > 0.f)
 	{
 		AddCCState(ECPMonsterCCState::Invulnerable);
 
+		// 몽타주 원본 길이와 무관하게 RoarDuration(RoundInfoTable에서 온 값)에 정확히 맞춰
+		// 재생되도록 재생 속도를 역산함 - 기획자가 라운드마다 포효 시간을 조절하면 애니메이션도
+		// 그 시간에 맞춰 빠르게/느리게 재생됨
+		const float NativeLength = RoarMontage->GetPlayLength();
+		const float PlayRate = (NativeLength > 0.f) ? (NativeLength / RoarDuration) : 1.f;
+
 		AnimInstance->StopAllMontages(0.0f);
-		const float Duration = AnimInstance->Montage_Play(RoarMontage, 1.0f);
+		AnimInstance->Montage_Play(RoarMontage, PlayRate);
 
-		if (Duration > 0.0f)
+		// 무적 해제 시점은 몽타주 종료 이벤트가 아니라 RoarDuration 자체를 타이머로 써서 결정함 -
+		// 재생 속도 계산이 조금 어긋나거나 몽타주가 중간에 인터럽트되어도 포효 지속시간은
+		// 항상 데이터(RoundInfoTable)로 정확히 통제됨
+		TWeakObjectPtr<ACPMonsterBoss> WeakThis(this);
+		GetWorldTimerManager().SetTimer(RoarDurationTimerHandle, [WeakThis]()
 		{
-			FOnMontageEnded EndDelegate;
-			EndDelegate.BindUObject(this, &ACPMonsterBoss::HandleRoarMontageEnded);
-			AnimInstance->Montage_SetEndDelegate(EndDelegate, RoarMontage);
-			return;
-		}
-
-		// 재생은 시작했지만 Duration이 0 이하로 나온 예외적인 경우 - 무적 상태로 남지 않도록 바로 해제
-		RemoveCCState(ECPMonsterCCState::Invulnerable);
+			if (ACPMonsterBoss* StrongThis = WeakThis.Get())
+			{
+				StrongThis->HandleRoarMontageEnded(nullptr, false);
+			}
+		}, RoarDuration, false);
+		return;
 	}
 
-	// 몽타주가 없거나 재생 실패 - 무적 없이 바로 끝난 걸로 처리해서 BT가 멈추지 않게 함
+	// 몽타주가 없거나 RoarDuration이 0 이하인 경우 - 무적 없이 바로 끝난 걸로 처리해서 BT가 멈추지 않게 함
 	OnRoarFinished.ExecuteIfBound();
 }
 

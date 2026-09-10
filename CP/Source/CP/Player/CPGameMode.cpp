@@ -31,10 +31,10 @@ void ACPGameMode::BeginPlay()
 
 	// Create each additional local player - Player 0 (keyboard/mouse) is created automatically as part
 	// of regular game init. Fixed at level start, no drop-in join (see NumberOfLocalPlayers)
-	for (int32 i = 2; i <= NumberOfLocalPlayers; ++i)
+	/*for (int32 i = 2; i <= NumberOfLocalPlayers; ++i)
 	{
 		UGameplayStatics::CreatePlayer(GetWorld(), -1, true);
-	}
+	}*/
 
 	// Prefer the device <-> PlayerIndex assignment recorded by ACPLobbyGameMode in the previous level.
 	// Only fall back to the legacy "first connected gamepad -> 2P" behavior (and its late-connection
