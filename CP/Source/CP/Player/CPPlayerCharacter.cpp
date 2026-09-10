@@ -9,16 +9,18 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerInput.h"
+#include "InputCoreTypes.h"
 #include "EnhancedInputComponent.h"
 #include "InputActionValue.h"
 #include "Kismet/GameplayStatics.h"
+#include "KismetAnimationLibrary.h"
 #include "TimerManager.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPItemEffect.h"
 #include "Weapon/CPWeaponManagerComponent.h"
 #include "Weapon/CPWeaponBase.h"
 #include "Roulette/CPRoulette.h"
-#include "Player/CPTopDownPlayerController.h"
 #include "UI/CPRadialGaugeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
@@ -275,7 +277,7 @@ void ACPPlayerCharacter::Interact(const FInputActionValue& Value)
 
 void ACPPlayerCharacter::DoMove(float Right, float Forward)
 {
-	if (Controller == nullptr || bIsAttackLocked || bIsDowned)
+	if (Controller == nullptr || bIsDowned)
 	{
 		return;
 	}
@@ -291,17 +293,18 @@ void ACPPlayerCharacter::DoMove(float Right, float Forward)
 
 void ACPPlayerCharacter::DoAttack()
 {
-	if (bIsAttackLocked || bIsDowned)
+	if (bIsDowned)
 	{
 		return;
 	}
 
+	// ACPWeaponBase::CanAttack() already no-ops this while a combo string is in progress - no need to also
+	// gate on bIsAttackLocked here. Facing (see OrientTowardsAttackDirection) is handled by
+	// HandleAttackStateChanged, triggered by the weapon's own OnAttackStateChanged the moment this actually
+	// starts a new attack
 	if (WeaponManager && WeaponManager->GetCurrentWeapon())
 	{
-		if (WeaponManager->Attack())
-		{
-			OrientAndLungeForAttack();
-		}
+		WeaponManager->Attack();
 	}
 }
 
@@ -335,13 +338,19 @@ void ACPPlayerCharacter::DoDash()
 	LastDashTime = CurrentTime;
 
 	// Dash interrupts an in-progress attack: cancel the weapon's swing (which releases the attack lock via
-	// HandleAttackStateChanged) so the dash below isn't blocked and doesn't fight the attack's facing/lunge
+	// HandleAttackStateChanged) so the dash below doesn't fight the attack's facing lock
 	if (bIsAttackLocked)
 	{
 		if (ACPWeaponBase* CurrentWeapon = WeaponManager ? WeaponManager->GetCurrentWeapon() : nullptr)
 		{
 			CurrentWeapon->CancelAttack();
 		}
+
+		// CancelAttack's HandleAttackStateChanged(false) would normally wait PostAttackRotationDelay before
+		// resuming movement-driven rotation - a dash is a decisive movement action though, so resume right
+		// away instead of leaving the character facing the old attack direction through the dash
+		GetWorldTimerManager().ClearTimer(PostAttackRotationTimerHandle);
+		ReorientToMovementDirection();
 	}
 
 	DashDirection = GetLastMovementWorldDirection();
@@ -367,9 +376,21 @@ void ACPPlayerCharacter::HandleAttackStateChanged(bool bIsAttacking)
 {
 	bIsAttackLocked = bIsAttacking;
 
-	// Movement input is already blocked outright while locked (see DoMove) - this additionally stops the
-	// movement component from turning the character to face residual velocity while the lock is engaged
-	GetCharacterMovement()->bOrientRotationToMovement = !bIsAttacking;
+	if (bIsAttacking)
+	{
+		// A new combo string just started: stop the movement component from turning the character to face
+		// movement, and snap to face the attack direction instead. Movement itself is left alone - the
+		// player can keep moving freely, just without the character turning to follow it
+		GetWorldTimerManager().ClearTimer(PostAttackRotationTimerHandle);
+		GetCharacterMovement()->bOrientRotationToMovement = false;
+		OrientTowardsAttackDirection();
+	}
+	else
+	{
+		// The attack's motion just ended (montage finished, or last swing dispatched if no montage) - keep
+		// facing the attack direction for a bit longer before resuming movement-driven rotation
+		GetWorldTimerManager().SetTimer(PostAttackRotationTimerHandle, this, &ACPPlayerCharacter::ReorientToMovementDirection, PostAttackRotationDelay, false);
+	}
 }
 
 void ACPPlayerCharacter::DoInteract()
@@ -417,53 +438,67 @@ FVector ACPPlayerCharacter::GetLastMovementWorldDirection() const
 	return Direction;
 }
 
+float ACPPlayerCharacter::GetMovementDirection() const
+{
+	return UKismetAnimationLibrary::CalculateDirection(GetVelocity(), GetActorRotation());
+}
+
 FVector ACPPlayerCharacter::GetAttackDirection() const
 {
-	// Gamepad player: attack in the current/last movement direction instead of aiming with a mouse
-	// cursor (a gamepad player has no meaningful cursor position, and there's no separate aim stick)
-	if (const ACPTopDownPlayerController* TopDownController = Cast<ACPTopDownPlayerController>(GetController()))
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
 	{
-		if (!TopDownController->IsUsingKeyboardAndMouse())
+		return GetActorForwardVector();
+	}
+
+	// Checked live every time, instead of asking "which device does this player own" (that's a per-player
+	// classification meant for local multiplayer/the lobby - it's meaningless when testing this level
+	// directly, and it forces an either/or choice). This way the same controller can freely mix mouse
+	// aiming and gamepad-stick aiming from one attack to the next
+	if (PC->PlayerInput)
+	{
+		const float GamepadX = PC->PlayerInput->GetKeyValue(EKeys::Gamepad_LeftX);
+		const float GamepadY = PC->PlayerInput->GetKeyValue(EKeys::Gamepad_LeftY);
+		if (FVector2D(GamepadX, GamepadY).Size() >= MoveInputDeadzone)
 		{
 			return GetLastMovementWorldDirection();
 		}
 	}
 
-	FVector Direction = GetActorForwardVector();
-
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	// Mouse: intersect the deprojected cursor ray with a horizontal plane at the character's own height,
+	// instead of GetHitResultUnderCursor - that depends on the floor mesh actually blocking ECC_Visibility
+	// (or nothing else unexpectedly blocking it first), and silently falls back to "just face forward" the
+	// moment it doesn't. This plane intersection is pure math, so it can't fail because of level collision setup
+	FVector RayOrigin, RayDirection;
+	if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDirection) && !FMath::IsNearlyZero(RayDirection.Z))
 	{
-		FHitResult CursorHit;
-		if (PC->GetHitResultUnderCursor(ECC_Visibility, false, CursorHit))
+		const float CharacterZ = GetActorLocation().Z;
+		const float DistanceToPlane = (CharacterZ - RayOrigin.Z) / RayDirection.Z;
+
+		if (DistanceToPlane > 0.0f)
 		{
-			FVector ToCursor = CursorHit.Location - GetActorLocation();
+			FVector ToCursor = (RayOrigin + RayDirection * DistanceToPlane) - GetActorLocation();
 			ToCursor.Z = 0.0f;
 
 			if (!ToCursor.IsNearlyZero())
 			{
-				Direction = ToCursor.GetSafeNormal();
+				return ToCursor.GetSafeNormal();
 			}
 		}
 	}
 
-	return Direction;
+	return GetActorForwardVector();
 }
 
-void ACPPlayerCharacter::OrientAndLungeForAttack()
+void ACPPlayerCharacter::OrientTowardsAttackDirection()
 {
 	const FVector AimDirection = GetAttackDirection();
 	SetActorRotation(FRotator(0.0f, AimDirection.Rotation().Yaw, 0.0f));
+}
 
-	const FVector CurrentVelocity = GetVelocity();
-	const float CurrentSpeed = CurrentVelocity.Size2D();
-	if (CurrentSpeed < AttackLungeMinSpeed)
-	{
-		return;
-	}
-
-	const FVector LungeDirection = CurrentVelocity.GetSafeNormal2D();
-	const float LungeSpeed = AttackLungeDuration > 0.0f ? (AttackLungeDistance / AttackLungeDuration) : AttackLungeDistance;
-	LaunchCharacter(LungeDirection * LungeSpeed, true, true);
+void ACPPlayerCharacter::ReorientToMovementDirection()
+{
+	GetCharacterMovement()->bOrientRotationToMovement = true;
 }
 
 void ACPPlayerCharacter::EndDash()

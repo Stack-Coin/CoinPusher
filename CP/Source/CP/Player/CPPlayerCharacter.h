@@ -63,6 +63,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerTicketChanged, int32, New
  *  - 8-directional WASD movement relative to the fixed camera
  *  - Mouse cursor directed rectangular (box trace) melee attack
  *  - Directional dash with temporary invincibility
+ *  - Movement is never blocked by attacking: while a combo string is in progress, the character's facing
+ *    is locked to the attack direction instead of following movement (see HandleAttackStateChanged),
+ *    then returns to following movement PostAttackRotationDelay seconds after the attack's motion ends
+ *    (see OrientTowardsAttackDirection/ReorientToMovementDirection). GetMovementDirection() exposes the
+ *    current movement direction relative to that facing, for a 4-way movement Blend Space in the Anim BP
  */
 UCLASS(abstract)
 class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable, public ICPReviveProgressProvider, public ICPCoinWallet
@@ -191,24 +196,21 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category="Wallet")
 	int32 TicketCount = 0;
 
-	/** Distance moved by the forward lunge triggered when attacking while moving */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm"))
-	float AttackLungeDistance = 150.0f;
-
-	/** Duration of the attack lunge movement */
+	/** After an attack's motion actually ends (attack montage finished, or the last combo swing was
+	 *  dispatched if no montage is assigned - see ACPWeaponBase::OnAttackStateChanged), how long to keep
+	 *  facing the attack direction before rotating back to face the movement direction again. 0 = rotate
+	 *  back immediately. Tune this in BP */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "s"))
-	float AttackLungeDuration = 0.15f;
-
-	/** Minimum current speed required for an attack to trigger the forward lunge, instead of attacking in place */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0, Units = "cm/s"))
-	float AttackLungeMinSpeed = 10.0f;
+	float PostAttackRotationDelay = 0.3f;
 
 	/** Move input below this magnitude (stick axis value in [0, 1]) is treated as zero, so gamepad stick
 	 *  drift/noise doesn't register as movement (or, for a gamepad player, as an attack direction) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Move", meta = (ClampMin = 0, ClampMax = 1))
 	float MoveInputDeadzone = 0.15f;
 
-	/** True while a weapon combo string is in progress. Blocks DoMove/movement-driven rotation until the weapon reports it finished/was cancelled */
+	/** True while a weapon combo string is in progress. Movement itself is NOT blocked while this is true -
+	 *  only the movement-driven rotation is: the character's facing is locked to the attack direction
+	 *  instead of following movement input (see HandleAttackStateChanged/OrientTowardsAttackDirection) */
 	bool bIsAttackLocked = false;
 
 	/** Distance covered by a single dash */
@@ -224,7 +226,7 @@ protected:
 	float DashCooldown = 1.0f;
 
 	/** Converts ApplyKnockback's Distance into a launch speed: Speed = Distance / KnockbackDuration
-	 *  (same convention as DashDistance/DashDuration and AttackLungeDistance/AttackLungeDuration) */
+	 *  (same convention as DashDistance/DashDuration) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Knockback", meta = (ClampMin = 0.01, Units = "s"))
 	float KnockbackDuration = 0.2f;
 
@@ -284,6 +286,10 @@ protected:
 
 	/** Timer used to end the dash state after DashDuration */
 	FTimerHandle DashDurationTimerHandle;
+
+	/** Fires ReorientToMovementDirection() after PostAttackRotationDelay once an attack's motion actually
+	 *  ends. Restarted/cleared by HandleAttackStateChanged and DoDash */
+	FTimerHandle PostAttackRotationTimerHandle;
 
 	/** True while Health is at 0 and the character is lying down, uncontrollable, waiting to be revived */
 	bool bIsDowned = false;
@@ -458,9 +464,13 @@ protected:
 	/** Resolves a WASD input vector into a world space direction relative to the fixed camera yaw */
 	FVector GetWorldDirectionFromInput(const FVector2D& InputVector) const;
 
-	/** Resolves the current attack/aim direction: for a gamepad player, the current/last movement
-	 *  direction (see GetLastMovementWorldDirection) - no separate aim stick. For a keyboard/mouse
-	 *  player, the direction from the character to the mouse cursor's world location, as before */
+	/** Resolves the current attack/aim direction. Checks the gamepad's own left stick live (raw
+	 *  EKeys::Gamepad_LeftX/Y, independent of any Enhanced Input mapping/device-ownership classification) -
+	 *  if it's currently being pushed, aims in the current/last movement direction (see
+	 *  GetLastMovementWorldDirection; there's no separate aim stick). Otherwise aims at the mouse cursor's
+	 *  world location (deprojected against a horizontal plane at the character's height - not a collision
+	 *  trace, so it doesn't depend on the floor blocking any particular channel). This lets the same
+	 *  controller freely mix mouse aiming and gamepad-stick aiming rather than being locked to one */
 	FVector GetAttackDirection() const;
 
 	/** Converts LastMoveInputVector to a world-space direction, falling back to the character's current
@@ -469,10 +479,15 @@ protected:
 	FVector GetLastMovementWorldDirection() const;
 
 
-	/** Faces the character toward the mouse cursor, then lunges it forward by AttackLungeDistance if it was
-	 *  moving fast enough (in its current movement direction) when the attack started. Called right after a
-	 *  weapon attack successfully begins */
-	void OrientAndLungeForAttack();
+	/** Snaps the character to face the current attack/aim direction (see GetAttackDirection). Called once
+	 *  when a combo string starts (see HandleAttackStateChanged) - movement itself is left untouched, so
+	 *  the player can keep moving freely while the character's facing stays locked onto the attack direction */
+	void OrientTowardsAttackDirection();
+
+	/** Re-enables normal movement-driven rotation (CharacterMovementComponent turns the character to face
+	 *  its movement direction again). Fires on PostAttackRotationTimerHandle, PostAttackRotationDelay
+	 *  seconds after an attack's motion ends (see HandleAttackStateChanged) */
+	void ReorientToMovementDirection();
 
 	/** Ends the dash movement and invincibility window */
 	void EndDash();
@@ -626,9 +641,19 @@ public:
 	UFUNCTION(BlueprintPure, Category="Dash")
 	bool IsDashing() const { return bIsDashing; }
 
-	/** Returns true while a weapon combo string is in progress (movement/rotation input is locked out) */
+	/** Returns true while a weapon combo string is in progress (facing is locked to the attack direction -
+	 *  see bIsAttackLocked) */
 	UFUNCTION(BlueprintPure, Category="Combat")
 	bool IsAttackLocked() const { return bIsAttackLocked; }
+
+	/** Current movement direction in degrees relative to the character's own current facing (0 = forward,
+	 *  +90 = right, -90 = left, ±180 = backward) - feed this into a 4-way (forward/left/right/backward)
+	 *  movement Blend Space in the Animation Blueprint. Based on current velocity and is always relative to
+	 *  however the character is currently facing, so it stays correct even while attacking has rotated the
+	 *  character away from its movement direction (e.g. moving backward relative to the attack facing while
+	 *  swinging a weapon correctly reads as ~180 / backward) */
+	UFUNCTION(BlueprintPure, Category="Animation")
+	float GetMovementDirection() const;
 
 	/** Returns true while the character is invincible, for any reason (dash, post-revive window, or a
 	 *  debug override) */
