@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "CoinPusher/CPCoinTypes.h"
 #include "CPRouletteTypes.generated.h"
 
 /** 룰렛 한 칸의 당첨 정보를 누가 받아 처리할지 */
@@ -34,6 +35,11 @@ struct FCPRouletteSlotData
 	/** 스폰(또는 전달)할 개수 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0))
 	int32 SpawnCount = 1;
+
+	/** ItemID가 코인일 때 적용할 CoinType. 코인이 아닌 아이템이면 무시된다
+	 *  (ACPCoinPusher::ItemSpawn()이 스폰된 액터가 실제로 ACPCoin일 때만 SetCoinType()을 호출) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	ECPCoinType CoinType = ECPCoinType::Normal;
 
 	/** 당첨 정보를 받을 곳 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")

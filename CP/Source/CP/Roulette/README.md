@@ -29,13 +29,14 @@
   칸이 (고정된) 위쪽 화살표 아래에서 멈추도록 연출한다. 칸이 결정되면 `OnResultDetermined`를
   브로드캐스트하고, `PostResultHideDelay`(기본 2초) 후 스스로 사라진다
 - `FCPRouletteSlotData` : 룰렛 한 칸의 데이터. `Probability`(float), `ItemID`(FName),
-  `SpawnCount`(int32), `RewardTarget`(`ECPRouletteRewardTarget`)
+  `SpawnCount`(int32), `CoinType`(`ECPCoinType`), `RewardTarget`(`ECPRouletteRewardTarget`)
 - `ECPRouletteRewardTarget` : 당첨 정보를 받을 곳. `CoinPusher`(실제 스폰) 또는
   `GameMode`(`ICPRouletteRewardReceiver`로 정보만 전달)
 - `ICPRouletteRewardReceiver` : `RewardTarget`이 GameMode인 칸이 당첨됐을 때 `ReceiveRouletteReward
-  (ItemID, SpawnCount)`를 호출받는 인터페이스. `ACPRoulette`은 `GetAuthGameMode()`가 이 인터페이스를
-  구현하는지만 확인하므로, 실제 게임의 `ACPGameMode`든 테스트용 GameMode든 이 인터페이스만 구현하면
-  룰렛 당첨 정보를 받을 수 있다 (`ACPGameMode`, `ACPCoinPusherItemSpawnTestGameMode`가 구현 중)
+  (ItemID, SpawnCount, CoinType)`를 호출받는 인터페이스. `ACPRoulette`은 `GetAuthGameMode()`가 이
+  인터페이스를 구현하는지만 확인하므로, 실제 게임의 `ACPGameMode`든 테스트용 GameMode든 이 인터페이스만
+  구현하면 룰렛 당첨 정보를 받을 수 있다 (현재는 `ACPCoinPusherItemSpawnTestGameMode`만 구현 중 —
+  실제 `ACPGameMode`가 룰렛 보상을 받아야 한다면 별도로 이 인터페이스 구현이 필요함)
 
 ## 클래스별 상세
 
@@ -45,9 +46,12 @@
   0 이하면(설정 실수 등) `ACPRoulette::PickWeightedSlotIndex()`가 균등 확률로 대체
 - `ItemID` : 식별용 아이템 ID
 - `SpawnCount` : 당첨 시 스폰(또는 전달)할 개수
-- `RewardTarget` : `CoinPusher`면 `ACPRoulette::CoinPusher->ItemSpawn(ItemID, SpawnCount)` 호출,
-  `GameMode`면 `GetAuthGameMode()`를 `ICPRouletteRewardReceiver`로 캐스팅해 `ReceiveRouletteReward
-  (ItemID, SpawnCount)` 호출 (구현하지 않는 GameMode면 아무 일도 일어나지 않음)
+- `CoinType` : `ItemID`가 코인일 때 적용할 코인 타입. 코인이 아닌 아이템이면 무시됨
+  (`ACPCoinPusher::ItemSpawn()`이 스폰된 액터가 실제로 `ACPCoin`일 때만 `SetCoinType()`을 호출)
+- `RewardTarget` : `CoinPusher`면 `ACPRoulette::CoinPusher->ItemSpawn(ItemID, SpawnCount, CoinType)`
+  호출, `GameMode`면 `GetAuthGameMode()`를 `ICPRouletteRewardReceiver`로 캐스팅해
+  `ReceiveRouletteReward(ItemID, SpawnCount, CoinType)` 호출 (구현하지 않는 GameMode면 아무 일도
+  일어나지 않음)
 
 ### ACPRoulette
 - `Roll()` : `bIsRolling`이 true면(다른 플레이어가 이미 돌리는 중이면) 아무 동작도 하지 않고
@@ -66,9 +70,9 @@
   확정하면 호출되므로, `bIsRolling`이 false면(이미 처리된 결과면) 무시해 당첨 정보가 중복
   전달되지 않도록 한다. 최초 호출에서 `bIsRolling`을 false로 되돌려 잠금을 풀고
   `DeliverSlotReward(Slots[ResultIndex])`를 호출
-- `DeliverSlotReward()` : 당첨된 칸의 `ItemID`/`SpawnCount`/`RewardTarget`을
+- `DeliverSlotReward()` : 당첨된 칸의 `ItemID`/`SpawnCount`/`CoinType`/`RewardTarget`을
   `UE_LOG(LogTemp, Warning, ...)`으로 표시한 뒤, `RewardTarget`에 따라 CoinPusher 스폰 또는
-  GameMode 전달 중 하나를 수행
+  GameMode 전달 중 하나를 수행 (둘 다 `CoinType`을 함께 넘김)
 
 ### UCPRouletteWidget
 - `WheelImage` (`BindWidgetOptional`) : 칸이 그려진 회전판 이미지. 위쪽 화살표는 고정된 비주얼
@@ -95,11 +99,13 @@
 1. `WBP_CPRoulette`(`UCPRouletteWidget` 상속) 생성: 화면 중앙에 위쪽 화살표 이미지와,
    `WheelImage`라는 이름의 회전판 `Image`를 배치 (이름이 일치해야 `BindWidgetOptional`이 연결됨)
 2. `BP_CPRoulette`(`ACPRoulette` 상속) 생성 후 `RouletteWidgetClass`에 `WBP_CPRoulette` 지정,
-   `Slots`에 원하는 개수만큼 칸을 추가해 각각 `Probability` / `ItemID` / `SpawnCount` / `RewardTarget` 입력
+   `Slots`에 원하는 개수만큼 칸을 추가해 각각 `Probability` / `ItemID` / `SpawnCount` / `CoinType` /
+   `RewardTarget` 입력 (`ItemID`가 코인이 아니면 `CoinType`은 무시되므로 기본값 `Normal` 그대로 둬도 됨)
 3. `RewardTarget`이 CoinPusher인 칸이 있다면, 레벨에 배치한 `BP_CPRoulette` 인스턴스의
    `CoinPusher`에 같은 레벨의 `BP_CPCoinPusher` 인스턴스를 연결 (연결하지 않으면 당첨되어도
    아이템이 스폰되지 않음). 해당 CoinPusher의 천장 Dispenser가 참조하는 `UCPItemRegistry`에 룰렛
    `Slots`와 동일한 `ItemID`가 등록되어 있어야 실제로 스폰됨
 4. `RewardTarget`이 GameMode인 칸이 있다면, 레벨의 GameMode가 `ICPRouletteRewardReceiver`를
-   구현하는지 확인 (`ACPGameMode` 계열은 기본 구현되어 있음)
+   구현하는지 확인 — 실제 `ACPGameMode`는 기본적으로 구현하지 않으므로(테스트용 GameMode만 구현),
+   실제 게임에서 GameMode가 룰렛 보상을 받아야 한다면 `ACPGameMode`(또는 그 BP)에 별도로 구현 필요
 5. 필요한 곳(상호작용, 게임 로직 등)에서 `BP_CPRoulette` 인스턴스의 `Roll()`을 호출

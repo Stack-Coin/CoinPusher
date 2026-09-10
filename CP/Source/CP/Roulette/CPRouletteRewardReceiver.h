@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
+#include "CoinPusher/CPCoinTypes.h"
 #include "CPRouletteRewardReceiver.generated.h"
 
 /**
@@ -24,7 +25,8 @@ class ICPRouletteRewardReceiver
 
 public:
 
-	/** 룰렛에서 RewardTarget이 GameMode인 칸이 당첨되었을 때 호출됨 */
+	/** 룰렛에서 RewardTarget이 GameMode인 칸이 당첨되었을 때 호출됨. ItemID가 코인이면 CoinType도
+	 *  함께 전달되고(코인이 아니면 기본값 Normal) */
 	UFUNCTION(BlueprintCallable, Category="Roulette")
-	virtual void ReceiveRouletteReward(FName ItemID, int32 SpawnCount) = 0;
+	virtual void ReceiveRouletteReward(FName ItemID, int32 SpawnCount, ECPCoinType CoinType = ECPCoinType::Normal) = 0;
 };

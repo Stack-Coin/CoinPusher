@@ -101,6 +101,7 @@ void ACPCoin::SetCoinType(ECPCoinType NewType)
 	{
 	case ECPCoinType::Passive:
 	case ECPCoinType::HP:
+	case ECPCoinType::Monster:
 		StartScaleAnimation();
 		break;
 
@@ -212,8 +213,12 @@ void ACPCoin::Tick(float DeltaTime)
 
 	case EScaleAnimPhase::GrowingToMax:
 		ScaleAnimPhase = EScaleAnimPhase::ReturningToOriginal;
-		// 최대 크기에 도달한 순간(Passive/HP 공용) CoinThrowArea를 코인 위치로 옮겨 활성화
-		ActivateCoinThrowArea();
+		// 최대 크기에 도달한 순간(Passive/HP 공용) CoinThrowArea를 코인 위치로 옮겨 활성화.
+		// Monster 코인은 스케일 연출은 동일하게 재생하되 CoinThrowArea는 활성화하지 않음
+		if (CoinType != ECPCoinType::Monster)
+		{
+			ActivateCoinThrowArea();
+		}
 		break;
 
 	case EScaleAnimPhase::ReturningToOriginal:

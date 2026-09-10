@@ -133,7 +133,7 @@ int32 ACPRoulette::PickWeightedSlotIndex() const
 	}
 
 	// 부동소수점 오차로 끝까지 못 뽑은 경우 첫번째 칸으로 대체
-	return 1;
+	return 0;
 }
 
 void ACPRoulette::HandleRouletteResultDetermined(int32 ResultIndex)
@@ -157,22 +157,22 @@ void ACPRoulette::HandleRouletteResultDetermined(int32 ResultIndex)
 
 void ACPRoulette::DeliverSlotReward(const FCPRouletteSlotData& SlotData)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[ACPRoulette] Roulette Result - ItemID: %s, SpawnCount: %d, RewardTarget: %s"),
-		*SlotData.ItemID.ToString(), SlotData.SpawnCount, *UEnum::GetValueAsString(SlotData.RewardTarget));
+	UE_LOG(LogTemp, Warning, TEXT("[ACPRoulette] Roulette Result - ItemID: %s, SpawnCount: %d, CoinType: %s, RewardTarget: %s"),
+		*SlotData.ItemID.ToString(), SlotData.SpawnCount, *UEnum::GetValueAsString(SlotData.CoinType), *UEnum::GetValueAsString(SlotData.RewardTarget));
 
 	switch (SlotData.RewardTarget)
 	{
 	case ECPRouletteRewardTarget::CoinPusher:
 		if (CoinPusher)
 		{
-			CoinPusher->ItemSpawn(SlotData.ItemID, SlotData.SpawnCount);
+			CoinPusher->ItemSpawn(SlotData.ItemID, SlotData.SpawnCount, SlotData.CoinType);
 		}
 		break;
 
 	case ECPRouletteRewardTarget::GameMode:
 		if (ICPRouletteRewardReceiver* Receiver = GetWorld() ? Cast<ICPRouletteRewardReceiver>(GetWorld()->GetAuthGameMode()) : nullptr)
 		{
-			Receiver->ReceiveRouletteReward(SlotData.ItemID, SlotData.SpawnCount);
+			Receiver->ReceiveRouletteReward(SlotData.ItemID, SlotData.SpawnCount, SlotData.CoinType);
 		}
 		break;
 

@@ -70,7 +70,8 @@ public:
 	const TArray<FName>& GetCollectedItemCodes() const { return CollectedItemCodes; }
 
 	//ICPCoinPusherItem 구현체(Coin)가 호출 - 수집 개수를 늘리고 BroadCast + GameMode로 드랍 정보 전달.
-	//ItemID를 함께 넘기면(코인은 항상 넘김) GameMode->ReceiveDroppedItem(ItemID, Amount, CoinType) 호출
+	//ItemID를 함께 넘기면(코인은 항상 넘김) GetAuthGameMode()가 ICPDroppedItemReceiver를 구현하는
+	//경우 ReceiveDroppedItem(ItemID, Amount, CoinType) 호출
 	UFUNCTION(BlueprintCallable, Category="Drop Zone")
 	void AddCollectedCoins(int32 Amount = 1, FName ItemID = NAME_None, ECPCoinType CoinType = ECPCoinType::Normal);
 

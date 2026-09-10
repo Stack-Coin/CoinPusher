@@ -84,6 +84,9 @@ ACPCoinPusher::ACPCoinPusher()
 	PassiveCoinConvertAreaComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PassiveCoinConvertAreaComponent"));
 	PassiveCoinConvertAreaComponent->SetupAttachment(Floor);
 
+	MonsterCoinConvertAreaComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("MonsterCoinConvertAreaComponent"));
+	MonsterCoinConvertAreaComponent->SetupAttachment(Floor);
+
 	// ActiveWaveThrow()가 순차적으로 활성화시키는 CoinThrowArea 5개
 	CoinThrowAreaComponents.SetNum(5);
 	for (int32 Index = 0; Index < CoinThrowAreaComponents.Num(); ++Index)
@@ -245,6 +248,11 @@ ACPPassiveCoinConvertArea* ACPCoinPusher::GetPassiveCoinConvertArea() const
 	return PassiveCoinConvertAreaComponent ? Cast<ACPPassiveCoinConvertArea>(PassiveCoinConvertAreaComponent->GetChildActor()) : nullptr;
 }
 
+ACPPassiveCoinConvertArea* ACPCoinPusher::GetMonsterCoinConvertArea() const
+{
+	return MonsterCoinConvertAreaComponent ? Cast<ACPPassiveCoinConvertArea>(MonsterCoinConvertAreaComponent->GetChildActor()) : nullptr;
+}
+
 ACPCoinTowerSpawner* ACPCoinPusher::GetCoinTowerSpawner() const
 {
 	return CoinTowerSpawnerComponent ? Cast<ACPCoinTowerSpawner>(CoinTowerSpawnerComponent->GetChildActor()) : nullptr;
@@ -269,11 +277,22 @@ void ACPCoinPusher::RemoveFrontWall()
 	}
 }
 
-void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
+void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount, ECPCoinType CoinType)
 {
-	if (ACPDispenser* Dispenser = PickRandomValidCeilingDispenser())
+	// CoinType이 지정되면 스폰된 액터에 SetCoinType()을 호출해야 하므로, 스폰된 인스턴스를
+	// 돌려주는 DispenseCoinByID()로 하나씩 스폰한다 (ACPCoin이 아니면 nullptr이라 자연히 무시됨)
+	for (int32 Index = 0; Index < SpawnCount; ++Index)
 	{
-		Dispenser->DispenseItemByID(ItemID, SpawnCount);
+		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+		if (!Dispenser)
+		{
+			return;
+		}
+
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(ItemID))
+		{
+			SpawnedCoin->SetCoinType(CoinType);
+		}
 	}
 }
 
@@ -292,6 +311,23 @@ void ACPCoinPusher::SpawnBigCoin(int32 Count)
 			// Big 코인이 CoinPusher의 Collision에 부딪혔을 때 ActiveWaveThrow()를 호출할 대상을 직접 알려줌
 			SpawnedCoin->SetOwningCoinPusher(this);
 			SpawnedCoin->SetCoinType(ECPCoinType::Big);
+		}
+	}
+}
+
+void ACPCoinPusher::SpawnMonsterCoin(int32 Num)
+{
+	for (int32 Index = 0; Index < Num; ++Index)
+	{
+		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+		if (!Dispenser)
+		{
+			continue;
+		}
+
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(MonsterCoinItemID))
+		{
+			SpawnedCoin->SetCoinType(ECPCoinType::Monster);
 		}
 	}
 }

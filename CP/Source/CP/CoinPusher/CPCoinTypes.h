@@ -17,5 +17,11 @@ enum class ECPCoinType : uint8
 	//CoinPusher의 Collision(Floor/Wall)에 처음 부딪히면 그 CoinPusher의 ActiveWaveThrow()를 1회 실행시킴
 	Big,
 	//HP 코인 - 전환되는 순간 Passive와 동일한 스케일 연출(최소→최대→원래 크기)이 재생됨
-	HP
+	HP,
+	//Monster 코인 - 전환되는 순간 Passive/HP와 동일한 스케일 연출(최소→최대→원래 크기)이 재생되지만,
+	//최대 크기에 도달해도 CoinThrowArea는 활성화되지 않음
+	Monster,
+
+	//코인 타워용
+	CoinTower,
 };

@@ -4,6 +4,7 @@
 #include "CPDropZone.h"
 #include "CPCoinPusherItem.h"
 #include "CPDispenser.h"
+#include "CPDroppedItemReceiver.h"
 #include "Components/BoxComponent.h"
 #include "Engine/World.h"
 #include "Player/CPGameMode.h"
@@ -36,30 +37,14 @@ void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType Coin
 
 	OnCoinCollected.Broadcast(CollectedCoinCount);
 
-	// Grants ExperiencePerCoin * Amount experience to the team - experience is shared/team-owned (ACPGameMode), not per player
-	if (ExperiencePerCoin != 0.0f)
-	{
-		if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
-		{
-			GameMode->AddTeamExperience(ExperiencePerCoin * static_cast<float>(Amount));
-		}
-	}
-
-	//코인이 10개 모일 때마다(예: 10, 20, 30...) GameMode를 찾아 팀에게 티켓 1개를 지급
-	if (CollectedCoinCount % CoinsPerTicket == 0)
-	{
-		if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
-		{
-			GameMode->AddTeamTickets(1);
-		}
-	}
-
-	//떨어진 아이템의 정보(ItemID/개수, 코인이면 CoinType까지)를 GameMode로 전달
+	//떨어진 아이템의 정보(ItemID/개수, 코인이면 CoinType까지)를 GameMode로 전달.
+	//GetAuthGameMode()가 ICPDroppedItemReceiver를 구현하는 경우에만 전달되므로, 실제 게임의 GameMode든
+	//테스트용 GameMode든 이 인터페이스만 구현하면 받을 수 있다
 	if (!ItemID.IsNone())
 	{
-		if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+		if (ICPDroppedItemReceiver* Receiver = GetWorld() ? Cast<ICPDroppedItemReceiver>(GetWorld()->GetAuthGameMode()) : nullptr)
 		{
-			GameMode->ReceiveDroppedItem(ItemID, Amount, CoinType);
+			Receiver->ReceiveDroppedItem(ItemID, Amount, CoinType);
 		}
 	}
 }
@@ -82,9 +67,9 @@ void ACPDropZone::RecordCollectedItem(FName ItemCode)
 	}
 
 	//떨어진 아이템의 정보를 GameMode로 전달 (Item은 코인이 아니므로 CoinType은 기본값 Normal)
-	if (ACPGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ACPGameMode>() : nullptr)
+	if (ICPDroppedItemReceiver* Receiver = GetWorld() ? Cast<ICPDroppedItemReceiver>(GetWorld()->GetAuthGameMode()) : nullptr)
 	{
-		GameMode->ReceiveDroppedItem(ItemCode, 1);
+		Receiver->ReceiveDroppedItem(ItemCode, 1);
 	}
 }
 

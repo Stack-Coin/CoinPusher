@@ -19,7 +19,7 @@ void ACPCoinPusherItemSpawnTestPawn::BeginPlay()
 
 	if (!TargetCoinPusher)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestPawn] No ACPCoinPusher assigned or found in the level - Space/P/O/M/I/1-6 will do nothing."));
+		UE_LOG(LogTemp, Warning, TEXT("[ACPCoinPusherItemSpawnTestPawn] No ACPCoinPusher assigned or found in the level - Space/P/O/M/N/I/U/1-6 will do nothing."));
 	}
 
 	if (!TargetRoulette)
@@ -41,8 +41,10 @@ void ACPCoinPusherItemSpawnTestPawn::SetupPlayerInputComponent(UInputComponent* 
 	PlayerInputComponent->BindKey(EKeys::R, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleRollRouletteInput);
 	PlayerInputComponent->BindKey(EKeys::P, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleConvertActiveInput);
 	PlayerInputComponent->BindKey(EKeys::O, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleHPConvertActiveInput);
-	PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleActiveWaveThrowInput);
+	PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleMonsterConvertActiveInput);
+	PlayerInputComponent->BindKey(EKeys::N, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleActiveWaveThrowInput);
 	PlayerInputComponent->BindKey(EKeys::I, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnBigCoinInput);
+	PlayerInputComponent->BindKey(EKeys::U, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnMonsterCoinInput);
 	PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower5Input);
 	PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower10Input);
 	PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower15Input);
@@ -99,6 +101,20 @@ void ACPCoinPusherItemSpawnTestPawn::HandleHPConvertActiveInput()
 	}
 }
 
+void ACPCoinPusherItemSpawnTestPawn::HandleMonsterConvertActiveInput()
+{
+	if (!TargetCoinPusher)
+	{
+		return;
+	}
+
+	if (ACPPassiveCoinConvertArea* ConvertArea = TargetCoinPusher->GetMonsterCoinConvertArea())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Monster Convert Active"));
+		ConvertArea->MonsterConvertActive(MonsterConvertCount);
+	}
+}
+
 void ACPCoinPusherItemSpawnTestPawn::HandleActiveWaveThrowInput()
 {
 	if (!TargetCoinPusher)
@@ -119,6 +135,17 @@ void ACPCoinPusherItemSpawnTestPawn::HandleSpawnBigCoinInput()
 
 	UE_LOG(LogTemp, Warning, TEXT("Spawn Big Coin"));
 	TargetCoinPusher->SpawnBigCoin();
+}
+
+void ACPCoinPusherItemSpawnTestPawn::HandleSpawnMonsterCoinInput()
+{
+	if (!TargetCoinPusher)
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Spawn Monster Coin (%d)"), MonsterCoinSpawnCount);
+	TargetCoinPusher->SpawnMonsterCoin(MonsterCoinSpawnCount);
 }
 
 void ACPCoinPusherItemSpawnTestPawn::HandleSpawnCoinTower5Input()

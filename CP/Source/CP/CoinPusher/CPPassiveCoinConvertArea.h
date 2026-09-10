@@ -38,6 +38,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Passive Coin Convert Area")
 	void HPConvertActive(int32 Num);
 
+	//이 영역과 겹쳐 있는 Normal 코인들을 대상으로, Num개(가능한 만큼)를 중복 없이 랜덤하게 골라
+	//SetCoinType(Monster)를 호출한다
+	UFUNCTION(BlueprintCallable, Category="Passive Coin Convert Area")
+	void MonsterConvertActive(int32 Num);
+
 public:
 
 	FORCEINLINE UBoxComponent* GetConvertVolume() const { return ConvertVolume; }

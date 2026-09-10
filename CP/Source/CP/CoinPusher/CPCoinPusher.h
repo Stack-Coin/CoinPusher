@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "CPCoinTypes.h"
 #include "CPCoinPusher.generated.h"
 
 class UStaticMeshComponent;
@@ -81,6 +82,11 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* PassiveCoinConvertAreaComponent;
 
+	//MonsterCoinConvertArea ActorComponent (컴포넌트를 통한 Has-a) - PassiveCoinConvertAreaComponent와는
+	//별개의 인스턴스로, 영역 안 Normal 코인을 Monster로 전환시키는 전용 트리거 볼륨
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UChildActorComponent* MonsterCoinConvertAreaComponent;
+
 	//CoinThrowArea ActorComponent (컴포넌트를 통한 Has-a) - ActiveWaveThrow()가 순차적으로 활성화시키는 던지기 볼륨 5개
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TArray<TObjectPtr<UChildActorComponent>> CoinThrowAreaComponents;
@@ -127,6 +133,10 @@ protected:
 	//SpawnBigCoin()이 스폰할 코인의 ItemID (ItemRegistry에 Big 코인으로 쓸 CoinPusherItem 클래스가 등록돼 있어야 함)
 	UPROPERTY(EditAnywhere, Category="CoinPusher")
 	FName BigCoinItemID = TEXT("100");
+
+	//SpawnMonsterCoin()이 스폰할 코인의 ItemID (ItemRegistry에 코인으로 쓸 CoinPusherItem 클래스가 등록돼 있어야 함)
+	UPROPERTY(EditAnywhere, Category="CoinPusher")
+	FName MonsterCoinItemID = TEXT("100");
 
 	//게임 시작 후 FrontWall을 제거하기까지 대기하는 시간(초)
 	UPROPERTY(EditAnywhere, Category="CoinPusher", meta = (ClampMin = 0))
@@ -220,6 +230,7 @@ public:
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }
 	FORCEINLINE UChildActorComponent* GetDropZoneComponent() const { return DropZoneComponent; }
 	FORCEINLINE UChildActorComponent* GetPassiveCoinConvertAreaComponent() const { return PassiveCoinConvertAreaComponent; }
+	FORCEINLINE UChildActorComponent* GetMonsterCoinConvertAreaComponent() const { return MonsterCoinConvertAreaComponent; }
 	FORCEINLINE const TArray<TObjectPtr<UChildActorComponent>>& GetCeilingDispenserComponents() const { return CeilingDispenserComponents; }
 	FORCEINLINE const TArray<TObjectPtr<UChildActorComponent>>& GetCoinThrowAreaComponents() const { return CoinThrowAreaComponents; }
 	FORCEINLINE USpringArmComponent* GetViewCaptureBoom() const { return ViewCaptureBoom; }
@@ -245,6 +256,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPPassiveCoinConvertArea* GetPassiveCoinConvertArea() const;
 
+	//MonsterCoinConvertAreaComponent가 실제로 스폰한 액터 인스턴스 반환
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPPassiveCoinConvertArea* GetMonsterCoinConvertArea() const;
+
 	//Index번째 CoinThrowArea가 실제로 스폰한 액터 인스턴스 반환
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPCoinThrowArea* GetCoinThrowArea(int32 Index) const;
@@ -254,14 +269,20 @@ public:
 
 	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출.
 	//천장 Dispenser(CeilingDispenserComponents) 중 하나를 랜덤하게 골라 그 Dispenser의
-	//DispenseItemByID()로 위임한다
+	//DispenseItemByID()로 위임한다. CoinType이 Normal이 아니면 스폰된 각 액터가 실제로 ACPCoin일
+	//때만 SetCoinType(CoinType)을 호출한다 (코인이 아닌 아이템이면 무시됨)
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
-	void ItemSpawn(FName ItemID, int32 SpawnCount);
+	void ItemSpawn(FName ItemID, int32 SpawnCount, ECPCoinType CoinType = ECPCoinType::Normal);
 
 	//천장 Dispenser 중 하나를 랜덤하게 골라(매번 다시 고름) BigCoinItemID로 지정된 코인을 Count개
 	//스폰하고 각각 CoinType을 Big으로 전환한다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void SpawnBigCoin(int32 Count = 1);
+
+	//천장 Dispenser 중 하나를 랜덤하게 골라(매번 다시 고름) MonsterCoinItemID로 지정된 코인을 Num개
+	//스폰하고 각각 CoinType을 Monster로 전환한다
+	UFUNCTION(BlueprintCallable, Category="CoinPusher")
+	void SpawnMonsterCoin(int32 Num = 1);
 
 	//CoinThrowAreaComponents 5개를 WaveThrowInterval 간격으로 순차적으로 ActiveThrow() 시킨다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
@@ -273,6 +294,6 @@ protected:
 	void HandleWaveThrowTick();
 
 	//CeilingDispenserComponents 중 실제로 스폰된 ACPDispenser들 가운데 하나를 랜덤하게 골라 반환 (없으면 nullptr).
-	//ItemSpawn()과 SpawnBigCoin()이 공유하는 선택 로직
+	//ItemSpawn()/SpawnBigCoin()/SpawnMonsterCoin()이 공유하는 선택 로직
 	ACPDispenser* PickRandomValidCeilingDispenser() const;
 };
