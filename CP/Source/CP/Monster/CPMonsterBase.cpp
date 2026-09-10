@@ -151,7 +151,13 @@ void ACPMonsterBase::AttackHitCheck()
 	const float SelfRadius = GetAICollisionRadius();
 	const FVector SweepStart = GetActorLocation() + GetActorForwardVector() * SelfRadius;
 	const FVector SweepEnd = SweepStart + GetActorForwardVector() * GetAIAttackRange();
-	constexpr float SweepRadius = 10.f;
+
+	// 튜브 두께(SweepRadius)도 몬스터 몸집에 비례하게 함. 기존엔 고정 10cm라서 캡슐이 큰(그래서
+	// 피벗 높이도 훨씬 높은) 보스 같은 몬스터는, 스윕이 자기 몸통 중심 높이에서 완전히 수평으로만
+	// 지나가는데 두께가 얇아 상대방 캡슐 범위(특히 높이)를 살짝만 벗어나도 그냥 미스가 났음.
+	// 자기 반경에 비례해서 두께를 키우면 몸집이 큰 몬스터일수록 판정에 여유(특히 상하 방향)가
+	// 생겨서, 피벗 높이 차이로 인한 미스가 줄어듦 - 최소값은 기존 10cm로 유지
+	const float SweepRadius = FMath::Max(10.f, SelfRadius * 0.5f);
 
 	FHitResult HitResult;
 	FCollisionQueryParams Params(NAME_None, false, this);
@@ -194,6 +200,10 @@ void ACPMonsterBase::AttackHitCheck()
 		{
 			UGameplayStatics::ApplyDamage(HitActor, GetAIAttackPower(), GetController(), this, UDamageType::StaticClass());
 		}
+	}
+	else 
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Boss 충돌 반지름 문제"));
 	}
 }
 
