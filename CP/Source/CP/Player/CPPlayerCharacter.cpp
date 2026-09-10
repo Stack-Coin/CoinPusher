@@ -26,6 +26,7 @@
 #include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
 #include "Player/Stat/CPPlayerStatTableTypes.h"
 #include "Player/Inventory/CPInventoryComponent.h"
+#include "Log/CPLogCategories.h"
 #include "Components/TimelineComponent.h"
 #include "Components/MeshComponent.h"
 #include "Curves/CurveFloat.h"
@@ -222,7 +223,7 @@ void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("Rollin"));
+	UE_LOG(LogPlayer, Warning, TEXT("Rollin"));
 	Roulette->Roll();
 }
 

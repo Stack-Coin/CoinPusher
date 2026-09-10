@@ -3,6 +3,7 @@
 #include "Player/CPPlayerCharacter.h"
 #include "CoinPusher/CPCoinPusher.h"
 #include "Roulette/CPRoulette.h"
+#include "Log/CPLogCategories.h"
 
 UCPInventoryComponent::UCPInventoryComponent()
 {
@@ -29,13 +30,13 @@ void UCPInventoryComponent::BeginPlay()
 
 void UCPInventoryComponent::HandleRoulettePickedUp(FName ItemID, int32 Count)
 {
-	UE_LOG(LogTemp, Warning,TEXT("Inventory <- OnDropped Broadcast"))
+	UE_LOG(LogPlayer, Warning, TEXT("Inventory <- OnDropped Broadcast"));
 	StoreItem(ItemID, Count);
 }
 
 bool UCPInventoryComponent::StoreItem(FName ItemCode, int32 Count)
 {
-	UE_LOG(LogTemp, Warning, TEXT("StoreItem called - ItemCode: %s, Count: %d"), *ItemCode.ToString(), Count);
+	UE_LOG(LogPlayer, Warning, TEXT("StoreItem called - ItemCode: %s, Count: %d"), *ItemCode.ToString(), Count);
 
 	if (Count <= 0)
 	{
@@ -47,7 +48,7 @@ bool UCPInventoryComponent::StoreItem(FName ItemCode, int32 Count)
 		if (Slot.Item.ItemCode == ItemCode)
 		{
 			Slot.Count += Count;
-			UE_LOG(LogTemp, Warning, TEXT("StoreItem updated - ItemCode: %s, Updated Count: %d"), *ItemCode.ToString(), Slot.Count);
+			UE_LOG(LogPlayer, Warning, TEXT("StoreItem updated - ItemCode: %s, Updated Count: %d"), *ItemCode.ToString(), Slot.Count);
 			OnInventoryChanged.Broadcast();
 			return true;
 		}

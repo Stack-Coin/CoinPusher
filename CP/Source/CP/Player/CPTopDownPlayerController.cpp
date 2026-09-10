@@ -16,6 +16,7 @@
 #include "CoinPusher/CPCoinPusher.h"
 #include "CoinPusher/CPCoinPusherViewCaptureComponent.h"
 #include "CoinPusher/CPCoinPusherCaptureWidget.h"
+#include "Log/CPLogCategories.h"
 
 ACPTopDownPlayerController::ACPTopDownPlayerController()
 {
@@ -219,7 +220,7 @@ void ACPTopDownPlayerController::HandleMenuNavigate(const FInputActionValue& Val
 	// 임시 진단 로그 - MenuNavigateAction이 아예 안 불리는지(바인딩/Trigger When Paused 문제),
 	// 불리긴 하는데 X가 계속 0인지(IMC에서 실제로 매핑된 키/Swizzle 문제)를 Output Log로 구분하기
 	// 위한 것. 원인 확인 후 제거해도 됨
-	UE_LOG(LogTemp, Warning, TEXT("HandleMenuNavigate raw value = %s"), *Value.Get<FVector2D>().ToString());
+	UE_LOG(LogPlayer, Warning, TEXT("HandleMenuNavigate raw value = %s"), *Value.Get<FVector2D>().ToString());
 
 	UCPInGamePauseWidget* ActiveMenu = GetActiveMenuWidget();
 	if (!ActiveMenu)
