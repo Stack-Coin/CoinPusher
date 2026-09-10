@@ -11,6 +11,8 @@ class UInputAction;
 struct FInputActionValue;
 class UCPDebugWidget;
 
+class UCPCoinPusherCaptureWidget;
+
 /**
  *  PlayerController for the top-down / quarter view action prototype.
  *  Adds its Input Mapping Contexts and exposes the mouse cursor's world location for attacks.
@@ -21,6 +23,13 @@ class CP_API ACPTopDownPlayerController : public APlayerController
 	GENERATED_BODY()
 
 protected:
+
+	//CoinPusher ScreenCapture Widget
+	UPROPERTY(EditDefaultsOnly, Category = "CoinPusher Picture-in-Picture")
+	TSubclassOf<UCPCoinPusherCaptureWidget> CaptureWidgetClass;
+
+	//Ä¸Ã³ À§Á¬ ¼³Á¤
+	void SetupCaptureWidget();
 
 	/** Input Mapping Contexts to add for this player */
 	UPROPERTY(EditAnywhere, Category="Input|Input Mappings")
