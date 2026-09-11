@@ -21,6 +21,8 @@ class CP_API ACPMonsterBomb : public ACPMonsterBase
 	GENERATED_BODY()
 
 public:
+	ACPMonsterBomb();
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -38,7 +40,9 @@ protected:
 
 protected:
 	/** 비행 몬스터라 지면 캡슐 높이 기준 스폰이 의미 없어서, 스포너 위치로부터 항상 이 높이로 스폰됨
-	 *  (ACPMonsterRanged와 동일한 이유로 300 미만 권장 - NavMesh 투영 범위를 벗어나면 MoveTo 실패) */
+	 *  (ACPMonsterRanged와 동일한 이유로 300 미만 권장 - NavMesh 투영 범위를 벗어나면 MoveTo 실패).
+	 *  기본값은 생성자(ACPMonsterBomb())에서 설정함 - 여기 인라인 기본값을 고쳐도 이미 저장된
+	 *  블루프린트(BP_Bomb)의 Class Defaults 값은 자동으로 안 바뀌니 주의 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bomb")
-	float FlightSpawnHeight = 120.f;
+	float FlightSpawnHeight;
 };

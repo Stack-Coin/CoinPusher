@@ -3,6 +3,11 @@
 #include "Monster/Bomb/CPMonsterBomb.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
+ACPMonsterBomb::ACPMonsterBomb()
+{
+	FlightSpawnHeight = 150.f;
+}
+
 void ACPMonsterBomb::BeginPlay()
 {
 	Super::BeginPlay();
