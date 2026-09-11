@@ -45,4 +45,8 @@ public:
 	/** 콤보 게이지 값이 바뀔 때 호출 - ComboGaugeWidget이 없으면 아무 동작도 하지 않는다 */
 	UFUNCTION(BlueprintCallable, Category="Coin Combo")
 	void UpdateComboGauge(float CurrentValue, float MaxValue);
+
+	/** ComboGaugeWidget의 ValueText를 임의의 문구로 직접 설정 - 없으면 무시 */
+	UFUNCTION(BlueprintCallable, Category="Coin Combo")
+	void SetComboGaugeText(const FText& Text);
 };

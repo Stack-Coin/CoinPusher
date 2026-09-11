@@ -22,6 +22,22 @@ void UCPCharacterInfoWidget::UpdateExp(float CurrentExp, float MaxExp)
 	}
 }
 
+void UCPCharacterInfoWidget::SetHealthText(const FText& Text)
+{
+	if (HealthGaugeWidget)
+	{
+		HealthGaugeWidget->SetValueText(Text);
+	}
+}
+
+void UCPCharacterInfoWidget::SetExpText(const FText& Text)
+{
+	if (ExpGaugeWidget)
+	{
+		ExpGaugeWidget->SetValueText(Text);
+	}
+}
+
 void UCPCharacterInfoWidget::SetCharacterName(const FText& CharacterName)
 {
 	if (NameText)

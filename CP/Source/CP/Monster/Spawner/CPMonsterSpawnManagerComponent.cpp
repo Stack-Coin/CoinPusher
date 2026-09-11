@@ -7,6 +7,8 @@
 #include "Monster/Boss/CPMonsterBoss.h"
 #include "Monster/Bomb/CPMonsterBomb.h"
 #include "Player/CPPlayerCharacter.h"
+#include "Player/CPTopDownPlayerController.h"
+#include "UI/CPInGameWidget.h"
 #include "CoinPusher/CPCoinPusher.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DataTable.h"
@@ -388,6 +390,20 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 
 			// 보스 공격이 플레이어에게 명중할 때마다 CoinPusher의 활성 코인을 몬스터 코인으로 전환
 			Boss->OnBossAttackedPlayer.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBossAttackedPlayer);
+
+			// 보스가 데미지를 받을 때마다 InGameUI의 보스 체력 게이지를 갱신
+			if (UCPMonsterStatComponent* BossStat = Boss->GetAIStatComponent())
+			{
+				BossStat->OnMonsterHealthChanged.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBossHealthChanged);
+			}
+
+			// 보스 등장 - InGameUI의 보스 정보 블록을 켜고 이름/초기 체력을 채운다
+			if (UCPInGameWidget* InGameWidget = GetInGameWidget())
+			{
+				InGameWidget->SetBossName(FText::FromName(Boss->GetBossName()));
+				InGameWidget->SetBossInfoVisible(true);
+				InGameWidget->UpdateBossHealth(Boss->GetAICurrentHealth(), Boss->GetAIMaxHealth());
+			}
 		}
 	}
 	else
@@ -726,8 +742,14 @@ void UCPMonsterSpawnManagerComponent::HandleBossDied()
 
 	ActiveBoss = nullptr;
 
+	// 보스가 죽었으니 InGameUI의 보스 정보 블록을 다시 끈다
+	if (UCPInGameWidget* InGameWidget = GetInGameWidget())
+	{
+		InGameWidget->SetBossInfoVisible(false);
+	}
+
 	// 다음 라운드 정보가 있으면 NextRoundStartDelay 후 다음 라운드를 시작하고, 없으면 이번이 마지막
-	// 라운드라는 뜻이므로 바로 종료 처리 (승리 처리를 추가하려면 이 else 분기에 붙이면 됨)
+	// 라운드라는 뜻이므로 바로 종료 처리하고 승리 화면을 띄운다
 	if (FindRoundInfoRow(CurrentRound + 1))
 	{
 		// CurrentRound는 아직 증가시키기 전이므로 방금 끝난 라운드의 NextRoundStartDelay를 씀
@@ -750,6 +772,15 @@ void UCPMonsterSpawnManagerComponent::HandleBossDied()
 	else
 	{
 		CurrentPhase = ECPWavePhase::Finished;
+
+		// 마지막 라운드의 보스까지 처치 - 승리 처리
+		if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(GetOwner()))
+		{
+			if (ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(PlayerCharacter->GetController()))
+			{
+				PC->ShowEndingResult(true);
+			}
+		}
 	}
 }
 
@@ -796,6 +827,27 @@ ACPCoinPusher* UCPMonsterSpawnManagerComponent::GetCoinPusher() const
 	}
 
 	return nullptr;
+}
+
+UCPInGameWidget* UCPMonsterSpawnManagerComponent::GetInGameWidget() const
+{
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(GetOwner()))
+	{
+		if (ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(PlayerCharacter->GetController()))
+		{
+			return PC->GetInGameWidget();
+		}
+	}
+
+	return nullptr;
+}
+
+void UCPMonsterSpawnManagerComponent::HandleBossHealthChanged(float CurrentHealth, float MaxHealth)
+{
+	if (UCPInGameWidget* InGameWidget = GetInGameWidget())
+	{
+		InGameWidget->UpdateBossHealth(CurrentHealth, MaxHealth);
+	}
 }
 
 void UCPMonsterSpawnManagerComponent::HandleBossAttackedPlayer()

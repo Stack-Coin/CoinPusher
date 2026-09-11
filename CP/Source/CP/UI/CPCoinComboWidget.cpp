@@ -20,3 +20,11 @@ void UCPCoinComboWidget::UpdateComboGauge(float CurrentValue, float MaxValue)
 		ComboGaugeWidget->Update(CurrentValue, MaxValue);
 	}
 }
+
+void UCPCoinComboWidget::SetComboGaugeText(const FText& Text)
+{
+	if (ComboGaugeWidget)
+	{
+		ComboGaugeWidget->SetValueText(Text);
+	}
+}

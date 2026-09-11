@@ -11,6 +11,7 @@ class UDataTable;
 class ACPMonsterSpawner;
 class ACPMonsterBase;
 class ACPCoinPusher;
+class UCPInGameWidget;
 
 USTRUCT()
 struct FCPActiveSpawnJob
@@ -144,6 +145,15 @@ protected:
 	 *  CoinPusher의 활성 코인을 몬스터 코인으로 전환시킴 */
 	UFUNCTION()
 	void HandleBossAttackedPlayer();
+
+	/** UCPMonsterStatComponent::OnMonsterHealthChanged에 바인딩됨(SpawnBoss) - 보스가 데미지를 받을
+	 *  때마다 InGameUI의 보스 체력 게이지를 갱신함 */
+	UFUNCTION()
+	void HandleBossHealthChanged(float CurrentHealth, float MaxHealth);
+
+	/** GetOwner()(Player)의 컨트롤러(ACPTopDownPlayerController)에서 InGameUI를 가져옴 - 없으면 nullptr.
+	 *  GetCoinPusher()와 같은 이유로 Player를 거쳐야 해서 별도 헬퍼로 분리함 */
+	UCPInGameWidget* GetInGameWidget() const;
 
 	/** ACPMonsterBomb::OnBombExplodedOnPlayer에 바인딩됨(스폰 시점마다) - 자폭 몬스터가 플레이어에 닿아
 	 *  터질 때마다 CoinPusher에 몬스터 코인을 스폰함 */

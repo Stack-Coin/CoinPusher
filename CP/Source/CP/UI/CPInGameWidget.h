@@ -95,6 +95,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	void UpdatePlayerExp(float CurrentExp, float MaxExp);
 
+	/** PlayerInfoWidget의 체력 게이지 ValueText를 임의의 문구로 직접 설정 - 없으면 무시 */
+	UFUNCTION(BlueprintCallable, Category="In Game")
+	void SetPlayerHealthText(const FText& Text);
+
+	/** PlayerInfoWidget의 경험치 게이지 ValueText를 임의의 문구로 직접 설정 - 없으면 무시 */
+	UFUNCTION(BlueprintCallable, Category="In Game")
+	void SetPlayerExpText(const FText& Text);
+
 	/** PlayerInfoWidget의 이름 설정 - 없으면 조용히 무시 */
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	void SetPlayerName(const FText& CharacterName);
@@ -114,6 +122,14 @@ public:
 	/** BossInfoWidget의 경험치 갱신 - 없으면 조용히 무시 */
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	void UpdateBossExp(float CurrentExp, float MaxExp);
+
+	/** BossInfoWidget의 체력 게이지 ValueText를 임의의 문구로 직접 설정 - 없으면 무시 */
+	UFUNCTION(BlueprintCallable, Category="In Game")
+	void SetBossHealthText(const FText& Text);
+
+	/** BossInfoWidget의 경험치 게이지 ValueText를 임의의 문구로 직접 설정 - 없으면 무시 */
+	UFUNCTION(BlueprintCallable, Category="In Game")
+	void SetBossExpText(const FText& Text);
 
 	/** BossInfoWidget의 이름 설정 - 없으면 조용히 무시 */
 	UFUNCTION(BlueprintCallable, Category="In Game")
@@ -138,6 +154,10 @@ public:
 	/** CoinComboWidget의 콤보 게이지 갱신 - 없으면 조용히 무시 */
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	void UpdateComboGauge(float CurrentValue, float MaxValue);
+
+	/** CoinComboWidget의 콤보 게이지 ValueText를 임의의 문구로 직접 설정 - 없으면 무시 */
+	UFUNCTION(BlueprintCallable, Category="In Game")
+	void SetComboGaugeText(const FText& Text);
 
 	/** 룰렛 UI 인스턴스 (PlaySpin 등은 호출부가 직접 제어) */
 	UFUNCTION(BlueprintCallable, Category="In Game")

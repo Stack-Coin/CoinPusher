@@ -56,6 +56,15 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerRevived);
  *  sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPPlayerHealthChanged, float, CurrentHealth, float, MaxHealth);
 
+/** Broadcast whenever Experience changes (see SetStat's Experience case) - CurrentExp/MaxExp are the
+ *  values for the player's *current* level (MaxExp = GetRequiredExperienceForLevel(Stats.Level) after
+ *  any level-ups this change caused are resolved). Bind a UCPHorizonGuageBarWidget's Update here the
+ *  same way FOnCPPlayerHealthChanged drives a health bar */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPPlayerExpChanged, float, CurrentExp, float, MaxExp);
+
+/** Broadcast whenever Level actually changes (level-up via Experience, or a direct SetStat(Level, ...)) */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerLevelChanged, int32, NewLevel);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerScoreChanged, int32, NewScoreCount);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerTicketChanged, int32, NewTicketCount);
@@ -354,10 +363,6 @@ protected:
 	/** Broadcast right after an item is added to OwnedItems */
 	UPROPERTY(BlueprintAssignable, Category="Item")
 	FOnCPItemAcquired OnItemAcquired;
-
-	/** Broadcast when this character becomes downed (Health reached 0) */
-	UPROPERTY(BlueprintAssignable, Category="Events")
-	FOnCPPlayerDowned OnPlayerDowned;
 
 	/** Broadcast when this character is revived out of the downed state */
 	UPROPERTY(BlueprintAssignable, Category="Events")
@@ -730,11 +735,35 @@ public:
 	UFUNCTION(BlueprintPure, Category="Stats")
 	float GetMaxHealth() const { return HealthRange.Max; }
 
+	/** Returns the experience required to level up from the player's *current* level (i.e. the "Max" to
+	 *  pair with GetStat(Experience)'s "Current" for UI) */
+	UFUNCTION(BlueprintPure, Category="Stats")
+	float GetMaxExperience() const { return GetRequiredExperienceForLevel(Stats.Level); }
+
+	/** Returns the player's current level */
+	UFUNCTION(BlueprintPure, Category="Stats")
+	int32 GetPlayerLevel() const { return Stats.Level; }
+
+	/** Broadcast when this character becomes downed (Health reached 0). Public (moved out of the
+	 *  protected block above) so C++ outside this class - e.g. ACPGameMode::BeginPlay binding its
+	 *  HandlePlayerDowned - can AddDynamic to it directly (Blueprint's own Bind Event doesn't care
+	 *  about C++ access specifiers, but a plain AddDynamic() call from another class's C++ does) */
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnCPPlayerDowned OnPlayerDowned;
+
 	/** Broadcast whenever Health changes (see SetStat). Bind a UCPHorizonGuageBarWidget's Update (or a
 	 *  UCPHealthBarComponent/UCPViewportHealthBarComponent's UpdateHealth) here to keep a health bar
 	 *  in sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnCPPlayerHealthChanged OnHealthChanged;
+
+	/** Broadcast whenever Experience changes - see FOnCPPlayerExpChanged's comment */
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnCPPlayerExpChanged OnExpChanged;
+
+	/** Broadcast whenever Level actually changes */
+	UPROPERTY(BlueprintAssignable, Category="Events")
+	FOnCPPlayerLevelChanged OnLevelChanged;
 
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnCPPlayerScoreChanged OnScoreChanged;

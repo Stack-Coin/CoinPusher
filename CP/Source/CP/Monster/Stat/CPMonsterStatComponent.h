@@ -9,6 +9,11 @@
 
 class UDataTable;
 
+/** 체력이 바뀔 때마다(데미지를 받을 때) Broadcast - CPMonsterBase.h의 OnMonsterDied와 같은 패턴.
+ *  UCPMonsterSpawnManagerComponent::SpawnBoss()가 보스 스폰 시 구독해서 InGameUI의 보스 체력
+ *  게이지를 갱신하는 데 사용함(HandleBossHealthChanged 참고) */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMonsterHealthChanged, float, CurrentHealth, float, MaxHealth);
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class CP_API UCPMonsterStatComponent : public UActorComponent
 {
@@ -20,6 +25,10 @@ public:
 public:
 	UFUNCTION(BlueprintCallable, Category = "Stat")
 	void InitStat(ECPMonsterType InMonsterType, int32 InRound, int32 InWave);
+
+	/** 데미지를 받아 CurrentHealth가 바뀔 때마다 Broadcast (ACPMonsterBase::TakeDamage 참고) */
+	UPROPERTY(BlueprintAssignable, Category = "Stat|Events")
+	FOnMonsterHealthChanged OnMonsterHealthChanged;
 
 private:
 	static FName GetMonsterTypeRowName(ECPMonsterType InType);

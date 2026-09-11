@@ -75,4 +75,11 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category="Gauge Bar")
 	void SetValues(float CurrentValue, float MaxValue);
 	virtual void SetValues_Implementation(float CurrentValue, float MaxValue);
+
+	/** ValueText에 표시할 문구를 DisplayFormat 포맷팅 없이 그대로 설정한다 - Update/SetValues가
+	 *  매번 "Current / Max" 형태로 덮어써버리므로, "가득참"/"MAX" 같은 임의의 문구를 보여주고
+	 *  싶을 때는 이 함수를 Update 이후에 별도로 호출해야 한다. ValueText가 없으면 아무 동작도
+	 *  하지 않는다 */
+	UFUNCTION(BlueprintCallable, Category="Gauge Bar")
+	void SetValueText(const FText& Text);
 };
