@@ -12,10 +12,15 @@ enum class ECPWavePhase : uint8
 {
 	Spawning     UMETA(DisplayName = "Spawning"),      // 몬스터 무리를 생성하는 중
 	WaveWait     UMETA(DisplayName = "Wave Wait"),      // 웨이브 사이 대기 중
-	RoundWait    UMETA(DisplayName = "Round Wait"),     // 마지막 웨이브와 함께 보스 등장을 대기 중
+	RoundWait    UMETA(DisplayName = "Round Wait"),     // 마지막 웨이브(보스+기본 몬스터 동시 등장)를 대기 중
 	Finished     UMETA(DisplayName = "Finished")        // 라운드(보스 포함) 종료
 };
 
+/**
+ * 라운드 1개당 여러 행(웨이브 수만큼). 같은 Round 안에서 Wave 번호가 가장 큰 행이 "마지막 웨이브"이며,
+ * 이 행은 StartWave()로 정상 스폰되지 않고 보스와 동시에 등장하는 전용 데이터로만 재사용됩니다
+ * (CPMonsterSpawnManagerComponent::StartRoundMobSpawning 참고).
+ */
 USTRUCT(BlueprintType)
 struct FCPMonsterWaveInfoRow : public FTableRowBase
 {
@@ -24,7 +29,7 @@ struct FCPMonsterWaveInfoRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
 	int32 Round = 1;
 
-	/** 라운드 안에서 몇 번째 웨이브인지 (1부터 시작) */
+	/** 라운드 안에서 몇 번째 웨이브인지 (1부터 시작). 가장 큰 번호가 "마지막 웨이브"(보스와 동시 등장) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wave")
 	int32 Wave = 1;
 
@@ -81,6 +86,12 @@ struct FCPMonsterRoundInfoRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round", meta = (ClampMin = 0))
 	float SpawnerRadius = 1500.0f;
 
+	/** 이 라운드에서 월드에 동시에 살아있을 수 있는 몬스터(웨이브 몹+RoundMob, 보스 제외) 최대 마릿수.
+	 *  0이면 무제한. 라운드가 진행될수록 값을 늘려서 난이도를 올리는 용도 - 보스는 이 제한과
+	 *  무관하게 항상 스폰됨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round", meta = (ClampMin = 0))
+	int32 MaxAliveMonsterCount = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss")
 	ECPMonsterType BossMonsterType = ECPMonsterType::Boss;
 
@@ -88,11 +99,16 @@ struct FCPMonsterRoundInfoRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss")
 	int32 BossSpawnerIndex = 0;
 
-	/** 마지막 웨이브가 시작되는 순간부터 카운트다운을 시작해서, 이 시간 후에 보스가 등장합니다 -
-	 *  기획서의 "라운드 대기시간". 마지막 웨이브 전멸을 기다리지 않으므로, 마지막 웨이브 몹과
-	 *  보스가 겹쳐서 함께 등장하는 페이즈를 만들기 위한 값입니다 */
+	/** 마지막 웨이브 직전 웨이브가 전멸한 시점부터 카운트다운을 시작해서, 이 시간 후에 보스와 마지막
+	 *  웨이브 몹이 항상 동시에 등장합니다 (기획서의 "라운드 대기시간") */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
 	float RoundEndWaitTime = 10.0f;
+
+	/** 보스가 죽은 시점부터 카운트다운을 시작해서, 이 시간 후에 다음 라운드(웨이브 1)가 시작됩니다.
+	 *  다음 라운드 정보(RoundInfoTable에 Round+1 행)가 없으면(=이번이 마지막 라운드) 이 값은 쓰이지
+	 *  않고 보스 사망 즉시 Finished 처리됩니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
+	float NextRoundStartDelay = 5.0f;
 
 	/** 체력이 이 비율 밑으로 떨어지면 포효(무적) 발동 - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = "0.0", ClampMax = "1.0"))
