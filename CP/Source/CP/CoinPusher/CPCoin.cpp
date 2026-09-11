@@ -120,8 +120,6 @@ void ACPCoin::SetCoinType(ECPCoinType NewType)
 
 	case ECPCoinType::Big:
 		ItemID = BigCoinId;
-		// Passive/HP와 달리 애니메이션 없이 즉시 커지고 원상복구되지 않음
-		SetActorScale3D(GetActorScale3D() * BigScaleMultiplier);
 		break;
 
 	case ECPCoinType::Normal:
