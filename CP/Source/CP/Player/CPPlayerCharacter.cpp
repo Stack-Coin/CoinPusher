@@ -1073,6 +1073,8 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 		break;
 	case ECPStatType::Experience:
 	{
+		const int32 OldLevel = Stats.Level;
+
 		float RemainingExperience = FMath::Max(NewValue, 0.0f);
 		float RequiredExperience = GetRequiredExperienceForLevel(Stats.Level);
 		while (RequiredExperience > 0.0f && RemainingExperience >= RequiredExperience)
@@ -1089,11 +1091,24 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 			RequiredExperience = GetRequiredExperienceForLevel(Stats.Level);
 		}
 		Stats.Experience = RemainingExperience;
+
+		OnExpChanged.Broadcast(Stats.Experience, RequiredExperience);
+		if (Stats.Level != OldLevel)
+		{
+			OnLevelChanged.Broadcast(Stats.Level);
+		}
 		break;
 	}
 	case ECPStatType::Level:
+	{
+		const int32 OldLevel = Stats.Level;
 		Stats.Level = FMath::Max(FMath::RoundToInt(NewValue), 1);
+		if (Stats.Level != OldLevel)
+		{
+			OnLevelChanged.Broadcast(Stats.Level);
+		}
 		break;
+	}
 	default:
 		break;
 	}

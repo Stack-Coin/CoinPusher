@@ -58,6 +58,22 @@ void UCPInGameWidget::SetPlayerLevel(int32 Level)
 	}
 }
 
+void UCPInGameWidget::SetPlayerHealthText(const FText& Text)
+{
+	if (PlayerInfoWidget)
+	{
+		PlayerInfoWidget->SetHealthText(Text);
+	}
+}
+
+void UCPInGameWidget::SetPlayerExpText(const FText& Text)
+{
+	if (PlayerInfoWidget)
+	{
+		PlayerInfoWidget->SetExpText(Text);
+	}
+}
+
 void UCPInGameWidget::SetPlayerPortrait(UTexture2D* Portrait)
 {
 	if (PlayerInfoWidget)
@@ -98,6 +114,22 @@ void UCPInGameWidget::SetBossLevel(int32 Level)
 	}
 }
 
+void UCPInGameWidget::SetBossHealthText(const FText& Text)
+{
+	if (BossInfoWidget)
+	{
+		BossInfoWidget->SetHealthText(Text);
+	}
+}
+
+void UCPInGameWidget::SetBossExpText(const FText& Text)
+{
+	if (BossInfoWidget)
+	{
+		BossInfoWidget->SetExpText(Text);
+	}
+}
+
 void UCPInGameWidget::SetBossPortrait(UTexture2D* Portrait)
 {
 	if (BossInfoWidget)
@@ -127,6 +159,14 @@ void UCPInGameWidget::UpdateComboGauge(float CurrentValue, float MaxValue)
 	if (CoinComboWidget)
 	{
 		CoinComboWidget->UpdateComboGauge(CurrentValue, MaxValue);
+	}
+}
+
+void UCPInGameWidget::SetComboGaugeText(const FText& Text)
+{
+	if (CoinComboWidget)
+	{
+		CoinComboWidget->SetComboGaugeText(Text);
 	}
 }
 

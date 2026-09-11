@@ -13,6 +13,7 @@ class UCPTicketCountWidget;
 class UCPCoinCountWidget;
 class UCPRadialGaugeComponent;
 class UCPInventoryWidget;
+class UCPInGameWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamLevelUp, int32, NewLevel);
 
@@ -98,6 +99,21 @@ protected:
 	 *  revive attempt starts), and hands it to the character via SetReviveGaugeComponent. No-ops if
 	 *  ReviveGaugeComponentClass is unset or PlayerCharacter already has one */
 	void AttachReviveGaugeToPlayer(ACPPlayerCharacter* PlayerCharacter);
+
+	/** Binds PlayerCharacter's OnHealthChanged/OnExpChanged/OnLevelChanged/OnTicketChanged directly to
+	 *  its possessing ACPTopDownPlayerController's InGameUI (GetInGameWidget()), and pushes each
+	 *  value's current state once right after binding. Deferred to next tick (via a SetTimerForNextTick
+	 *  call in BeginPlay) because InGameUI is created in the controller's own BeginPlay, and actor
+	 *  BeginPlay order between the GameMode and the PlayerController isn't guaranteed - takes a weak
+	 *  pointer since PlayerCharacter isn't a member here. No-ops if the controller isn't an
+	 *  ACPTopDownPlayerController or has no InGameUI (InGameWidgetClass unset) */
+	void SetupPlayerInGameWidgetBindings(TWeakObjectPtr<ACPPlayerCharacter> WeakPlayerCharacter);
+
+	/** Bound to PlayerCharacter->OnPlayerDowned in BeginPlay - treats any player going down as an
+	 *  immediate loss and shows the Lose ending on the world's first local PlayerController (see
+	 *  ACPTopDownPlayerController::ShowEndingResult) */
+	UFUNCTION()
+	void HandlePlayerDowned();
 
 public:
 

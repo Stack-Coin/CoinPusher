@@ -59,6 +59,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Character Info")
 	void UpdateExp(float CurrentExp, float MaxExp);
 
+	/** HealthGaugeWidget의 ValueText를 DisplayFormat 없이 임의의 문구로 직접 설정 - 없으면 무시 */
+	UFUNCTION(BlueprintCallable, Category="Character Info")
+	void SetHealthText(const FText& Text);
+
+	/** ExpGaugeWidget의 ValueText를 DisplayFormat 없이 임의의 문구로 직접 설정 - 없으면 무시 */
+	UFUNCTION(BlueprintCallable, Category="Character Info")
+	void SetExpText(const FText& Text);
+
 	/** 캐릭터 이름을 설정 - NameText가 없으면 아무 동작도 하지 않는다 */
 	UFUNCTION(BlueprintCallable, Category="Character Info")
 	void SetCharacterName(const FText& CharacterName);

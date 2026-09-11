@@ -39,3 +39,11 @@ void UCPHorizonGuageBarWidget::SetValues_Implementation(float CurrentValue, floa
 		ValueText->SetText(FText::Format(DisplayFormat, FText::AsNumber(CurrentValue), FText::AsNumber(MaxValue)));
 	}
 }
+
+void UCPHorizonGuageBarWidget::SetValueText(const FText& Text)
+{
+	if (ValueText)
+	{
+		ValueText->SetText(Text);
+	}
+}

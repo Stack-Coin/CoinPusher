@@ -13,6 +13,9 @@
 #include "UI/CPCoinCountWidget.h"
 #include "UI/CPRadialGaugeComponent.h"
 #include "UI/CPInventoryWidget.h"
+#include "UI/CPInGameWidget.h"
+#include "Player/CPTopDownPlayerController.h"
+#include "TimerManager.h"
 
 ACPGameMode::ACPGameMode()
 {
@@ -31,6 +34,13 @@ void ACPGameMode::BeginPlay()
 			SetupPlayerHealthBarWidget(PlayerCharacter, PlayerHealthBarWidgetClass);
 			SetupPlayerWalletWidgets(PlayerCharacter);
 			SetupPlayerInventoryWidget(PlayerCharacter);
+
+			PlayerCharacter->OnPlayerDowned.AddDynamic(this, &ACPGameMode::HandlePlayerDowned);
+
+			// InGameUI는 컨트롤러 자신의 BeginPlay에서 만들어지는데, 액터 간 BeginPlay 순서는
+			// 보장되지 않으므로 한 틱 미뤄서 항상 준비된 뒤에 바인딩한다
+			TWeakObjectPtr<ACPPlayerCharacter> WeakPlayerCharacter(PlayerCharacter);
+			GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &ACPGameMode::SetupPlayerInGameWidgetBindings, WeakPlayerCharacter));
 		}
 	}
 }
@@ -124,6 +134,43 @@ void ACPGameMode::SetupPlayerInventoryWidget(ACPPlayerCharacter* PlayerCharacter
 	if (UCPInventoryWidget* InventoryWidget = CreateWidget<UCPInventoryWidget>(OwningController, InventoryWidgetClass))
 	{
 		InventoryWidget->AddToViewport();
+	}
+}
+
+void ACPGameMode::SetupPlayerInGameWidgetBindings(TWeakObjectPtr<ACPPlayerCharacter> WeakPlayerCharacter)
+{
+	ACPPlayerCharacter* PlayerCharacter = WeakPlayerCharacter.Get();
+	if (!PlayerCharacter)
+	{
+		return;
+	}
+
+	ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(PlayerCharacter->GetController());
+	UCPInGameWidget* InGameWidget = PC ? PC->GetInGameWidget() : nullptr;
+	if (!InGameWidget)
+	{
+		return;
+	}
+
+	PlayerCharacter->OnHealthChanged.AddDynamic(InGameWidget, &UCPInGameWidget::UpdatePlayerHealth);
+	PlayerCharacter->OnExpChanged.AddDynamic(InGameWidget, &UCPInGameWidget::UpdatePlayerExp);
+	PlayerCharacter->OnLevelChanged.AddDynamic(InGameWidget, &UCPInGameWidget::SetPlayerLevel);
+	PlayerCharacter->OnTicketChanged.AddDynamic(InGameWidget, &UCPInGameWidget::UpdateTicketCount);
+
+	InGameWidget->UpdatePlayerHealth(PlayerCharacter->GetStat(ECPStatType::Health), PlayerCharacter->GetMaxHealth());
+	InGameWidget->UpdatePlayerExp(PlayerCharacter->GetStat(ECPStatType::Experience), PlayerCharacter->GetMaxExperience());
+	InGameWidget->SetPlayerLevel(PlayerCharacter->GetPlayerLevel());
+	InGameWidget->UpdateTicketCount(PlayerCharacter->GetTicketCount());
+}
+
+void ACPGameMode::HandlePlayerDowned()
+{
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (ACPTopDownPlayerController* TopDownPC = Cast<ACPTopDownPlayerController>(PC))
+		{
+			TopDownPC->ShowEndingResult(false);
+		}
 	}
 }
 

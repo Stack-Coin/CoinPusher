@@ -27,6 +27,13 @@ class CP_API ACPMonsterBoss : public ACPMonsterBase
 public:
 	ACPMonsterBoss();
 
+	/** 보스 이름 - InGameUI의 BossInfoWidget에 표시하는 용도(UCPMonsterSpawnManagerComponent::SpawnBoss
+	 *  참고). 기본값은 아직 이 보스 전용 이름이 기획되지 않아 임시로 넣어둔 "쿠에르노" */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Boss")
+	FName BossName = TEXT("쿠에르노");
+
+	FORCEINLINE FName GetBossName() const { return BossName; }
+
 	/** 스포너가 SpawnBoss()에서 RoundInfoTable(FCPMonsterRoundInfoRow)의 해당 Round 행을 찾은 직후 호출:
 	 *  그 행의 RoarHealthPercentThreshold/SlamCooldown/RoarDuration 값으로 덮어쓰고, AddBossMaxHealth/
 	 *  AddBossMoveSpeed/AddBossAttackPower를 (스폰 시 이미 적용된) 기본 스탯 위에 추가로 더합니다.

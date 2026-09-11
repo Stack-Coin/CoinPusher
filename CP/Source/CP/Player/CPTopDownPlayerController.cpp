@@ -7,6 +7,7 @@
 #include "InputMappingContext.h"
 #include "InputActionValue.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Blueprint/UserWidget.h"
 #include "Debug/CPDebugWidget.h"
 #include "UI/CPInGamePauseWidget.h"
@@ -43,6 +44,14 @@ void ACPTopDownPlayerController::BeginPlay()
 	FInputModeGameAndUI InputMode;
 	InputMode.SetHideCursorDuringCapture(false);
 	SetInputMode(InputMode);
+
+	// SetInputMode만으로는 게임 창(특히 PIE의 "New Editor Window" 별도 창 모드)이 OS/Slate 포커스를
+	// 자동으로 받지 못해서, 실행 직후 화면을 한 번 클릭하기 전까지 키보드/마우스 입력이 전혀 들어오지
+	// 않는 문제가 있었다 - 시작하자마자 강제로 게임 뷰포트에 포커스를 준다
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().SetAllUserFocusToGameViewport();
+	}
 
 	GetWorldTimerManager().SetTimerForNextTick(this, &ACPTopDownPlayerController::SetupCaptureWidget);
 

@@ -341,6 +341,7 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	{
 		const float HealthBefore = StatComponent->CurrentHealth;
 		StatComponent->CurrentHealth -= DamageAmount;
+		StatComponent->OnMonsterHealthChanged.Broadcast(StatComponent->CurrentHealth, StatComponent->MaxHealth);
 
 		// [임시 디버그] 무적이 아닐 때 실제로 얼마나 깎이는지, bIsDead/bPendingDeath 상태 확인용
 		UE_LOG(LogTemp, Warning,
