@@ -5,6 +5,9 @@
 #include "Monster/Spawner/CPMonsterSpawner.h"
 #include "Monster/CPMonsterBase.h"
 #include "Monster/Boss/CPMonsterBoss.h"
+#include "Monster/Bomb/CPMonsterBomb.h"
+#include "Player/CPPlayerCharacter.h"
+#include "CoinPusher/CPCoinPusher.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DataTable.h"
 #include "Engine/World.h"
@@ -24,6 +27,17 @@ void UCPMonsterSpawnManagerComponent::BeginPlay()
 
 	LoadAsset();
 	ApplyRoundInfo(CurrentRound);
+
+	// CoinPusher가 DropZone에 몬스터 코인을 떨어뜨릴 때(HandleDropZoneItemDropped) 이걸로 보상 몬스터를
+	// 스폰함 - GetCoinPusher()는 GetOwner()(Player)를 거치므로, 레벨에 배치된 CoinPusher가 이미
+	// PostInitializeComponents()에서 Player에 채워진 뒤인 지금 시점(컴포넌트 BeginPlay)이면 안전함
+	if (ACPCoinPusher* CoinPusher = GetCoinPusher())
+	{
+		if (FOnCPDropZoneDropped* DropZoneDelegate = CoinPusher->GetDropZoneDroppedDelegate())
+		{
+			DropZoneDelegate->AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleDropZoneItemDropped);
+		}
+	}
 
 	CurrentWaveIndex = 0;
 	StartWave(CurrentWaveIndex);
@@ -371,6 +385,9 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		{
 			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown, RoundInfo->RoarDuration,
 				RoundInfo->AddBossMaxHealth, RoundInfo->AddBossMoveSpeed, RoundInfo->AddBossAttackPower);
+
+			// 보스 공격이 플레이어에게 명중할 때마다 CoinPusher의 활성 코인을 몬스터 코인으로 전환
+			Boss->OnBossAttackedPlayer.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBossAttackedPlayer);
 		}
 	}
 	else
@@ -499,6 +516,12 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 					++TotalAliveMonsterCount;
 					SpawnedMonster->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleWaveMonsterDied);
 					SpawnedMonster->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleAnyMonsterDied);
+
+					// 자폭 몬스터가 플레이어에 닿아 터질 때마다 CoinPusher에 몬스터 코인을 스폰
+					if (ACPMonsterBomb* Bomb = Cast<ACPMonsterBomb>(SpawnedMonster))
+					{
+						Bomb->OnBombExplodedOnPlayer.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBombExplodedOnPlayer);
+					}
 				}
 			}
 		}
@@ -633,6 +656,12 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 				{
 					++TotalAliveMonsterCount;
 					SpawnedMonster->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleAnyMonsterDied);
+
+					// 자폭 몬스터가 플레이어에 닿아 터질 때마다 CoinPusher에 몬스터 코인을 스폰
+					if (ACPMonsterBomb* Bomb = Cast<ACPMonsterBomb>(SpawnedMonster))
+					{
+						Bomb->OnBombExplodedOnPlayer.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBombExplodedOnPlayer);
+					}
 				}
 			}
 		}
@@ -757,6 +786,107 @@ int32 UCPMonsterSpawnManagerComponent::GetMaxAliveMonsterCount() const
 {
 	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
 	return RoundInfo ? RoundInfo->MaxAliveMonsterCount : 0;
+}
+
+ACPCoinPusher* UCPMonsterSpawnManagerComponent::GetCoinPusher() const
+{
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(GetOwner()))
+	{
+		return PlayerCharacter->GetCoinPusher();
+	}
+
+	return nullptr;
+}
+
+void UCPMonsterSpawnManagerComponent::HandleBossAttackedPlayer()
+{
+	if (ACPCoinPusher* CoinPusher = GetCoinPusher())
+	{
+		CoinPusher->MonsterConvertActive(MonsterCoinItemID, MonsterConvertCountOnBossAttack);
+	}
+}
+
+void UCPMonsterSpawnManagerComponent::HandleBombExplodedOnPlayer()
+{
+	if (ACPCoinPusher* CoinPusher = GetCoinPusher())
+	{
+		CoinPusher->SpawnMonsterCoin(MonsterCoinItemID, MonsterCoinSpawnCountOnBombExplode);
+	}
+}
+
+void UCPMonsterSpawnManagerComponent::HandleDropZoneItemDropped(FName ItemID)
+{
+	// OnDropped는 떨어진 아이템 1개마다 개별로 Broadcast되고 Count 파라미터가 따로 없으므로,
+	// 이벤트 1번 = 몬스터 코인 1개로 취급함
+	if (ItemID != MonsterCoinItemID)
+	{
+		return;
+	}
+
+	SpawnRandomRewardMonster();
+}
+
+void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
+{
+	// 보스를 제외한 타입 중 무작위로 하나를 고름 - DropZone에 몬스터 코인이 떨어진 데 대한 보상
+	TArray<ECPMonsterType> Candidates;
+	for (const TPair<ECPMonsterType, TSubclassOf<ACPMonsterBase>>& Pair : MonsterClassByType)
+	{
+		if (Pair.Key != ECPMonsterType::Boss && IsValid(Pair.Value))
+		{
+			Candidates.Add(Pair.Key);
+		}
+	}
+
+	if (Candidates.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 실패 - MonsterClassByType에 보스 이외의 유효한 클래스가 없습니다."));
+		return;
+	}
+
+	const ECPMonsterType ChosenType = Candidates[FMath::RandRange(0, Candidates.Num() - 1)];
+	const TSubclassOf<ACPMonsterBase> ChosenClass = MonsterClassByType.FindRef(ChosenType);
+
+	// 유효한(네브메시 위) 스포너 중 무작위로 하나를 고름
+	TArray<ACPMonsterSpawner*> ValidSpawners;
+	for (const TPair<int32, TObjectPtr<ACPMonsterSpawner>>& Pair : SpawnersByIndex)
+	{
+		if (IsValid(Pair.Value) && IsSpawnerLocationValid(Pair.Value->GetActorLocation()))
+		{
+			ValidSpawners.Add(Pair.Value);
+		}
+	}
+
+	if (ValidSpawners.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 실패 - 유효한 스포너가 없습니다."));
+		return;
+	}
+
+	ACPMonsterSpawner* ChosenSpawner = ValidSpawners[FMath::RandRange(0, ValidSpawners.Num() - 1)];
+	const TArray<ACPMonsterBase*> SpawnedMonsters = ChosenSpawner->SpawnMonsterRow(ChosenClass, 1, 0.f, CurrentRound, CurrentWaveIndex + 1);
+
+	for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
+	{
+		if (!IsValid(SpawnedMonster))
+		{
+			continue;
+		}
+
+		// 보스처럼 MaxAliveMonsterCount 상한과 무관하게 항상 스폰을 보장함(사용자 확인 완료) - 그래서
+		// 위쪽에 상한 체크가 없음. 전멸 판정(WaveAliveMonsterCount)에도 관여하지 않고 TotalAliveMonsterCount만 늘림
+		++TotalAliveMonsterCount;
+		SpawnedMonster->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleAnyMonsterDied);
+
+		// 보상 몬스터가 하필 자폭형이면, 그 녀석이 플레이어에 닿아 터질 때도 똑같이 몬스터 코인을 스폰함
+		// (다음 보상 몬스터로 이어질 수 있음 - 의도된 동작)
+		if (ACPMonsterBomb* Bomb = Cast<ACPMonsterBomb>(SpawnedMonster))
+		{
+			Bomb->OnBombExplodedOnPlayer.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBombExplodedOnPlayer);
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster() - MonsterType=%d 스폰 (DropZone 몬스터 코인 보상)"), (int32)ChosenType);
+	}
 }
 
 int32 UCPMonsterSpawnManagerComponent::GetWaveCount() const

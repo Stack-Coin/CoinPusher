@@ -2,6 +2,7 @@
 
 #include "Monster/Bomb/CPMonsterBomb.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Player/CPPlayerCharacter.h"
 
 ACPMonsterBomb::ACPMonsterBomb()
 {
@@ -40,6 +41,13 @@ void ACPMonsterBomb::AttackHitCheck()
 	// DT_MonsterStat에서 이 타입의 AttackRange를 0(또는 아주 작은 값)으로 두면 "닿아야만" 판정이 남.
 	// 투사체는 스폰하지 않음(ACPMonsterRanged와 달리 Fire() 없음)
 	Super::AttackHitCheck();
+
+	// 스윕이 실제로 플레이어를 맞췄을 때만 - Explode()는 스윕이 빗나가도(AttackInRange 데코레이터만
+	// 통과하면) 항상 호출되는 기존 동작이라, CoinPusher 보상 트리거는 "플레이어에 닿았을 때"만 따로 구분함
+	if (Cast<ACPPlayerCharacter>(LastAttackHitActor))
+	{
+		OnBombExplodedOnPlayer.Broadcast();
+	}
 
 	Explode();
 }

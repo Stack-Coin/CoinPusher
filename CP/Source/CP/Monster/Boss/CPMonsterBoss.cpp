@@ -3,6 +3,7 @@
 
 #include "Monster/Boss/CPMonsterBoss.h"
 #include "Monster/CPMonsterAIController.h"
+#include "Player/CPPlayerCharacter.h"
 #include "TimerManager.h"
 
 ACPMonsterBoss::ACPMonsterBoss()
@@ -59,7 +60,18 @@ void ACPMonsterBoss::AttackByAI()
 	}
 }
 
-bool ACPMonsterBoss::ShouldRoar() 
+void ACPMonsterBoss::AttackHitCheck()
+{
+	Super::AttackHitCheck();
+
+	// 방금 스윕이 실제로 플레이어를 맞췄을 때만 - 넥서스를 맞췄거나 빗나간 경우는 제외
+	if (Cast<ACPPlayerCharacter>(LastAttackHitActor))
+	{
+		OnBossAttackedPlayer.Broadcast();
+	}
+}
+
+bool ACPMonsterBoss::ShouldRoar()
 {
 	if (!bArmedForRoar || bIsDead)
 	{

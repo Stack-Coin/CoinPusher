@@ -144,6 +144,9 @@ void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCate
 
 void ACPMonsterBase::AttackHitCheck()
 {
+	// 이번 AttackHitCheck() 호출의 결과로 새로 채워짐 - 못 맞추면 nullptr로 남음
+	LastAttackHitActor = nullptr;
+
 	// 스윕 시작점을 액터 피벗(캡슐 중심)이 아니라 "자기 몸통 표면"에서 출발하도록 자신의
 	// 콜리전 반경만큼 앞으로 밀어줌. 기존엔 피벗에서 AttackRange만큼만 재서, 일반/탱커처럼
 	// 캡슐이 작은 몬스터는 티가 안 났지만 보스처럼 캡슐이 큰 몬스터는 실제 몸통 밖으로 뻗는
@@ -199,6 +202,7 @@ void ACPMonsterBase::AttackHitCheck()
 		if (HitActor && HitActor->IsValidLowLevel())
 		{
 			UGameplayStatics::ApplyDamage(HitActor, GetAIAttackPower(), GetController(), this, UDamageType::StaticClass());
+			LastAttackHitActor = HitActor;
 		}
 	}
 	else 

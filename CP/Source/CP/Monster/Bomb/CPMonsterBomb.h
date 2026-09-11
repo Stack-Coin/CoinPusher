@@ -6,6 +6,10 @@
 #include "Monster/CPMonsterBase.h"
 #include "CPMonsterBomb.generated.h"
 
+/** 자폭 몬스터가 플레이어에 닿아 자폭할 때 Broadcast (스윕이 빗나갔거나 넥서스를 맞춰 자폭한 경우는 제외) -
+ *  UCPMonsterSpawnManagerComponent가 구독해서 CoinPusher에 몬스터 코인을 스폰시키는 데 사용 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBombExplodedOnPlayer);
+
 /**
  * 폭탄형 몬스터 - 날아다니며 투사체 없이 플레이어에게 직접 돌진해서, 닿으면(공격 사거리 안에 들어오면)
  * 터지면서 죽는 자폭형 몬스터.
@@ -22,6 +26,10 @@ class CP_API ACPMonsterBomb : public ACPMonsterBase
 
 public:
 	ACPMonsterBomb();
+
+	/** 자폭 몬스터가 플레이어에 닿아 자폭할 때마다 Broadcast (see AttackHitCheck) */
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnBombExplodedOnPlayer OnBombExplodedOnPlayer;
 
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;

@@ -6,6 +6,10 @@
 #include "Monster/CPMonsterBase.h"
 #include "CPMonsterBoss.generated.h"
 
+/** 보스의 공격이 플레이어에게 실제로 명중했을 때 Broadcast (넥서스를 맞췄거나 빗나간 경우는 제외) -
+ *  UCPMonsterSpawnManagerComponent가 구독해서 CoinPusher의 활성 코인을 몬스터 코인으로 전환시키는 데 사용 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBossAttackedPlayer);
+
 /**
  * 플레이어 추적(기존 MoveTo 재사용) + 일반 공격/슬램(내려찍기) + 체력 50% 이하 포효(무적) 패턴을 갖는 보스.
  *
@@ -36,6 +40,9 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void AttackByAI() override;
 
+	/** Super 호출 후 LastAttackHitActor가 플레이어면 OnBossAttackedPlayer를 Broadcast함 */
+	virtual void AttackHitCheck() override;
+
 	/** 한 번도 포효하지 않은 채로(bArmedForRoar가 true인 채로) 죽는 경우(예: 큰 데미지를 한 번에
 	 *  맞아 50% 임계치 구간을 그냥 건너뛰고 죽는 경우), 죽기 직전에 포효를 강제로 한 번 재생하고
 	 *  그게 끝난 뒤에야 실제 사망 처리(Super::Dead())를 하도록 오버라이드함.
@@ -53,6 +60,10 @@ public:
 
 	/** BT의 Roar 태스크가 실행 전에 호출해서, 포효(몽타주)가 끝났을 때 알림받을 델리게이트를 등록 */
 	void SetRoarDelegate(const FAICharacterAttackFinished& InOnRoarFinished) { OnRoarFinished = InOnRoarFinished; }
+
+	/** 보스의 공격이 플레이어에게 실제로 명중할 때마다 Broadcast (see AttackHitCheck) */
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnBossAttackedPlayer OnBossAttackedPlayer;
 
 protected:
 	void HandleRoarMontageEnded(UAnimMontage* Montage, bool bInterrupted);
