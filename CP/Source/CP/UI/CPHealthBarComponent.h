@@ -6,7 +6,7 @@
 #include "Components/WidgetComponent.h"
 #include "CPHealthBarComponent.generated.h"
 
-class UCPHealthBarWidget;
+class UCPHorizonGuageBarWidget;
 
 /**
  *  체력이 바뀔 때마다 브로드캐스트하는 델리게이트 시그니처.
@@ -20,7 +20,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCPHealthChanged, float, CurrentHea
 
 /**
  *  적, 플레이어 캐릭터, CoinPusher 등 어떤 Actor의 BP에나 Add Component로 그냥 붙일 수 있는
- *  월드 스페이스 체력바 컴포넌트. WidgetClass에는 UCPHealthBarWidget을 상속하는
+ *  월드 스페이스 체력바 컴포넌트. WidgetClass에는 UCPHorizonGuageBarWidget을 상속하는
  *  Widget Blueprint(WBP_HealthBar 등)를 지정한다.
  *  대상 Actor 쪽에서 체력이 바뀔 때 UpdateHealth를 호출(또는 FCPHealthChanged 델리게이트를
  *  UpdateHealth에 바인딩)해주기만 하면 위젯에 반영된다.
@@ -40,7 +40,7 @@ protected:
 
 	/** Cached UserWidgetObject, cast once in BeginPlay */
 	UPROPERTY()
-	TObjectPtr<UCPHealthBarWidget> HealthBarWidget;
+	TObjectPtr<UCPHorizonGuageBarWidget> HealthBarWidget;
 
 public:
 

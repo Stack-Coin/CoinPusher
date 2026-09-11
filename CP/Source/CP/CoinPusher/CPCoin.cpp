@@ -74,7 +74,7 @@ void ACPCoin::OnDroppedInZone(ACPDropZone* DropZone)
 {
 	if (DropZone)
 	{
-		DropZone->AddCollectedCoins(1, ItemID, CoinType);
+		DropZone->AddCollectedCoins(1, ItemID, CoinType, GetActorLocation());
 	}
 
 	Collect();

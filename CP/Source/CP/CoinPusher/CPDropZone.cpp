@@ -28,7 +28,7 @@ ACPDropZone::ACPDropZone()
 	CollectionVolume->OnComponentBeginOverlap.AddDynamic(this, &ACPDropZone::OnVolumeBeginOverlap);
 }
 
-void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType CoinType)
+void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType CoinType, FVector WorldLocation)
 {
 	if (Amount <= 0)
 	{
@@ -38,6 +38,7 @@ void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType Coin
 	CollectedCoinCount += Amount;
 
 	OnCoinCollected.Broadcast(CollectedCoinCount);
+	OnCoinDropped.Broadcast(WorldLocation);
 
 	//떨어진 아이템의 정보(ItemID/개수, 코인이면 CoinType까지)를 GameMode로 전달.
 	//GetAuthGameMode()가 ICPDroppedItemReceiver를 구현하는 경우에만 전달되므로, 실제 게임의 GameMode든

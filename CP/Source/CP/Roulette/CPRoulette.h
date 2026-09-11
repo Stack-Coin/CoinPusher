@@ -19,6 +19,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPRoulettePickedUp, FName, ItemI
  *  칸에서 멈추도록 연출한 뒤, 뽑힌 ItemID/RouletteSpawnCount를 OnPickedUp으로 Broadcast한다.
  *  Roulette는 그 결과를 누가 어떻게 쓰는지 전혀 모른다 - CoinPusher 등 외부 시스템이 OnPickedUp에
  *  직접 바인딩해서 원하는 대로 처리한다 (예: ACPCoinPusher::LinkedRoulette).
+ *
+ *  룰렛 UI 위젯은 이 액터가 직접 만들지 않는다 - 로컬 스플릿 스크린의 각 플레이어가 이미 갖고 있는
+ *  "InGameUI"(UCPInGameWidget, ACPTopDownPlayerController::GetInGameWidget())의 RouletteWidget
+ *  컴포넌트를 그대로 재사용한다(GetLocalRouletteWidgets() 참고) - InGameUI 밖에 별도로 룰렛
+ *  위젯을 띄우지 않으므로 WBP 하나만 관리하면 된다.
  */
 UCLASS(abstract)
 class CP_API ACPRoulette : public AActor
@@ -39,14 +44,6 @@ protected:
 	 *  true인 행만 후보가 되며, RouletteProbability 가중치로 추첨해 RouletteSpawnCount개를 전달한다 */
 	UPROPERTY(EditAnywhere, Category="Roulette")
 	TObjectPtr<UDataTable> ItemDataTable;
-
-	/** Roll() 시 화면에 띄울 룰렛 UI 위젯 클래스 */
-	UPROPERTY(EditAnywhere, Category="Roulette")
-	TSubclassOf<UCPRouletteWidget> RouletteWidgetClass;
-
-	/** 로컬 스플릿 스크린의 각 플레이어별로 지연 생성 후 재사용되는 룰렛 UI 위젯 인스턴스 */
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UCPRouletteWidget>> RouletteWidgetInstances;
 
 	/** 스핀이 시작되어 결과가 결정되기 전까지 true. 두 플레이어가 하나의 룰렛을 공유하므로,
 	 *  한 플레이어가 돌리는 동안 다른 플레이어가 다시 Roll()을 호출하지 못하도록 막는 잠금 상태 */
@@ -79,9 +76,12 @@ public:
 
 protected:
 
-	/** 로컬 스플릿 스크린의 각 PlayerController마다 룰렛 UI 위젯이 없으면 RouletteWidgetClass로 생성해,
-	 *  모든 로컬 플레이어의 위젯 인스턴스를 반환 (동일한 스핀 연출이 모든 화면에 나타나도록 함) */
-	TArray<UCPRouletteWidget*> GetOrCreateRouletteWidgets();
+	/** 로컬 스플릿 스크린의 각 PlayerController(ACPTopDownPlayerController)마다 그 InGameUI
+	 *  (GetInGameWidget())의 RouletteWidget을 찾아 모은다 - 위젯을 새로 만들지 않고 이미 존재하는
+	 *  인스턴스를 재사용하며, 처음 찾을 때마다 OnResultDetermined를 AddUniqueDynamic으로 바인딩해
+	 *  중복 바인딩 없이 항상 최신 상태를 보장한다. InGameUI가 없거나 RouletteWidget이 배치되지
+	 *  않은 플레이어는 결과 목록에서 제외된다(그 화면에는 스핀 연출이 나오지 않음) */
+	TArray<UCPRouletteWidget*> GetLocalRouletteWidgets();
 
 	/** ItemDataTable에서 bRoulette가 true인 행들을 모아 RouletteProbability 가중치로 하나를 추첨한다.
 	 *  뽑힌 행의 ItemID/RouletteSpawnCount를 PendingResultItemID/PendingResultSpawnCount에 저장하고,

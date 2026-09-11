@@ -16,7 +16,7 @@ class UMaterialInstanceDynamic;
  *  이 클래스가 그 Material의 Scalar Parameter(PercentParameterName, 기본 "Percent")를
  *  Current/Max 비율로 갱신해주는 방식으로 동작한다.
  *
- *  배경(BackgroundImage) 위에 FillImage가 겹쳐 있는 구조는 체력바(UCPHealthBarWidget)와 동일.
+ *  배경(BackgroundImage) 위에 FillImage가 겹쳐 있는 구조는 게이지 바(UCPHorizonGuageBarWidget)와 동일.
  *  NativeConstruct에서 FillImage에 지정된 Material로부터 Dynamic Material Instance를 하나 만들어
  *  캐싱해두고, 이후 SetGaugePercent가 호출될 때마다 그 인스턴스의 Percent 파라미터만 갱신한다.
  *

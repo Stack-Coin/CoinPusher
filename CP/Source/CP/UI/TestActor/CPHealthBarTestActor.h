@@ -14,7 +14,7 @@ class UCPViewportHealthBarComponent;
  *  Level에 그냥 배치하고 재생하면, 자동으로 체력이 깎였다가 0이 되면 다시 가득 채워지는 것을
  *  반복하면서 화면(뷰포트)의 체력바가 그에 맞춰 갱신되는지 눈으로 확인할 수 있다.
  *  BP 서브클래스 없이 이 클래스 자체로 바로 배치 가능 - 배치 후 ViewportHealthBar 컴포넌트의
- *  WidgetClass에 UCPHealthBarWidget을 상속하는 WBP(예: WBP_HealthBar)를 지정해주면 된다.
+ *  WidgetClass에 UCPHorizonGuageBarWidget을 상속하는 WBP(예: WBP_HealthBar)를 지정해주면 된다.
  */
 UCLASS()
 class CP_API ACPHealthBarTestActor : public AActor

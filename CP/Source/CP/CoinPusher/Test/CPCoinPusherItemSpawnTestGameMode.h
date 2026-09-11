@@ -9,11 +9,13 @@
 
 /**
  *  Minimal GameMode for testing ACPCoinPusher::ItemSpawn() (see ACPCoinPusherItemSpawnTestPawn),
- *  ACPDropZone's dropped-item notification, and the InGamePause/Ending UI (Z/X keys on the pawn -
- *  see ACPCoinPusherItemSpawnTestPawn). PlayerControllerClass is ACPCoinPusherItemSpawnTestPlayerController
- *  (an ACPTopDownPlayerController subclass) so the Pause/Ending input actions and widget classes are
- *  available - both need to be filled in on a BP subclass of that controller, since Input Actions/WBP
- *  classes can't be hardcoded in C++ (see ACPCoinPusherItemSpawnTestPlayerController's comment).
+ *  ACPDropZone's dropped-item notification, the InGamePause/Ending UI (Z/X keys on the pawn), and the
+ *  "InGameUI" HUD (H/J/K/L/G/V/C keys on the pawn - see ACPCoinPusherItemSpawnTestPawn).
+ *  PlayerControllerClass is ACPCoinPusherItemSpawnTestPlayerController (an ACPTopDownPlayerController
+ *  subclass) so the Pause/Ending input actions, InGamePauseWidgetClass/EndingWidgetClass, and
+ *  InGameWidgetClass are available - all need to be filled in on a BP subclass of that controller,
+ *  since Input Actions/WBP classes can't be hardcoded in C++ (see
+ *  ACPCoinPusherItemSpawnTestPlayerController's comment).
  *  Implements ICPDroppedItemReceiver directly (instead of inheriting the full ACPGameMode) so an
  *  item/coin dropped into a DropZone can be verified in isolation, without any of ACPGameMode's
  *  local-multiplayer/team-resource setup running.
