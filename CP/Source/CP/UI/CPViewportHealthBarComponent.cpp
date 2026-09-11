@@ -2,7 +2,7 @@
 
 
 #include "UI/CPViewportHealthBarComponent.h"
-#include "UI/CPHealthBarWidget.h"
+#include "UI/CPHorizonGuageBarWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -35,7 +35,7 @@ void UCPViewportHealthBarComponent::BeginPlay()
 
 	if (OwningController && OwningController->IsLocalController())
 	{
-		HealthBarWidget = CreateWidget<UCPHealthBarWidget>(OwningController, WidgetClass);
+		HealthBarWidget = CreateWidget<UCPHorizonGuageBarWidget>(OwningController, WidgetClass);
 		if (HealthBarWidget)
 		{
 			HealthBarWidget->AddToPlayerScreen(ZOrder);
@@ -43,7 +43,7 @@ void UCPViewportHealthBarComponent::BeginPlay()
 	}
 	else
 	{
-		HealthBarWidget = CreateWidget<UCPHealthBarWidget>(GetWorld(), WidgetClass);
+		HealthBarWidget = CreateWidget<UCPHorizonGuageBarWidget>(GetWorld(), WidgetClass);
 		if (HealthBarWidget)
 		{
 			HealthBarWidget->AddToViewport(ZOrder);
@@ -66,6 +66,6 @@ void UCPViewportHealthBarComponent::UpdateHealth(float CurrentHealth, float MaxH
 {
 	if (HealthBarWidget)
 	{
-		HealthBarWidget->UpdateHealth(CurrentHealth, MaxHealth);
+		HealthBarWidget->Update(CurrentHealth, MaxHealth);
 	}
 }

@@ -8,7 +8,7 @@
 #include "CPGameMode.generated.h"
 
 class ACPPlayerCharacter;
-class UCPHealthBarWidget;
+class UCPHorizonGuageBarWidget;
 class UCPTicketCountWidget;
 class UCPCoinCountWidget;
 class UCPRadialGaugeComponent;
@@ -54,9 +54,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPCoinCountWidget> CoinWidgetClass;
 
-	/** Widget Blueprint (inheriting UCPHealthBarWidget) for the player's health bar */
+	/** Widget Blueprint (inheriting UCPHorizonGuageBarWidget) for the player's health bar */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
-	TSubclassOf<UCPHealthBarWidget> PlayerHealthBarWidgetClass;
+	TSubclassOf<UCPHorizonGuageBarWidget> PlayerHealthBarWidgetClass;
 
 	/** Widget Blueprint (inheriting UCPInventoryWidget) for the player's cross-shaped inventory HUD */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
@@ -88,7 +88,7 @@ protected:
 	/** Creates a health bar widget using HealthBarWidgetClass, adds it to PlayerCharacter's owning
 	 *  player's screen, and binds it directly to PlayerCharacter's OnHealthChanged. Called once per
 	 *  local player from BeginPlay */
-	void SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHealthBarWidget> HealthBarWidgetClass);
+	void SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHorizonGuageBarWidget> HealthBarWidgetClass);
 
 	/** Creates an inventory widget using InventoryWidgetClass, adds it to PlayerCharacter's owning player's
 	 *  screen. Called once per local player from BeginPlay */

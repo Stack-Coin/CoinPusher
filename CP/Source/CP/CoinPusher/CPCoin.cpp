@@ -76,8 +76,11 @@ bool ACPCoin::Collect()
 
 void ACPCoin::OnDroppedInZone(ACPDropZone* DropZone)
 {
-	// DropZone이 오버랩 시점에 이미 GetItemID()/GetCoinType()을 직접 읽어가고 Collect()의 반환값으로
-	// AddCollectedCoins() 호출 여부를 판단하므로, 여기서는 자기 정리만 한다 (DropZone에 보고하지 않음)
+	if (DropZone)
+	{
+		DropZone->AddCollectedCoins(1, ItemID, CoinType, GetActorLocation());
+	}
+
 	Collect();
 }
 

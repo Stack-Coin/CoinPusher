@@ -51,8 +51,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerDowned);
 /** Broadcast the moment a downed player finishes being revived */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerRevived);
 
-/** Broadcast whenever Health changes (see SetStat). Bind a UCPHealthBarWidget/-Component's UpdateHealth
- *  here to keep a health bar in sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
+/** Broadcast whenever Health changes (see SetStat). Bind a UCPHorizonGuageBarWidget's Update (or a
+ *  UCPHealthBarComponent/UCPViewportHealthBarComponent's UpdateHealth) here to keep a health bar in
+ *  sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPPlayerHealthChanged, float, CurrentHealth, float, MaxHealth);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerScoreChanged, int32, NewScoreCount);
@@ -729,9 +730,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Stats")
 	float GetMaxHealth() const { return HealthRange.Max; }
 
-	/** Broadcast whenever Health changes (see SetStat). Bind a UCPHealthBarWidget/-Component's
-	 *  UpdateHealth here to keep a health bar in sync - done automatically by
-	 *  ACPGameMode::SetupPlayerHealthBarWidget */
+	/** Broadcast whenever Health changes (see SetStat). Bind a UCPHorizonGuageBarWidget's Update (or a
+	 *  UCPHealthBarComponent/UCPViewportHealthBarComponent's UpdateHealth) here to keep a health bar
+	 *  in sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnCPPlayerHealthChanged OnHealthChanged;
 

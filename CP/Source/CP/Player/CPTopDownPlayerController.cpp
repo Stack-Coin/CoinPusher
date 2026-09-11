@@ -11,6 +11,7 @@
 #include "Debug/CPDebugWidget.h"
 #include "UI/CPInGamePauseWidget.h"
 #include "UI/CPEndingWidget.h"
+#include "UI/CPInGameWidget.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "CoinPusher/CPCoinPusher.h"
@@ -44,6 +45,25 @@ void ACPTopDownPlayerController::BeginPlay()
 	SetInputMode(InputMode);
 
 	GetWorldTimerManager().SetTimerForNextTick(this, &ACPTopDownPlayerController::SetupCaptureWidget);
+
+	SetupInGameWidget();
+}
+
+void ACPTopDownPlayerController::SetupInGameWidget()
+{
+	if (!InGameWidgetClass)
+	{
+		return;
+	}
+
+	InGameWidgetInstance = CreateWidget<UCPInGameWidget>(this, InGameWidgetClass);
+	if (InGameWidgetInstance)
+	{
+		// SetupCaptureWidget()이 한 틱 뒤 CoinPusherCaptureWidget을 Z-order 0으로 추가하므로,
+		// 생성 순서와 무관하게 InGameUI가 항상 그 위에 그려지도록 더 높은 Z-order를 명시한다
+		// (Pause/Ending의 20보다는 낮게 유지)
+		InGameWidgetInstance->AddToViewport(1);
+	}
 }
 
 bool ACPTopDownPlayerController::IsUsingKeyboardAndMouse() const
@@ -71,7 +91,7 @@ void ACPTopDownPlayerController::SetupInputComponent()
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
 	{
 		EnhancedInputComponent->BindAction(ToggleDebugWidgetAction, ETriggerEvent::Started, this, &ACPTopDownPlayerController::ToggleDebugWidget);
-		EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Started, this, &ACPTopDownPlayerController::TogglePauseMenu);
+		EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Started, this, &ACPTopDownPlayerController::HandleTogglePauseAction);
 		EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Triggered, this, &ACPTopDownPlayerController::HandleMenuNavigate);
 		EnhancedInputComponent->BindAction(MenuConfirmAction, ETriggerEvent::Started, this, &ACPTopDownPlayerController::HandleMenuConfirm);
 	}
@@ -132,7 +152,12 @@ UCPInGamePauseWidget* ACPTopDownPlayerController::GetActiveMenuWidget() const
 	return nullptr;
 }
 
-void ACPTopDownPlayerController::TogglePauseMenu(const FInputActionValue& Value)
+void ACPTopDownPlayerController::HandleTogglePauseAction(const FInputActionValue& Value)
+{
+	TogglePauseMenu();
+}
+
+void ACPTopDownPlayerController::TogglePauseMenu()
 {
 	ACPTopDownPlayerController* OwnerPC = GetMenuOwnerController();
 	if (!OwnerPC || !OwnerPC->InGamePauseWidgetClass)
@@ -279,12 +304,15 @@ namespace
 {
 	// 전용 테스트 액터(ACPCoinPusherCaptureTestActor)가 없는 레벨(예: 실제 BP_CoinPusher가 배치된
 	// 테스트 레벨)에서도 동작하도록, 없으면 실제 ACPCoinPusher를 대신 찾는다
-	AActor* FindCaptureSourceActor(const UObject* WorldContextObject)
+	// (CPCoinPusherCaptureTestPlayerController.cpp에도 이름이 같은 헬퍼가 따로 있어 - 각자 다른
+	// 목적의 별도 구현 - Adaptive Unity Build가 두 .cpp를 같은 번역 단위로 묶으면 anonymous
+	// namespace가 충돌하므로 이 파일 쪽만 접두어를 붙여 구분한다)
+	AActor* FindTopDownCaptureSourceActor(const UObject* WorldContextObject)
 	{
 		return UGameplayStatics::GetActorOfClass(WorldContextObject, ACPCoinPusher::StaticClass());
 	}
 
-	UCPCoinPusherViewCaptureComponent* GetCaptureComponent(AActor* SourceActor)
+	UCPCoinPusherViewCaptureComponent* GetTopDownCaptureComponent(AActor* SourceActor)
 	{
 		if (ACPCoinPusher* CoinPusher = Cast<ACPCoinPusher>(SourceActor))
 		{
@@ -303,7 +331,7 @@ void ACPTopDownPlayerController::SetupCaptureWidget()
 		return;
 	}
 
-	UCPCoinPusherViewCaptureComponent* CaptureComponent = GetCaptureComponent(FindCaptureSourceActor(this));
+	UCPCoinPusherViewCaptureComponent* CaptureComponent = GetTopDownCaptureComponent(FindTopDownCaptureSourceActor(this));
 	if (!CaptureComponent)
 	{
 		return;

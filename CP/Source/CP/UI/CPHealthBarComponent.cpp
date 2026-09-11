@@ -2,7 +2,7 @@
 
 
 #include "UI/CPHealthBarComponent.h"
-#include "UI/CPHealthBarWidget.h"
+#include "UI/CPHorizonGuageBarWidget.h"
 
 UCPHealthBarComponent::UCPHealthBarComponent()
 {
@@ -17,13 +17,13 @@ void UCPHealthBarComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	HealthBarWidget = Cast<UCPHealthBarWidget>(GetUserWidgetObject());
+	HealthBarWidget = Cast<UCPHorizonGuageBarWidget>(GetUserWidgetObject());
 }
 
 void UCPHealthBarComponent::UpdateHealth(float CurrentHealth, float MaxHealth)
 {
 	if (HealthBarWidget)
 	{
-		HealthBarWidget->UpdateHealth(CurrentHealth, MaxHealth);
+		HealthBarWidget->Update(CurrentHealth, MaxHealth);
 	}
 }

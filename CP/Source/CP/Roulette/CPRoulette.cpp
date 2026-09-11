@@ -7,6 +7,8 @@
 #include "Engine/World.h"
 #include "Engine/DataTable.h"
 #include "Player/CPGameMode.h"
+#include "Player/CPTopDownPlayerController.h"
+#include "UI/CPInGameWidget.h"
 #include "Log/CPLogCategories.h"
 
 namespace
@@ -45,7 +47,7 @@ bool ACPRoulette::Roll()
 
 	bIsRolling = true;
 
-	const TArray<UCPRouletteWidget*> Widgets = GetOrCreateRouletteWidgets();
+	const TArray<UCPRouletteWidget*> Widgets = GetLocalRouletteWidgets();
 	if (Widgets.Num() > 0)
 	{
 		// 로컬 스플릿 스크린의 모든 플레이어 화면에 동일한 룰렛 UI를 동시에 재생
@@ -66,50 +68,35 @@ bool ACPRoulette::Roll()
 	return true;
 }
 
-TArray<UCPRouletteWidget*> ACPRoulette::GetOrCreateRouletteWidgets()
+TArray<UCPRouletteWidget*> ACPRoulette::GetLocalRouletteWidgets()
 {
-	if (!RouletteWidgetClass)
-	{
-		return TArray<UCPRouletteWidget*>();
-	}
-
-	if (UWorld* World = GetWorld())
-	{
-		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-		{
-			APlayerController* PC = It->Get();
-			if (!PC || !PC->IsLocalController())
-			{
-				continue;
-			}
-
-			const bool bAlreadyHasWidget = RouletteWidgetInstances.ContainsByPredicate([PC](const UCPRouletteWidget* Widget)
-			{
-				return Widget && Widget->GetOwningPlayer() == PC;
-			});
-
-			if (bAlreadyHasWidget)
-			{
-				continue;
-			}
-
-			if (UCPRouletteWidget* NewWidget = CreateWidget<UCPRouletteWidget>(PC, RouletteWidgetClass))
-			{
-				NewWidget->AddToViewport();
-				NewWidget->OnResultDetermined.AddUniqueDynamic(this, &ACPRoulette::HandleRouletteResultDetermined);
-				RouletteWidgetInstances.Add(NewWidget);
-			}
-		}
-	}
-
 	TArray<UCPRouletteWidget*> Widgets;
-	Widgets.Reserve(RouletteWidgetInstances.Num());
-	for (const TObjectPtr<UCPRouletteWidget>& Widget : RouletteWidgetInstances)
+
+	UWorld* World = GetWorld();
+	if (!World)
 	{
-		if (Widget)
+		return Widgets;
+	}
+
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(It->Get());
+		if (!PC || !PC->IsLocalController())
 		{
-			Widgets.Add(Widget);
+			continue;
 		}
+
+		UCPInGameWidget* InGameWidget = PC->GetInGameWidget();
+		UCPRouletteWidget* RouletteWidget = InGameWidget ? InGameWidget->GetRouletteWidget() : nullptr;
+		if (!RouletteWidget)
+		{
+			continue;
+		}
+
+		// 매번 다시 호출해도 안전(AddUniqueDynamic) - InGameUI 인스턴스가 바뀌었을 수 있으므로
+		// 캐싱하지 않고 매 Roll()마다 새로 조회한다
+		RouletteWidget->OnResultDetermined.AddUniqueDynamic(this, &ACPRoulette::HandleRouletteResultDetermined);
+		Widgets.Add(RouletteWidget);
 	}
 
 	return Widgets;

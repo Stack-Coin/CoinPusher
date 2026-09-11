@@ -14,6 +14,7 @@ class UCPInGamePauseWidget;
 class UCPEndingWidget;
 
 class UCPCoinPusherCaptureWidget;
+class UCPInGameWidget;
 
 /**
  *  PlayerController for the top-down / quarter view action prototype.
@@ -72,6 +73,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="UI|Ending")
 	TSubclassOf<UCPEndingWidget> EndingWidgetClass;
 
+	/** Widget Blueprint (inheriting UCPInGameWidget) for this local player's "InGameUI" HUD - created
+	 *  once in BeginPlay and added to the viewport. Left unset, no InGameUI is created (everything else
+	 *  on this controller still works on its own). ACPRoulette reads GetRouletteWidget() off of this
+	 *  instance (via GetInGameWidget()) instead of creating/managing its own roulette widget - see
+	 *  ACPRoulette::GetLocalRouletteWidgets() */
+	UPROPERTY(EditDefaultsOnly, Category="UI|In Game")
+	TSubclassOf<UCPInGameWidget> InGameWidgetClass;
+
+	/** Created once in BeginPlay from InGameWidgetClass */
+	UPROPERTY(Transient)
+	TObjectPtr<UCPInGameWidget> InGameWidgetInstance;
+
 	/** Covers the whole screen (both local players' split-screen halves) when open, so only ever
 	 *  created/cached on GetMenuOwnerController()'s instance regardless of which local player's input
 	 *  opened it - see GetMenuOwnerController */
@@ -109,10 +122,11 @@ protected:
 	 *  Works regardless of which player/input device triggers it - only no-ops if DebugWidgetClass is unset */
 	void ToggleDebugWidget(const FInputActionValue& Value);
 
-	/** Bound to PauseAction. Toggles the world's paused state and GetMenuOwnerController()'s
-	 *  InGamePause widget, regardless of which local player's device triggered it. No-ops while the
-	 *  Ending widget is showing (that screen only offers End Game/Return to Title, not resume) */
-	void TogglePauseMenu(const FInputActionValue& Value);
+	/** Bound to PauseAction. Just forwards to the parameterless TogglePauseMenu() below - Started is
+	 *  presence-only, the trigger value itself isn't used. Named differently from TogglePauseMenu()
+	 *  (rather than overloading it) because BindAction's template deduction can't disambiguate two
+	 *  overloads of the same function name when taking its address */
+	void HandleTogglePauseAction(const FInputActionValue& Value);
 
 	/** Bound to MenuNavigateAction. Forwards the (debounced) stick direction to GetActiveMenuWidget's
 	 *  MoveSelection, if a menu is currently open */
@@ -142,7 +156,23 @@ protected:
 	 *  is currently visible - used by HandleMenuNavigate/HandleMenuConfirm to find their target */
 	UCPInGamePauseWidget* GetActiveMenuWidget() const;
 
+	/** Creates InGameWidgetInstance from InGameWidgetClass and adds it to the viewport. No-ops if
+	 *  InGameWidgetClass is unset. Z-order 1 so it always renders above CoinPusherCaptureWidget
+	 *  (Z-order 0, added a tick later by SetupCaptureWidget) regardless of creation order, but below
+	 *  Pause/Ending (Z-order 20) */
+	void SetupInGameWidget();
+
 public:
+
+	/** Toggles the world's paused state and GetMenuOwnerController()'s InGamePause widget, regardless of
+	 *  which local player's device triggered it. No-ops while the Ending widget is showing (that screen
+	 *  only offers End Game/Return to Title, not resume), or if InGamePauseWidgetClass is unset.
+	 *  This is the actual logic behind PauseAction (see the FInputActionValue overload above) - exposed
+	 *  here as a plain BlueprintCallable entry point too, so callers that don't have a PauseAction/Input
+	 *  Mapping Context set up yet (e.g. test scaffolding binding a plain legacy key instead of Enhanced
+	 *  Input) can still exercise the pause menu directly */
+	UFUNCTION(BlueprintCallable, Category="UI|Pause")
+	void TogglePauseMenu();
 
 	/** Call when a win/lose condition is met (level design, a test Pawn's debug key, etc.) - pauses the
 	 *  game and shows EndingWidgetClass's Clear (bIsClear=true) or Lose (bIsClear=false) result. Safe to
@@ -160,4 +190,8 @@ public:
 	 *  ACPPlayerCharacter uses this to decide whether to aim with the cursor or the movement direction */
 	UFUNCTION(BlueprintPure, Category="Input")
 	bool IsUsingKeyboardAndMouse() const;
+
+	/** Returns the InGameUI instance created from InGameWidgetClass, or nullptr if unset */
+	UFUNCTION(BlueprintCallable, Category="UI|In Game")
+	UCPInGameWidget* GetInGameWidget() const { return InGameWidgetInstance; }
 };

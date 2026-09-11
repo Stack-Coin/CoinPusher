@@ -9,6 +9,8 @@
 class ACPCoinPusher;
 class ACPRoulette;
 class UInputComponent;
+class UCPInGameWidget;
+class UTexture2D;
 
 /**
  *  Pawn used to test ACPCoinPusher::ItemSpawn(), ACPCoinPusher::ConvertActive()/HPConvertActive()/
@@ -32,6 +34,32 @@ class UInputComponent;
  *  Clear result, X shows the Lose result (see ACPCoinPusherItemSpawnTestPlayerController). The InGamePause
  *  menu itself isn't bound here - it's opened/closed by ACPTopDownPlayerController::PauseAction
  *  (gamepad Menu button / keyboard Escape, mapped in the controller's Input Mapping Context).
+ *
+ *  H/J/K/L/G/V/C test the "InGameUI" HUD (UI/CPInGameWidget.h) created by the possessing
+ *  controller's ACPTopDownPlayerController::GetInGameWidget() - all of them simply push locally
+ *  held fake stat values into that widget, no real gameplay system involved. F2-F9 toggle each
+ *  InGameUI sub-component on/off (see HandleTogglePlayerInfoInput's comment for the full list):
+ *  H damages the player's test health (PlayerHealth -= StatChangeAmount, resets to PlayerMaxHealth
+ *  once it reaches 0) via InGameUI->UpdatePlayerHealth();
+ *  J gains player test exp (wraps back to 0 once it reaches PlayerMaxExp, simulating a level up) via
+ *  InGameUI->UpdatePlayerExp();
+ *  K/L do the same for the boss's test health/exp via UpdateBossHealth()/UpdateBossExp();
+ *  G gains one test ticket via InGameUI->UpdateTicketCount();
+ *  V raises the test combo count by one and refills the combo gauge to ComboGaugeMax via
+ *  InGameUI->SetComboCount()/UpdateComboGauge() (simulating a successful combo hit);
+ *  C breaks the test combo back to 0/empty via the same two functions (simulating a combo miss).
+ *  PlayerName/BossName/PlayerPortrait/BossPortrait are pushed once in BeginPlay instead of being
+ *  bound to a key, since they aren't the kind of value that needs repeated testing.
+ *
+ *  Escape calls ACPTopDownPlayerController::TogglePauseMenu() directly (legacy key, bypassing
+ *  Enhanced Input) so the pause menu can be tested even before a PauseAction/Input Mapping Context is
+ *  set up on a BP subclass of the controller - see HandleTogglePauseInput's comment.
+ *
+ *  F2-F9 toggle each InGameUI sub-component's visibility on/off (flips a locally-tracked bool and
+ *  calls the matching UCPInGameWidget::Set*Visible()) - starts matching InGameUI's own defaults
+ *  (everything on except BossInfoWidget, which UCPInGameWidget::NativeConstruct hides by default):
+ *  F2 PlayerInfoWidget, F3 BossInfoWidget (starts off), F4 BackgroundImage, F5 TicketCountWidget,
+ *  F6 InventoryWidget, F7 CoinComboWidget, F8 RouletteWidget, F9 CoinPointUI.
  *
  *  Every key binding above goes through a wrapper on ACPCoinPusher itself, not through
  *  GetPassiveCoinConvertArea()/GetMonsterCoinConvertArea()/GetCoinTowerSpawner() directly - each wrapper
@@ -111,8 +139,96 @@ protected:
 	UPROPERTY(EditAnywhere, Category="CoinPusher Test")
 	FName CoinTowerItemID = TEXT("6C");
 
-	/** Falls back to finding a level-placed ACPCoinPusher if TargetCoinPusher was left unset */
+	/** Fake current/max health, exp, ticket and combo values driving the InGameUI test (H/J/K/L/G/V/C) -
+	 *  no real gameplay stat system involved, see the class comment above */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float PlayerMaxHealth = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float PlayerHealth = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float PlayerMaxExp = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float PlayerExp = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float BossMaxHealth = 500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float BossHealth = 500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float BossMaxExp = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float BossExp = 0.0f;
+
+	/** H/J/K/L presses step PlayerHealth/PlayerExp/BossHealth/BossExp by this amount */
+	UPROPERTY(EditAnywhere, Category="In Game UI Test", meta = (ClampMin = 0))
+	float StatChangeAmount = 10.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	int32 TicketCount = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	int32 ComboCount = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float ComboGaugeMax = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="In Game UI Test")
+	float ComboGaugeCurrent = 0.0f;
+
+	/** BeginPlay에서 한 번만 InGameUI에 반영하는 이름/레벨/초상화 테스트 값 (반복 테스트가 필요 없어
+	 *  키 입력 대신 여기서 고정값으로 설정) */
+	UPROPERTY(EditAnywhere, Category="In Game UI Test")
+	FText PlayerName = FText::FromString(TEXT("Player"));
+
+	UPROPERTY(EditAnywhere, Category="In Game UI Test")
+	int32 PlayerLevel = 1;
+
+	UPROPERTY(EditAnywhere, Category="In Game UI Test")
+	FText BossName = FText::FromString(TEXT("Boss"));
+
+	UPROPERTY(EditAnywhere, Category="In Game UI Test")
+	int32 BossLevel = 1;
+
+	UPROPERTY(EditAnywhere, Category="In Game UI Test")
+	TObjectPtr<UTexture2D> PlayerPortrait;
+
+	UPROPERTY(EditAnywhere, Category="In Game UI Test")
+	TObjectPtr<UTexture2D> BossPortrait;
+
+	/** Locally-tracked on/off state for the F2-F9 InGameUI component visibility toggles - InGameUI
+	 *  itself doesn't expose a getter for current visibility (only Set*Visible setters), so this pawn
+	 *  keeps its own bool per component to know which way to flip on each key press. Starts matching
+	 *  InGameUI's own defaults (everything on except BossInfoWidget) */
+	bool bPlayerInfoVisible = true;
+	bool bBossInfoVisible = false;
+	bool bBackgroundVisible = true;
+	bool bTicketCountVisible = true;
+	bool bInventoryVisible = true;
+	bool bCoinComboVisible = true;
+	bool bRouletteVisible = true;
+	bool bCoinPointUIVisible = true;
+
+	/** Falls back to finding a level-placed ACPCoinPusher if TargetCoinPusher was left unset. Also
+	 *  schedules PushInitialInGameUIValues() for next tick (see its comment for why not right here) */
 	virtual void BeginPlay() override;
+
+	/** Pushes the initial fake stat values (and PlayerName/BossName/-Portrait) into the possessing
+	 *  ACPTopDownPlayerController's InGameUI, if any. Deferred to next tick (via a
+	 *  SetTimerForNextTick call in BeginPlay, same pattern as
+	 *  ACPTopDownPlayerController::SetupCaptureWidget) instead of running directly in BeginPlay,
+	 *  since neither this pawn's possession (GetController()) nor the controller's own InGameUI
+	 *  creation (its BeginPlay) are guaranteed to have happened yet at this pawn's BeginPlay time */
+	void PushInitialInGameUIValues();
+
+	/** Returns the possessing ACPTopDownPlayerController's InGameUI instance, or nullptr if the
+	 *  controller isn't that type or has no InGameWidgetClass set */
+	UCPInGameWidget* GetInGameWidget() const;
 
 	/** Adds the Space/P/O/M/N/I/U/1-6 bindings on top of ADefaultPawn's own free-fly movement bindings */
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -162,4 +278,62 @@ protected:
 
 	/** Bound to X - calls ShowEndingResult(false) (Lose) on the possessing ACPTopDownPlayerController, if any */
 	void HandleShowLoseEndingInput();
+
+	/** Bound to H - steps PlayerHealth down by StatChangeAmount (resetting to PlayerMaxHealth once it
+	 *  reaches 0) and pushes it to InGameUI->UpdatePlayerHealth() */
+	void HandleDamagePlayerInput();
+
+	/** Bound to J - steps PlayerExp up by StatChangeAmount (wrapping back to 0 once it reaches
+	 *  PlayerMaxExp) and pushes it to InGameUI->UpdatePlayerExp() */
+	void HandleGainPlayerExpInput();
+
+	/** Bound to K - same as HandleDamagePlayerInput, but for BossHealth/UpdateBossHealth() */
+	void HandleDamageBossInput();
+
+	/** Bound to L - same as HandleGainPlayerExpInput, but for BossExp/UpdateBossExp() */
+	void HandleGainBossExpInput();
+
+	/** Bound to G - increments TicketCount by one and pushes it to InGameUI->UpdateTicketCount() */
+	void HandleGainTicketInput();
+
+	/** Bound to V - increments ComboCount by one, refills ComboGaugeCurrent to ComboGaugeMax, and
+	 *  pushes both to InGameUI->SetComboCount()/UpdateComboGauge() (simulating a combo hit) */
+	void HandleGainComboInput();
+
+	/** Bound to C - resets ComboCount/ComboGaugeCurrent to 0 and pushes both to InGameUI
+	 *  (simulating a combo miss/break) */
+	void HandleResetComboInput();
+
+	/** Bound to Escape - calls ACPTopDownPlayerController::TogglePauseMenu() directly on the possessing
+	 *  controller, if any. This is a legacy (non-Enhanced-Input) shortcut so the pause menu can be
+	 *  tested without setting up a PauseAction/Input Mapping Context on a BP subclass of the controller
+	 *  first - InGamePauseWidgetClass (a WBP reference) still needs to be set there regardless, since
+	 *  that can't be hardcoded in C++. The real game's PauseAction (gamepad Menu button/keyboard Escape
+	 *  via Enhanced Input) keeps working the same way independently of this */
+	void HandleTogglePauseInput();
+
+	/** Bound to F2 - flips bPlayerInfoVisible and calls InGameUI->SetPlayerInfoVisible() */
+	void HandleTogglePlayerInfoInput();
+
+	/** Bound to F3 - flips bBossInfoVisible and calls InGameUI->SetBossInfoVisible() (starts off,
+	 *  matching UCPInGameWidget::NativeConstruct's default) */
+	void HandleToggleBossInfoInput();
+
+	/** Bound to F4 - flips bBackgroundVisible and calls InGameUI->SetBackgroundVisible() */
+	void HandleToggleBackgroundInput();
+
+	/** Bound to F5 - flips bTicketCountVisible and calls InGameUI->SetTicketCountVisible() */
+	void HandleToggleTicketCountInput();
+
+	/** Bound to F6 - flips bInventoryVisible and calls InGameUI->SetInventoryVisible() */
+	void HandleToggleInventoryInput();
+
+	/** Bound to F7 - flips bCoinComboVisible and calls InGameUI->SetCoinComboVisible() */
+	void HandleToggleCoinComboInput();
+
+	/** Bound to F8 - flips bRouletteVisible and calls InGameUI->SetRouletteVisible() */
+	void HandleToggleRouletteInput();
+
+	/** Bound to F9 - flips bCoinPointUIVisible and calls InGameUI->SetCoinPointUIVisible() */
+	void HandleToggleCoinPointUIInput();
 };
