@@ -7,6 +7,7 @@
 #include "Components/ArrowComponent.h"
 #include "Monster/CPMonsterBase.h"
 #include "Engine/World.h"
+#include "NavigationSystem.h"
 
 // Sets default values
 ACPMonsterSpawner::ACPMonsterSpawner()
@@ -40,7 +41,7 @@ FVector ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLoca
 
 	if (!World->OverlapAnyTestByChannel(InDesiredLocation, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
 	{
-		return InDesiredLocation; // 원래 위치가 비어있으면 그대로 사용
+		return ProjectToNavMesh(InDesiredLocation); // 원래 위치가 비어있으면 그대로 사용(단, NavMesh 위로 보정)
 	}
 
 	// 이미 다른 몬스터/장애물이 있으면, 원래 위치 주변을 원형으로 훑어서 비어있는 자리를 찾음
@@ -52,12 +53,33 @@ FVector ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLoca
 
 		if (!World->OverlapAnyTestByChannel(Candidate, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
 		{
-			return Candidate;
+			return ProjectToNavMesh(Candidate);
 		}
 	}
 
 	// 전부 막혀있으면 원래 위치를 그대로 반환 - SpawnActor의 AdjustIfPossibleButAlwaysSpawn이 최후 보정을 시도함
-	return InDesiredLocation;
+	return ProjectToNavMesh(InDesiredLocation);
+}
+
+FVector ACPMonsterSpawner::ProjectToNavMesh(const FVector& InLocation) const
+{
+	UWorld* World = GetWorld();
+	UNavigationSystemV1* NavSys = World ? FNavigationSystem::GetCurrent<UNavigationSystemV1>(World) : nullptr;
+	if (!NavSys)
+	{
+		return InLocation;
+	}
+
+	FNavLocation OutNavLocation;
+	constexpr float ProjectionExtentXY = 200.f;
+	constexpr float ProjectionExtentZ = 200.f;
+	if (NavSys->ProjectPointToNavigation(InLocation, OutNavLocation, FVector(ProjectionExtentXY, ProjectionExtentXY, ProjectionExtentZ)))
+	{
+		return OutNavLocation.Location;
+	}
+
+	// 투영 범위 안에 NavMesh가 전혀 없으면 보정할 방법이 없으므로 원래 위치를 그대로 반환
+	return InLocation;
 }
 
 TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave)

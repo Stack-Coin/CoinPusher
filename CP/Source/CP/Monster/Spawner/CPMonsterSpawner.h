@@ -31,6 +31,10 @@ protected:
 	 *  AdjustIfPossibleButAlwaysSpawn 옵션이 최후 보정을 시도함(스폰 자체가 실패하는 일은 없음) */
 	FVector ResolveFreeSpawnLocation(const FVector& InDesiredLocation) const;
 
+	/** InLocation을 NavMesh 위의 가장 가까운 유효 위치로 투영함. 투영 범위 밖(NavMesh 자체가 없음)이면
+	 *  원래 위치를 그대로 반환함 */
+	FVector ProjectToNavMesh(const FVector& InLocation) const;
+
 public:
 	/** ResolveFreeSpawnLocation에서 겹침 검사에 쓰는 구체 반경(cm) */
 	UPROPERTY(EditAnywhere, Category = "Spawn")

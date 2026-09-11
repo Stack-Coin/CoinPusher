@@ -523,6 +523,14 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 	{
 		if (IsValid(Spawner))
 		{
+			// TargetSpawners는 StartWave() 시점에 한 번만 검증됨 - 스포너가 플레이어에 붙어 따라다니므로
+			// 그 사이 플레이어가 이동해 NavMesh 밖으로 밀려났을 수 있어 스폰 직전에 다시 확인함
+			if (!IsSpawnerLocationValid(Spawner->GetActorLocation()))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleSpawnJobTick(%d) - 스포너가 NavMesh 밖으로 이동해 이번 틱 스폰을 건너뜁니다."), JobIndex);
+				continue;
+			}
+
 			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, CurrentWaveIndex + 1);
 			for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 			{
@@ -663,6 +671,14 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 	{
 		if (IsValid(Spawner))
 		{
+			// TargetSpawners는 StartRoundMobSpawning() 시점에 한 번만 검증됨 - 스포너가 플레이어에 붙어
+			// 따라다니므로 그 사이 플레이어가 이동해 NavMesh 밖으로 밀려났을 수 있어 스폰 직전에 다시 확인함
+			if (!IsSpawnerLocationValid(Spawner->GetActorLocation()))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleRoundMobSpawnTick(%d) - 스포너가 NavMesh 밖으로 이동해 이번 틱 스폰을 건너뜁니다."), JobIndex);
+				continue;
+			}
+
 			// 보스 페이즈 잡몹은 전멸 판정에 관여하지 않으므로 WaveAliveMonsterCount는 건드리지 않고,
 			// TotalAliveMonsterCount(마릿수 상한 체크용)만 늘림
 			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, GetWaveCount());
