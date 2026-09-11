@@ -10,11 +10,22 @@ ACPMonsterBoss::ACPMonsterBoss()
 	MonsterType = ECPMonsterType::Boss;
 }
 
-void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration)
+void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration,
+	float InAddMaxHealth, float InAddMoveSpeed, float InAddAttackPower)
 {
 	RoarHealthPercentThreshold = InRoarHealthPercentThreshold;
 	SlamCooldown = InSlamCooldown;
 	RoarDuration = InRoarDuration;
+
+	// 보스 라운드 스탯 보정치 - DT_RoundStat이 아니라 RoundInfo에서만 관리됨. ApplyWaveStat(BaseStat만
+	// 반영된 상태)이 스폰 시 이미 호출된 뒤이므로, 여기서는 그 위에 그대로 더해주기만 하면 됨
+	if (UCPMonsterStatComponent* StatComp = GetAIStatComponent())
+	{
+		StatComp->MaxHealth += InAddMaxHealth;
+		StatComp->CurrentHealth = StatComp->MaxHealth;
+		StatComp->MoveSpeed += InAddMoveSpeed;
+		StatComp->AttackPower += InAddAttackPower;
+	}
 }
 
 void ACPMonsterBoss::Tick(float DeltaSeconds)

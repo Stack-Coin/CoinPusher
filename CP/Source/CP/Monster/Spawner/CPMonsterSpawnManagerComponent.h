@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -39,31 +39,25 @@ struct FCPActiveSpawnJob
 };
 
 /*
-BeginPlay()                                  ← 엔진이 호출
- ├─ LoadAsset()
- ├─ ApplyRoundInfo(CurrentRound)
- │    ├─ FindRoundInfoRow(InRound)            (조회만, 상태 변경 없음)
- │    └─ CreateSpawnerRing(...)               (기존 스포너 파괴 + 새로 생성을 한 함수 안에서 처리)
- └─ StartWave(0)
-      ├─ GetWaveEntries(...)                  (조회만)
-      ├─ ResolveValidSpawners(...)            (조회만)
-      │    └─ IsSpawnerLocationValid(...)     (조회만)
-      │
-      ├─ [이번 웨이브 행이 없으면] StartBossWave()
-      │                              └─ (대기 후) SpawnBoss()
-      │                                            ├─ FindRoundInfoRow(...)
-      │                                            ├─ IsSpawnerLocationValid(...)
-      │                                            └─ [보스 죽으면] HandleBossDied()
-      │
-      └─ [행이 있으면] 타이머 등록
-                        └─ (반복) HandleSpawnJobTick(JobIndex)
-                                    └─ [이 Job이 끝나면, 다른 Job들도 확인해서] EndWave()
-                                                    └─ (대기 후) HandleWaveWaitFinished()
-                                                                   └─ StartWave(다음 웨이브)  ─┐
-                                                                                                │
-                                                    (여기서 다시 StartWave로 돌아가서 순환) ◄────┘
+용어: "마지막 웨이브" = WaveInfo에서 Wave 번호가 가장 큰 행 = 보스와 기본 몬스터가 동시에 등장하는 웨이브.
+      "마지막 웨이브 직전 웨이브" = 그 바로 앞 웨이브 = 이 웨이브가 전멸해야 보스 페이즈로 넘어감.
 
-EndPlay()   ← 독립적. 남아있는 모든 타이머(Job들 + WaveWait + RoundWait) 정리만
+BeginPlay() → LoadAsset() → ApplyRoundInfo(CurrentRound) → StartWave(0)
+
+StartWave(N)                 웨이브 스폰 시작
+ ├─ 이 웨이브가 마지막 웨이브 직전 웨이브(bIsWaveBeforeLastWave)면, 전멸(WaveAliveMonsterCount==0) 시 BeginRoundWait()
+ └─ 아니면 전멸 시 EndWave() → (대기) → StartWave(N+1)
+
+BeginRoundWait()              마지막 웨이브 직전 웨이브 전멸 확인 시 1회 호출
+ └─ (RoundEndWaitTime 후) BeginBossPhase()
+                             ├─ StartRoundMobSpawning()  - WaveInfo 마지막 행을 재사용해 잡몹 계속 스폰
+                             └─ SpawnBoss()
+                                   └─ [보스 사망] HandleBossDied()
+                                         ├─ StopRoundMobSpawning()
+                                         └─ 다음 라운드 있으면 (NextRoundStartDelay 후) StartNextRound(), 없으면 Finished
+
+* 웨이브↔웨이브는 WaveEndWaitTime 기반 시간 전환, 마지막 스폰 웨이브→보스는 전멸 기반 전환.
+  RoundMob과 보스는 항상 BeginBossPhase()에서 동시에 등장함(시차 없음).
 */
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
@@ -84,16 +78,32 @@ protected:
 	void CreateSpawnerRing(int32 InSpawnerCount, float InSpawnerRadius);
 
 	void StartWave(int32 InWaveIndex);
-	void GetWaveEntries(int32 InRound, int32 InWave, TArray<FCPSpawnWaveEntryRow*>& OutEntries) const;
-	void StartBossWave();
+	void GetWaveEntries(int32 InRound, int32 InWave, TArray<FCPMonsterWaveInfoRow*>& OutEntries) const;
+
+	/** 마지막 웨이브 직전 웨이브 전멸 확인 후 호출 - RoundEndWaitTime 대기 후 BeginBossPhase() 실행 */
+	void BeginRoundWait();
+
 	TArray<TObjectPtr<ACPMonsterSpawner>> ResolveValidSpawners(const TArray<int32>& InIndices) const;
 
-	bool IsSpawnerLocationValid(const FVector& InLocation) const;
-	
+	/** NavMesh 위의 유효한 위치인지 확인. OutProjectedLocation을 넘기면 NavMesh가 계산해준 보정 위치를
+	 *  같이 받아올 수 있음(스포너 링 생성 시 위치를 실제로 스냅시키는 데 사용 - CreateSpawnerRing 참고) */
+	bool IsSpawnerLocationValid(const FVector& InLocation, FVector* OutProjectedLocation = nullptr) const;
+
+	/** 지금 웨이브의 모든 ActiveJobs가 목표 마릿수까지 스폰을 끝냈는지 */
+	bool IsWaveSpawningComplete() const;
+
 	void EndWave();
+
+	/** WaveInfo 마지막 행을 재사용해 보스 페이즈 내내 잡몹을 스폰함 (Boss 타입 행은 제외) */
+	void StartRoundMobSpawning();
+	void StopRoundMobSpawning();
 
 	UFUNCTION()
 	void SpawnBoss();
+
+	/** RoundEndWaitTime 경과 후 호출 - RoundMob과 보스를 항상 동시에 등장시킴 */
+	UFUNCTION()
+	void BeginBossPhase();
 
 	UFUNCTION()
 	void HandleWaveWaitFinished();
@@ -102,24 +112,43 @@ protected:
 	void HandleSpawnJobTick(int32 JobIndex);
 
 	UFUNCTION()
+	void HandleRoundMobSpawnTick(int32 JobIndex);
+
+	UFUNCTION()
 	void HandleBossDied();
 
-	FCPRoundInfoRow* FindRoundInfoRow(int32 InRound) const;
+	/** HandleBossDied()에서 NextRoundStartDelay 후 호출 - 다음 라운드로 전환 */
+	UFUNCTION()
+	void StartNextRound();
+
+	/** 웨이브 몹(보스 제외)이 죽을 때마다 호출 - 전멸 시 BeginRoundWait()를 트리거함 */
+	UFUNCTION()
+	void HandleWaveMonsterDied();
+
+	/** 스폰된 모든 몬스터(웨이브 몹/RoundMob/보스 전부)가 죽을 때마다 호출 - TotalAliveMonsterCount만 줄임.
+	 *  MaxAliveMonsterCount 상한 체크용으로, 위 HandleWaveMonsterDied/HandleBossDied와 별개로 항상 같이 구독됨 */
+	UFUNCTION()
+	void HandleAnyMonsterDied();
+
+	FCPMonsterRoundInfoRow* FindRoundInfoRow(int32 InRound) const;
+
+	/** 현재 라운드의 RoundInfo에서 MaxAliveMonsterCount를 읽어옴 (행이 없으면 0=무제한) */
+	int32 GetMaxAliveMonsterCount() const;
 
 public:
-	// ----- 화면 표시(UI)용 getter - 기존 ACPMonsterSpawnManager가 갖고 있던 것과 동일한 이름/의미로 맞춤 -----
+	// ----- UI 표시용 getter -----
 	ECPWavePhase GetCurrentPhase() const { return CurrentPhase; }
 	int32 GetCurrentWaveIndex() const { return CurrentWaveIndex; }
 	int32 GetWaveCount() const;
 
-	// Spawning 단계: 이번 웨이브에서 지금까지 지난 스폰 시간 / 이번 웨이브의 전체 스폰 소요 시간(초, 추정치)
+	// Spawning 단계: 지난 스폰 시간 / 이번 웨이브 전체 스폰 소요 시간(초, 추정치)
 	int32 GetSpawnElapsedSeconds() const;
 	int32 GetSpawnTotalSeconds() const { return FMath::RoundToInt(WaveSpawnTotalSeconds); }
 
 	float GetWaveIntervalSeconds() const { return CurrentWaveEndWaitTime; }
 	float GetRoundEndWaitSeconds() const;
 
-	// WaveWait / RoundWait 단계: 남은 시간(초). 해당 단계가 아니면 0을 반환합니다.
+	// WaveWait / RoundWait 단계 남은 시간(초). 해당 단계가 아니면 0
 	float GetWaveWaitSecondsRemaining() const;
 	float GetRoundWaitSecondsRemaining() const;
 
@@ -151,16 +180,35 @@ private:
 	UPROPERTY()
 	TArray<FCPActiveSpawnJob> ActiveJobs;
 
+	/** 보스 페이즈 동안 WaveInfo 마지막 행을 재사용해 스폰하는 Job들 (ActiveJobs와 별개) */
+	UPROPERTY()
+	TArray<FCPActiveSpawnJob> RoundMobJobs;
+
 	UPROPERTY()
 	TWeakObjectPtr<ACPMonsterBase> ActiveBoss;
 
 	ECPWavePhase CurrentPhase = ECPWavePhase::Spawning;
 	int32 CurrentWaveIndex = 0;
 
+	/** 이번 라운드 누적 생존 몬스터 수. ApplyRoundInfo()에서 0으로 리셋되고, 0이 되는 시점(+스폰 완료)이
+	 *  마지막 스폰 웨이브의 전멸 판정 - BeginRoundWait() 호출 트리거 */
+	int32 WaveAliveMonsterCount = 0;
+
+	/** StartWave()에서 계산 - 이번이 "마지막 웨이브 직전 웨이브"인지 (마지막 웨이브는 WaveInfo의 진짜
+	 *  마지막 행으로, 정상 스폰 대상이 아니라 보스와 동시 등장하는 RoundMob 전용으로 예약되어 있음).
+	 *  true면 전멸 시 BeginRoundWait()가 호출됨 */
+	bool bIsWaveBeforeLastWave = false;
+
 	float WaveSpawnTotalSeconds = 0.f;
 	float WaveStartWorldTime = 0.f;
 	float CurrentWaveEndWaitTime = 0.f;
 
+	/** 현재 월드에 살아있는 몬스터(웨이브 몹+RoundMob+보스) 총 수 - MaxAliveMonsterCount 상한 체크용.
+	 *  WaveAliveMonsterCount(웨이브 전멸 판정용, 보스/RoundMob 미포함)와는 별개로 관리됨 */
+	int32 TotalAliveMonsterCount = 0;
+
 	FTimerHandle WaveWaitTimer;
+
+	/** BeginRoundWait()(보스 등장 대기)와 HandleBossDied()(다음 라운드 대기) 양쪽에서 재사용됨 */
 	FTimerHandle RoundWaitTimer;
 };

@@ -42,7 +42,7 @@ void ACPMonsterBase::BeginPlay()
 
 	if (StatComponent)
 	{
-		StatComponent->InitStat(MonsterType, 1);
+		StatComponent->InitStat(MonsterType, 1, 1);
 	}
 
 	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
@@ -120,11 +120,11 @@ void ACPMonsterBase::Tick(float DeltaSeconds)
 	}
 }
 
-void ACPMonsterBase::ApplyWaveStat(int32 InWave)
+void ACPMonsterBase::ApplyWaveStat(int32 InRound, int32 InWave)
 {
 	if (StatComponent)
 	{
-		StatComponent->InitStat(MonsterType, InWave);
+		StatComponent->InitStat(MonsterType, InRound, InWave);
 	}
 
 	// StatComponent가 갱신한 MoveSpeed를 실제 이동 속도에도 반영
