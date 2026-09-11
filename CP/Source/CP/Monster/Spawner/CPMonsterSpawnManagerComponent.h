@@ -10,6 +10,7 @@
 class UDataTable;
 class ACPMonsterSpawner;
 class ACPMonsterBase;
+class ACPCoinPusher;
 
 USTRUCT()
 struct FCPActiveSpawnJob
@@ -135,6 +136,30 @@ protected:
 	/** 현재 라운드의 RoundInfo에서 MaxAliveMonsterCount를 읽어옴 (행이 없으면 0=무제한) */
 	int32 GetMaxAliveMonsterCount() const;
 
+	/** GetOwner()(=Player)에서 연결된 CoinPusher를 가져옴 (없으면 nullptr) - Boss/Bomb의 CoinPusher 연동
+	 *  핸들러들과 DropZone 델리게이트 바인딩(BeginPlay)이 공통으로 사용 */
+	ACPCoinPusher* GetCoinPusher() const;
+
+	/** ACPMonsterBoss::OnBossAttackedPlayer에 바인딩됨(SpawnBoss) - 보스 공격이 플레이어에게 명중할 때마다
+	 *  CoinPusher의 활성 코인을 몬스터 코인으로 전환시킴 */
+	UFUNCTION()
+	void HandleBossAttackedPlayer();
+
+	/** ACPMonsterBomb::OnBombExplodedOnPlayer에 바인딩됨(스폰 시점마다) - 자폭 몬스터가 플레이어에 닿아
+	 *  터질 때마다 CoinPusher에 몬스터 코인을 스폰함 */
+	UFUNCTION()
+	void HandleBombExplodedOnPlayer();
+
+	/** CoinPusher->GetDropZoneDroppedDelegate()에 바인딩됨(BeginPlay) - DropZone에 몬스터 코인(ItemID ==
+	 *  MonsterCoinItemID)이 떨어질 때마다 SpawnRandomRewardMonster()를 호출함. OnDropped는 떨어진
+	 *  아이템 1개당 한 번씩 Broadcast되므로(Count 파라미터가 없음) 이벤트 1번 = 1개로 취급함 */
+	UFUNCTION()
+	void HandleDropZoneItemDropped(FName ItemID);
+
+	/** 보스를 제외한 타입 중 하나를 무작위로 골라, 무작위 스포너 위치에 1마리 스폰 - DropZone 몬스터 코인
+	 *  보상용. 보스처럼 MaxAliveMonsterCount 상한과 무관하게 항상 스폰됨(전멸 판정에도 관여하지 않음) */
+	void SpawnRandomRewardMonster();
+
 public:
 	// ----- UI 표시용 getter -----
 	ECPWavePhase GetCurrentPhase() const { return CurrentPhase; }
@@ -172,6 +197,20 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Round")
 	int32 CurrentRound = 1;
+
+	/** CoinPusher의 ItemDataTable에 CoinType=Monster로 등록되어 있어야 하는 몬스터 코인 ItemID.
+	 *  HandleBossAttackedPlayer/HandleBombExplodedOnPlayer가 CoinPusher를 호출할 때, 그리고
+	 *  HandleDropZoneItemDropped가 DropZone에서 어떤 ItemID를 몬스터 코인으로 취급할지 판단할 때 사용 */
+	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards")
+	FName MonsterCoinItemID = FName("5C");
+
+	/** 보스 공격이 플레이어에게 명중했을 때 CoinPusher->MonsterConvertActive()에 넘길 개수 */
+	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 1))
+	int32 MonsterConvertCountOnBossAttack = 1;
+
+	/** 자폭 몬스터가 플레이어에 닿아 터졌을 때 CoinPusher->SpawnMonsterCoin()에 넘길 개수 */
+	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 1))
+	int32 MonsterCoinSpawnCountOnBombExplode = 1;
 
 private:
 	UPROPERTY()
