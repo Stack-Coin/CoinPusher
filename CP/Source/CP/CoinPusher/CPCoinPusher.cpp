@@ -12,6 +12,9 @@
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
 #include "CPCoinPusherViewCaptureComponent.h"
+#include "../Roulette/CPRoulette.h"
+#include "Datatables/CPItemData.h"
+#include "Log/CPLogCategories.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/ChildActorComponent.h"
@@ -171,6 +174,13 @@ void ACPCoinPusher::BeginPlay()
 
 	// 게임 시작 FrontWallRemovalDelay초 후 FrontWall을 비활성화해 코인이 앞으로 빠질 수 있도록 함
 	GetWorldTimerManager().SetTimer(FrontWallRemovalTimerHandle, this, &ACPCoinPusher::RemoveFrontWall, FrontWallRemovalDelay, false);
+
+	// LinkedRoulette가 아이템을 뽑을 때마다(OnPickedUp) HandleRoulettePickedUp()이 자동으로
+	// 호출되도록 등록 - 룰렛은 CoinPusher를 전혀 모르며, 이 CoinPusher가 스스로 룰렛의 결과를 구독하는 방식
+	if (LinkedRoulette)
+	{
+		LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::HandleRoulettePickedUp);
+	}
 }
 
 float ACPCoinPusher::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -191,7 +201,7 @@ void ACPCoinPusher::ApplyDamage(float Damage, AActor* DamageCauser)
 
 	CurrentHealth = FMath::Max(0.0f, CurrentHealth - Damage);
 
-	UE_LOG(LogTemp, Warning, TEXT("%f"), CurrentHealth);
+	UE_LOG(LogCoinPusher, Warning, TEXT("%f"), CurrentHealth);
 	OnDamaged.Broadcast(Damage, DamageCauser);
 
 	if (CurrentHealth <= 0.0f)
@@ -243,6 +253,12 @@ ACPDropZone* ACPCoinPusher::GetDropZone() const
 	return DropZoneComponent ? Cast<ACPDropZone>(DropZoneComponent->GetChildActor()) : nullptr;
 }
 
+FOnCPDropZoneDropped* ACPCoinPusher::GetDropZoneDroppedDelegate() const
+{
+	ACPDropZone* DropZone = GetDropZone();
+	return DropZone ? &DropZone->OnDropped : nullptr;
+}
+
 ACPPassiveCoinConvertArea* ACPCoinPusher::GetPassiveCoinConvertArea() const
 {
 	return PassiveCoinConvertAreaComponent ? Cast<ACPPassiveCoinConvertArea>(PassiveCoinConvertAreaComponent->GetChildActor()) : nullptr;
@@ -277,27 +293,41 @@ void ACPCoinPusher::RemoveFrontWall()
 	}
 }
 
-void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount, ECPCoinType CoinType)
+void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 {
-	// CoinType이 지정되면 스폰된 액터에 SetCoinType()을 호출해야 하므로, 스폰된 인스턴스를
-	// 돌려주는 DispenseCoinByID()로 하나씩 스폰한다 (ACPCoin이 아니면 nullptr이라 자연히 무시됨)
-	for (int32 Index = 0; Index < SpawnCount; ++Index)
-	{
-		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
-		if (!Dispenser)
-		{
-			return;
-		}
+	// 코인 여부 판별/CoinType 적용은 Dispenser::DispenseItemByID()가 ItemDataTable을 조회해 알아서
+	// 처리하므로, 여기서는 Dispenser 하나를 골라 그대로 위임하기만 하면 된다
 
-		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(ItemID))
+	for (int i = 0; i < SpawnCount; ++i)
+	{
+		if (ACPDispenser* Dispenser = PickRandomValidCeilingDispenser())
 		{
-			SpawnedCoin->SetCoinType(CoinType);
+			Dispenser->DispenseItemByID(ItemID, 1);
 		}
 	}
 }
 
-void ACPCoinPusher::SpawnBigCoin(int32 Count)
+void ACPCoinPusher::HandleRoulettePickedUp(FName ItemID, int32 SpawnCount)
 {
+	if (!ItemDataTable)
+	{
+		return;
+	}
+
+	const FItemData* Row = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPCoinPusher::HandleRoulettePickedUp"));
+	if (Row && Row->bRouletteToCoinPusher)
+	{
+		ItemSpawn(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::SpawnBigCoin(FName ItemID, int32 Count)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::Big))
+	{
+		return;
+	}
+
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
@@ -306,7 +336,7 @@ void ACPCoinPusher::SpawnBigCoin(int32 Count)
 			continue;
 		}
 
-		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(BigCoinItemID))
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(ItemID))
 		{
 			// Big 코인이 CoinPusher의 Collision에 부딪혔을 때 ActiveWaveThrow()를 호출할 대상을 직접 알려줌
 			SpawnedCoin->SetOwningCoinPusher(this);
@@ -315,8 +345,13 @@ void ACPCoinPusher::SpawnBigCoin(int32 Count)
 	}
 }
 
-void ACPCoinPusher::SpawnMonsterCoin(int32 Num)
+void ACPCoinPusher::SpawnMonsterCoin(FName ItemID, int32 Num)
 {
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::Monster))
+	{
+		return;
+	}
+
 	for (int32 Index = 0; Index < Num; ++Index)
 	{
 		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
@@ -325,11 +360,74 @@ void ACPCoinPusher::SpawnMonsterCoin(int32 Num)
 			continue;
 		}
 
-		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(MonsterCoinItemID))
+		if (ACPCoin* SpawnedCoin = Dispenser->DispenseCoinByID(ItemID))
 		{
 			SpawnedCoin->SetCoinType(ECPCoinType::Monster);
 		}
 	}
+}
+
+void ACPCoinPusher::ConvertActive(FName ItemID, int32 SpawnCount)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::Passive))
+	{
+		return;
+	}
+
+	if (ACPPassiveCoinConvertArea* ConvertArea = GetPassiveCoinConvertArea())
+	{
+		ConvertArea->ConvertActive(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::HPConvertActive(FName ItemID, int32 SpawnCount)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::HP))
+	{
+		return;
+	}
+
+	if (ACPPassiveCoinConvertArea* ConvertArea = GetPassiveCoinConvertArea())
+	{
+		ConvertArea->HPConvertActive(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::MonsterConvertActive(FName ItemID, int32 SpawnCount)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::Monster))
+	{
+		return;
+	}
+
+	if (ACPPassiveCoinConvertArea* ConvertArea = GetMonsterCoinConvertArea())
+	{
+		ConvertArea->MonsterConvertActive(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::SpawnTower(FName ItemID, int32 SpawnCount)
+{
+	if (!ValidateItemCoinType(ItemID, ECPCoinType::CoinTower))
+	{
+		return;
+	}
+
+	if (ACPCoinTowerSpawner* CoinTowerSpawner = GetCoinTowerSpawner())
+	{
+		CoinTowerSpawner->SpawnTower(ItemID, SpawnCount);
+	}
+}
+
+bool ACPCoinPusher::ValidateItemCoinType(FName ItemID, ECPCoinType ExpectedType) const
+{
+	if (!ItemDataTable)
+	{
+		return false;
+	}
+
+	const FItemData* Row = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPCoinPusher::ValidateItemCoinType"));
+	return Row && Row->CoinType == ExpectedType;
 }
 
 ACPDispenser* ACPCoinPusher::PickRandomValidCeilingDispenser() const

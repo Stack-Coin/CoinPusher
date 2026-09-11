@@ -50,46 +50,61 @@ void ACPDispenser::DispenseItems(int32 Count)
 	}
 }
 
-void ACPDispenser::DispenseItemByID(FName ItemID, int32 SpawnCount, ECPDispenserSpawnType SpawnType, bool bLaunch)
+void ACPDispenser::DispenseItemByID(FName ItemID, int32 SpawnCount, bool bLaunch)
 {
-	if (!ItemRegistry)
+	const FItemData* Row = FindItemData(ItemID);
+	if (!Row || !Row->CoinPusherSpawnBPClass)
 	{
 		return;
 	}
 
-	const TSubclassOf<AActor> ClassToSpawn = ItemRegistry->GetItemClass(ItemID, SpawnType);
-	if (!ClassToSpawn)
-	{
-		return;
-	}
-
-	//CoinPusherItem 타입은 DropZone이 처리할 수 있도록 ICPCoinPusherItem을 구현해야 함.
-	//WorldItem 타입은 별도의 상호작용 시스템(ICPInteractable/ICPInteractor)을 쓰므로 검사하지 않는다
-	if (SpawnType == ECPDispenserSpawnType::CoinPusherItem && !ClassToSpawn->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
+	//ICPCoinPusherItem을 구현하지 않는 클래스는 DropZone이 처리할 수 없으므로 스폰하지 않는다
+	if (!Row->CoinPusherSpawnBPClass->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
 	{
 		return;
 	}
 
 	for (int32 Index = 0; Index < SpawnCount; ++Index)
 	{
-		SpawnItemClass(ClassToSpawn, bLaunch);
+		SpawnFromItemData(*Row, Row->CoinPusherSpawnBPClass, bLaunch);
 	}
 }
 
 ACPCoin* ACPDispenser::DispenseCoinByID(FName ItemID, bool bLaunch)
 {
-	if (!ItemRegistry)
+	const FItemData* Row = FindItemData(ItemID);
+	if (!Row || !Row->CoinPusherSpawnBPClass || !Row->CoinPusherSpawnBPClass->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
 	{
 		return nullptr;
 	}
 
-	const TSubclassOf<AActor> ClassToSpawn = ItemRegistry->GetItemClass(ItemID, ECPDispenserSpawnType::CoinPusherItem);
-	if (!ClassToSpawn || !ClassToSpawn->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
+	return Cast<ACPCoin>(SpawnFromItemData(*Row, Row->CoinPusherSpawnBPClass, bLaunch));
+}
+
+const FItemData* ACPDispenser::FindItemData(FName ItemID) const
+{
+	if (!ItemDataTable)
 	{
 		return nullptr;
 	}
 
-	return Cast<ACPCoin>(SpawnItemClass(ClassToSpawn, bLaunch));
+	return ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPDispenser::FindItemData"));
+}
+
+AActor* ACPDispenser::SpawnFromItemData(const FItemData& Row, TSubclassOf<AActor> ClassToSpawn, bool bLaunch)
+{
+	AActor* SpawnedActor = SpawnItemClass(ClassToSpawn, bLaunch);
+
+	//Category가 "Coin"인 행이면, 실제로 스폰된 액터가 ACPCoin일 때만 행에 지정된 CoinType을 적용
+	if (SpawnedActor && Row.Category == FName("Coin"))
+	{
+		if (ACPCoin* SpawnedCoin = Cast<ACPCoin>(SpawnedActor))
+		{
+			SpawnedCoin->SetCoinType(Row.CoinType);
+		}
+	}
+
+	return SpawnedActor;
 }
 
 AActor* ACPDispenser::SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLaunch)

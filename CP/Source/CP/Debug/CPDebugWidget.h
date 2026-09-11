@@ -65,11 +65,11 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* ItemPickupCheckBox;
 
-	/** Amount added to the team coin count when SetTeamCoinButton is clicked (see ACPGameMode::AddCoin) */
+	/** Amount added to the team score count when SetTeamCoinButton is clicked (see ACPPlayerCharacter::AddScore) */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* TeamCoinInputText;
 
-	/** Adds TeamCoinInputText's value to the local player's coin count via ACPPlayerCharacter::AddCoin */
+	/** Adds TeamCoinInputText's value to the local player's score count via ACPPlayerCharacter::AddScore */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* SetTeamCoinButton;
 
@@ -105,6 +105,19 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* RemoveItemButton;
+
+	/** ItemID passed to ACPCoinPusher::SpawnBigCoin() when SpawnBigCoinButton is clicked - must match a row
+	 *  (RowName) in the CoinPusher's ItemDataTable whose CoinType is Big, or the wrapper does nothing */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* BigCoinItemIDInputText;
+
+	/** Count passed to ACPCoinPusher::SpawnBigCoin() when SpawnBigCoinButton is clicked */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* BigCoinSpawnCountInputText;
+
+	/** Spawns BigCoinSpawnCountInputText's value worth of Big-type coins via the level's ACPCoinPusher */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* SpawnBigCoinButton;
 
 protected:
 
@@ -176,4 +189,9 @@ protected:
 
 	UFUNCTION()
 	void HandleRemoveItemClicked();
+
+	/** Bound to SpawnBigCoinButton. Parses BigCoinItemIDInputText/BigCoinSpawnCountInputText and calls
+	 *  SpawnBigCoin(ItemID, Count) on the first ACPCoinPusher found in the level */
+	UFUNCTION()
+	void HandleSpawnBigCoinClicked();
 };

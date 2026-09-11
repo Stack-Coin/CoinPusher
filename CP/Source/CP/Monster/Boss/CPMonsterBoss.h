@@ -6,6 +6,10 @@
 #include "Monster/CPMonsterBase.h"
 #include "CPMonsterBoss.generated.h"
 
+/** 보스의 공격이 플레이어에게 실제로 명중했을 때 Broadcast (넥서스를 맞췄거나 빗나간 경우는 제외) -
+ *  UCPMonsterSpawnManagerComponent가 구독해서 CoinPusher의 활성 코인을 몬스터 코인으로 전환시키는 데 사용 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBossAttackedPlayer);
+
 /**
  * 플레이어 추적(기존 MoveTo 재사용) + 일반 공격/슬램(내려찍기) + 체력 50% 이하 포효(무적) 패턴을 갖는 보스.
  *
@@ -23,14 +27,21 @@ class CP_API ACPMonsterBoss : public ACPMonsterBase
 public:
 	ACPMonsterBoss();
 
-	/** 스포너가 SpawnBoss()에서 RoundInfoTable(FCPRoundInfoRow)의 해당 Round 행을 찾은 직후 호출:
-	 *  그 행의 RoarHealthPercentThreshold/SlamCooldown/RoarDuration 값으로 덮어씀. 호출되지 않으면
-	 *  (레벨에 직접 배치해서 테스트하는 경우 등) 아래 Blueprint 디테일 패널에 넣어둔 기본값을 그대로 사용함 */
-	void ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration);
+	/** 스포너가 SpawnBoss()에서 RoundInfoTable(FCPMonsterRoundInfoRow)의 해당 Round 행을 찾은 직후 호출:
+	 *  그 행의 RoarHealthPercentThreshold/SlamCooldown/RoarDuration 값으로 덮어쓰고, AddBossMaxHealth/
+	 *  AddBossMoveSpeed/AddBossAttackPower를 (스폰 시 이미 적용된) 기본 스탯 위에 추가로 더합니다.
+	 *  보스 관련 라운드 보정치는 DT_RoundStat이 아니라 전부 여기(RoundInfo) 한 곳에서만 관리됨.
+	 *  호출되지 않으면(레벨에 직접 배치해서 테스트하는 경우 등) 아래 Blueprint 디테일 패널에 넣어둔
+	 *  기본값을 그대로 사용함 */
+	void ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration,
+		float InAddMaxHealth = 0.f, float InAddMoveSpeed = 0.f, float InAddAttackPower = 0.f);
 
 protected:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void AttackByAI() override;
+
+	/** Super 호출 후 LastAttackHitActor가 플레이어면 OnBossAttackedPlayer를 Broadcast함 */
+	virtual void AttackHitCheck() override;
 
 	/** 한 번도 포효하지 않은 채로(bArmedForRoar가 true인 채로) 죽는 경우(예: 큰 데미지를 한 번에
 	 *  맞아 50% 임계치 구간을 그냥 건너뛰고 죽는 경우), 죽기 직전에 포효를 강제로 한 번 재생하고
@@ -49,6 +60,10 @@ public:
 
 	/** BT의 Roar 태스크가 실행 전에 호출해서, 포효(몽타주)가 끝났을 때 알림받을 델리게이트를 등록 */
 	void SetRoarDelegate(const FAICharacterAttackFinished& InOnRoarFinished) { OnRoarFinished = InOnRoarFinished; }
+
+	/** 보스의 공격이 플레이어에게 실제로 명중할 때마다 Broadcast (see AttackHitCheck) */
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnBossAttackedPlayer OnBossAttackedPlayer;
 
 protected:
 	void HandleRoarMontageEnded(UAnimMontage* Montage, bool bInterrupted);

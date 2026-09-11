@@ -11,9 +11,11 @@ class ACPCoin;
 class ACPPusher;
 
 /**
- *  SpawnTower(N)을 호출하면 한 층에 CoinsPerFloor(5)개씩 원형으로 배치한 코인을 N개 층으로 SpawnActor로
- *  스폰하고, 스폰이 끝나면 TowerRoot(바닥 지점)에서 CoinTowerPosition(목표 지점)까지 UpTime 동안 통째로
- *  상승시킨 뒤 각 코인을 독립 액터로 Detach하는 연출용 액터.
+ *  SpawnTower(ItemID, N)을 호출하면 한 층에 CoinsPerFloor(5)개씩 원형으로 배치한 코인을 N개 층으로
+ *  SpawnActor로 스폰하고, 스폰이 끝나면 TowerRoot(바닥 지점)에서 CoinTowerPosition(목표 지점)까지 UpTime
+ *  동안 통째로 상승시킨 뒤 각 코인을 독립 액터로 Detach하는 연출용 액터. 보통은 이 함수를 직접 호출하지
+ *  않고 ACPCoinPusher::SpawnTower() 랩퍼를 통해 호출된다 - 그 랩퍼가 ItemID의 CoinType이 CoinTower인지
+ *  검증한 뒤에만 여기로 위임한다.
  *
  *  스폰~상승이 진행되는 동안:
  *   - TargetPusher는 멈추고(SetPusherPaused) BackMoveTime 동안 현재 위치에서 BackPosition까지 이동한다.
@@ -129,9 +131,11 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	//한 층에 CoinsPerFloor(5)개씩 원형으로 배치한 코인을 N개 층으로 스폰하고, 다 스폰되면 CoinTowerPosition까지
-	//상승시킨다. 이전에 스폰한 타워가 아직 진행 중(코인이 Detach되고 Pusher가 재개되기 전)이면 무시된다
+	//상승시킨다. 이전에 스폰한 타워가 아직 진행 중(코인이 Detach되고 Pusher가 재개되기 전)이면 무시된다.
+	//ItemID는 호출부(ACPCoinPusher::SpawnTower())가 CoinType 검증(CoinTower)에 사용하며, 이 함수 자체는
+	//CoinClass로 스폰하므로 사용하지 않는다
 	UFUNCTION(BlueprintCallable, Category="CoinTower")
-	void SpawnTower(int32 N);
+	void SpawnTower(FName ItemID, int32 N);
 
 	//현재 SpawnTower()가 진행 중인지(코인이 전부 Detach되고 Pusher가 재개되었는지) 여부
 	UFUNCTION(BlueprintPure, Category="CoinTower")

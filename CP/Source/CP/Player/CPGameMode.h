@@ -8,7 +8,7 @@
 #include "CPGameMode.generated.h"
 
 class ACPPlayerCharacter;
-class UCPHealthBarWidget;
+class UCPHorizonGuageBarWidget;
 class UCPTicketCountWidget;
 class UCPCoinCountWidget;
 class UCPRadialGaugeComponent;
@@ -49,14 +49,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPTicketCountWidget> TicketWidgetClass;
 
-	/** Widget Blueprint (inheriting UCPCoinCountWidget) for the player's coin count HUD. Created once in
-	 *  BeginPlay and bound directly to the player's OnCoinChanged in C++ - no BP graph wiring needed */
+	/** Widget Blueprint (inheriting UCPCoinCountWidget) for the player's score count HUD. Created once in
+	 *  BeginPlay and bound directly to the player's OnScoreChanged in C++ - no BP graph wiring needed */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPCoinCountWidget> CoinWidgetClass;
 
-	/** Widget Blueprint (inheriting UCPHealthBarWidget) for the player's health bar */
+	/** Widget Blueprint (inheriting UCPHorizonGuageBarWidget) for the player's health bar */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
-	TSubclassOf<UCPHealthBarWidget> PlayerHealthBarWidgetClass;
+	TSubclassOf<UCPHorizonGuageBarWidget> PlayerHealthBarWidgetClass;
 
 	/** Widget Blueprint (inheriting UCPInventoryWidget) for the player's cross-shaped inventory HUD */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
@@ -82,13 +82,13 @@ public:
 protected:
 
 	/** Creates PlayerCharacter's ticket/coin HUD widgets (see TicketWidgetClass/CoinWidgetClass) and binds
-	 *  them directly to PlayerCharacter's OnTicketChanged/OnCoinChanged. Called once per local player from BeginPlay */
+	 *  them directly to PlayerCharacter's OnTicketChanged/OnScoreChanged. Called once per local player from BeginPlay */
 	void SetupPlayerWalletWidgets(ACPPlayerCharacter* PlayerCharacter);
 
 	/** Creates a health bar widget using HealthBarWidgetClass, adds it to PlayerCharacter's owning
 	 *  player's screen, and binds it directly to PlayerCharacter's OnHealthChanged. Called once per
 	 *  local player from BeginPlay */
-	void SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHealthBarWidget> HealthBarWidgetClass);
+	void SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHorizonGuageBarWidget> HealthBarWidgetClass);
 
 	/** Creates an inventory widget using InventoryWidgetClass, adds it to PlayerCharacter's owning player's
 	 *  screen. Called once per local player from BeginPlay */

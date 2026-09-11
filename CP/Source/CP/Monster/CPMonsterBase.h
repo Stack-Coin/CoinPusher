@@ -75,10 +75,10 @@ public:
 	// StatComponent의 값을 참조
 	virtual UCPMonsterStatComponent* GetAIStatComponent() const override;
 
-	/** 매니저/스포너가 스폰 직후 호출: 지정한 웨이브 번호 기준으로 스탯을 다시 계산해 적용합니다.
-	 *  (BeginPlay는 항상 1웨이브 기준으로 초기화하므로, 실제 웨이브에 맞춰 덮어쓸 때 사용) */
+	/** 매니저/스포너가 스폰 직후 호출: 지정한 라운드/웨이브 번호 기준으로 스탯을 다시 계산해 적용합니다.
+	 *  (BeginPlay는 항상 1라운드/1웨이브 기준으로 초기화하므로, 실제 라운드/웨이브에 맞춰 덮어쓸 때 사용) */
 	UFUNCTION(BlueprintCallable, Category = "Stat")
-	void ApplyWaveStat(int32 InWave);
+	void ApplyWaveStat(int32 InRound, int32 InWave);
 
 	// Wave별
 	virtual float GetAIMaxHealth() override;
@@ -153,6 +153,12 @@ protected:
 	TSubclassOf<ACPCoinItem> CoinItem;
 
 protected:
+	/** AttackHitCheck()의 스윕이 이번에 실제로 맞춘 액터(못 맞췄으면 nullptr, AttackHitCheck() 진입 시마다
+	 *  초기화됨). Boss/Bomb처럼 "플레이어를 직접 맞췄는지"가 필요한 서브클래스가 Super::AttackHitCheck()
+	 *  호출 직후 Cast<ACPPlayerCharacter>(LastAttackHitActor)로 확인하는 용도 - 넥서스를 맞췄거나
+	 *  빗나간 경우와 구분하기 위해 필요함(스윕 자체는 대상을 가리지 않는 공용 로직이라서) */
+	AActor* LastAttackHitActor = nullptr;
+
 	static constexpr float KnockbackDuration = 0.2f;
 
 	bool bIsDead = false;

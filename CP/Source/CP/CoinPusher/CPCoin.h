@@ -59,9 +59,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Coin")
 	float CoinValue = 1.0f;
 
-	//Coin의 Item ID. ItemRegistry / Dispenser가 ItemID로 구분할 때 쓰는 식별자
-	UPROPERTY(EditAnywhere, Category="Coin")
-	FName ItemID;
+	FName ItemID = FName(TEXT("1C"));
 
 	bool bCollected = false;
 
@@ -171,12 +169,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Coin")
 	void Launch(const FVector& LaunchVelocity);
 
-	//DropZone에 떨어졌을 때 호출
+	//DropZone이 이미 이 코인을 기록한 뒤 호출 - 수집 연출(BP_OnCollected) 재생 후 자신을 Destroy.
+	//이미 수집된 상태면 아무 것도 안 하고 false 반환 (중복 호출 방지)
 	UFUNCTION(BlueprintCallable, Category="Coin")
-	void Collect();
+	bool Collect();
 
 	// ~begin ICPCoinPusherItem
-	//DropZone이 떨어진 것을 알릴 때 Collect() 호출
+	//DropZone이 떨어진 것을 알릴 때 Collect() 호출 (DropZone에게 직접 보고하지는 않음 - DropZone이
+	//오버랩 시점에 GetItemID()/GetCoinType()을 직접 읽어감)
 	virtual void OnDroppedInZone(ACPDropZone* DropZone) override;
 	// ~end ICPCoinPusherItem
 
@@ -242,4 +242,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Coin")
 	bool IsTowerLocked() const { return bIsTowerLocked; }
+
+private:
+	// FName을 미리 생성해놓고 사용
+	FName NormalCoinId = FName(TEXT("1C"));
+	FName PassiveCoinId = FName(TEXT("2C"));
+	FName HPCoinId = FName(TEXT("3C"));
+	FName BigCoinId = FName(TEXT("4C"));
+	FName MonsterCoinId = FName(TEXT("5C"));
 };

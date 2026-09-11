@@ -3,6 +3,7 @@
 
 #include "Monster/Boss/CPMonsterBoss.h"
 #include "Monster/CPMonsterAIController.h"
+#include "Player/CPPlayerCharacter.h"
 #include "TimerManager.h"
 
 ACPMonsterBoss::ACPMonsterBoss()
@@ -10,11 +11,22 @@ ACPMonsterBoss::ACPMonsterBoss()
 	MonsterType = ECPMonsterType::Boss;
 }
 
-void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration)
+void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration,
+	float InAddMaxHealth, float InAddMoveSpeed, float InAddAttackPower)
 {
 	RoarHealthPercentThreshold = InRoarHealthPercentThreshold;
 	SlamCooldown = InSlamCooldown;
 	RoarDuration = InRoarDuration;
+
+	// 보스 라운드 스탯 보정치 - DT_RoundStat이 아니라 RoundInfo에서만 관리됨. ApplyWaveStat(BaseStat만
+	// 반영된 상태)이 스폰 시 이미 호출된 뒤이므로, 여기서는 그 위에 그대로 더해주기만 하면 됨
+	if (UCPMonsterStatComponent* StatComp = GetAIStatComponent())
+	{
+		StatComp->MaxHealth += InAddMaxHealth;
+		StatComp->CurrentHealth = StatComp->MaxHealth;
+		StatComp->MoveSpeed += InAddMoveSpeed;
+		StatComp->AttackPower += InAddAttackPower;
+	}
 }
 
 void ACPMonsterBoss::Tick(float DeltaSeconds)
@@ -48,7 +60,18 @@ void ACPMonsterBoss::AttackByAI()
 	}
 }
 
-bool ACPMonsterBoss::ShouldRoar() 
+void ACPMonsterBoss::AttackHitCheck()
+{
+	Super::AttackHitCheck();
+
+	// 방금 스윕이 실제로 플레이어를 맞췄을 때만 - 넥서스를 맞췄거나 빗나간 경우는 제외
+	if (Cast<ACPPlayerCharacter>(LastAttackHitActor))
+	{
+		OnBossAttackedPlayer.Broadcast();
+	}
+}
+
+bool ACPMonsterBoss::ShouldRoar()
 {
 	if (!bArmedForRoar || bIsDead)
 	{

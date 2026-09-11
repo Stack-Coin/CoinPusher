@@ -16,7 +16,7 @@ ACPPassiveCoinConvertArea::ACPPassiveCoinConvertArea()
 	ConvertVolume->SetCollisionProfileName(FName("OverlapAllDynamic"));
 }
 
-void ACPPassiveCoinConvertArea::ConvertActive(int32 Num)
+void ACPPassiveCoinConvertArea::ConvertActive(FName ItemID, int32 Num)
 {
 	if (Num <= 0)
 	{
@@ -32,7 +32,7 @@ void ACPPassiveCoinConvertArea::ConvertActive(int32 Num)
 	ConvertRandomCandidates(MoveTemp(Candidates), Num, ECPCoinType::Passive);
 }
 
-void ACPPassiveCoinConvertArea::HPConvertActive(int32 Num)
+void ACPPassiveCoinConvertArea::HPConvertActive(FName ItemID, int32 Num)
 {
 	if (Num <= 0)
 	{
@@ -48,7 +48,7 @@ void ACPPassiveCoinConvertArea::HPConvertActive(int32 Num)
 	ConvertRandomCandidates(MoveTemp(Candidates), Num, ECPCoinType::HP);
 }
 
-void ACPPassiveCoinConvertArea::MonsterConvertActive(int32 Num)
+void ACPPassiveCoinConvertArea::MonsterConvertActive(FName ItemID, int32 Num)
 {
 	if (Num <= 0)
 	{

@@ -16,6 +16,7 @@ FName UCPMonsterStatComponent::GetMonsterTypeRowName(ECPMonsterType InType)
 	case ECPMonsterType::Tanker: return TEXT("Tanker");
 	case ECPMonsterType::Ranged: return TEXT("Ranged");
 	case ECPMonsterType::Boss: return TEXT("Boss");
+	case ECPMonsterType::Bomb: return TEXT("Bomb");
 	}
 	return NAME_None;
 }
@@ -30,13 +31,20 @@ void UCPMonsterStatComponent::ResetStat()
 	DefaultStat = FCPMonsterDefaultStat();
 }
 
-void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InWave)
+void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InRound, int32 InWave)
 {
 	// 기획자가 디테일 패널에서 넣어둔 값을 그대로 테스트하고 싶을 때 사용. DataTable 조회를 아예 건너뜀
 	if (bOverrideStat)
 	{
 		CurrentHealth = MaxHealth;
 		return;
+	}
+
+	// WaveStatTable과 동일한 방식: 블루프린트에서 수동으로 연결해둔 경로가 있으면
+	// 그대로 두고, 비어있을 때만 고정 경로에서 자동으로 찾아서 채움
+	if (!BaseStatTable)
+	{
+		BaseStatTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Monster/Data/DT_MonsterStat.DT_MonsterStat"));
 	}
 
 	if (!BaseStatTable)
@@ -63,16 +71,26 @@ void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InWav
 	float AddMoveSpeed = 0.f;
 	float AddAttackPower = 0.f;
 
+	// WaveStatTable도 동일한 방식: 이미 연결돼 있으면 유지, 비어있을 때만 고정 경로에서 자동으로 채움
+	if (!WaveStatTable)
+	{
+		WaveStatTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Monster/Data/DT_WaveStat.DT_WaveStat"));
+	}
+
 	if (WaveStatTable)
 	{
 		const FName WaveRowName = *FString::Printf(TEXT("%s_%d"), *RowName.ToString(), InWave);
 		if (const FCPMonsterWaveStatRow* WaveRow = WaveStatTable->FindRow<FCPMonsterWaveStatRow>(WaveRowName, TEXT("InitWaveStat"), /*bWarnIfRowMissing=*/false))
 		{
-			AddMaxHealth = WaveRow->AddMaxHealth;
-			AddMoveSpeed = WaveRow->AddMoveSpeed;
-			AddAttackPower = WaveRow->AddAttackPower;
+			AddMaxHealth += WaveRow->AddMaxHealth;
+			AddMoveSpeed += WaveRow->AddMoveSpeed;
+			AddAttackPower += WaveRow->AddAttackPower;
 		}
 	}
+
+	// RoundStatTable은 더 이상 사용하지 않음 - 이제 마지막 웨이브가 보스와 같은 페이즈에서 함께
+	// 스폰되고, 그 몹의 InWave 인자도 마지막 웨이브 번호 그대로 넘어오므로 위 WaveStatTable 조회만으로
+	// 충분함 (별도의 라운드 보정치 테이블이 필요 없어짐)
 
 	// 웨이브에 따른 수치 변화 있음
 	MaxHealth   = BaseRow->MaxHealth   + AddMaxHealth;

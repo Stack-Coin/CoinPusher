@@ -4,6 +4,11 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Monster/Ranged/CPMonsterProjectile.h"
 
+ACPMonsterRanged::ACPMonsterRanged()
+{
+	FlightSpawnHeight = 150.f;
+}
+
 void ACPMonsterRanged::BeginPlay()
 {
 	Super::BeginPlay();

@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Monster/Spawner/CPMonsterSpawner.h"
@@ -26,11 +26,47 @@ ACPMonsterSpawner::ACPMonsterSpawner()
 	SpawnDirection->SetupAttachment(RootComponent);
 }
 
-ACPMonsterBase* ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount, float InRowSpacingY, int32 InWave)
+FVector ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLocation) const
 {
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return InDesiredLocation;
+	}
+
+	const FCollisionShape ProbeShape = FCollisionShape::MakeSphere(OverlapCheckRadius);
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	if (!World->OverlapAnyTestByChannel(InDesiredLocation, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
+	{
+		return InDesiredLocation; // 원래 위치가 비어있으면 그대로 사용
+	}
+
+	// 이미 다른 몬스터/장애물이 있으면, 원래 위치 주변을 원형으로 훑어서 비어있는 자리를 찾음
+	for (int32 Attempt = 1; Attempt <= MaxRelocationAttempts; ++Attempt)
+	{
+		const float AngleDeg = (360.f / MaxRelocationAttempts) * Attempt;
+		const FVector Offset = FVector(FMath::Cos(FMath::DegreesToRadians(AngleDeg)), FMath::Sin(FMath::DegreesToRadians(AngleDeg)), 0.f) * RelocationStepDistance;
+		const FVector Candidate = InDesiredLocation + Offset;
+
+		if (!World->OverlapAnyTestByChannel(Candidate, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
+		{
+			return Candidate;
+		}
+	}
+
+	// 전부 막혀있으면 원래 위치를 그대로 반환 - SpawnActor의 AdjustIfPossibleButAlwaysSpawn이 최후 보정을 시도함
+	return InDesiredLocation;
+}
+
+TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave)
+{
+	TArray<ACPMonsterBase*> SpawnedMonsters;
+
 	if (!IsValid(MonsterClass) || InCount <= 0 || !GetWorld())
 	{
-		return nullptr;
+		return SpawnedMonsters;
 	}
 
 	FTransform BaseTransform = SpawnCapsule->GetComponentTransform();
@@ -49,7 +85,7 @@ ACPMonsterBase* ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> M
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	ACPMonsterBase* LastSpawned = nullptr;
+	SpawnedMonsters.Reserve(InCount);
 
 	for (int32 i = 0; i < InCount; ++i)
 	{
@@ -59,12 +95,15 @@ ACPMonsterBase* ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> M
 		FTransform SpawnTransform = BaseTransform;
 		SpawnTransform.AddToTranslation(RightAxis * Offset);
 
+		// 이 자리에 이미 다른 몬스터/장애물이 있으면 주변의 비어있는 자리로 대신 스폰함
+		SpawnTransform.SetLocation(ResolveFreeSpawnLocation(SpawnTransform.GetLocation()));
+
 		if (ACPMonsterBase* SpawnedMonster = GetWorld()->SpawnActor<ACPMonsterBase>(MonsterClass, SpawnTransform, SpawnParams))
 		{
-			SpawnedMonster->ApplyWaveStat(InWave);
-			LastSpawned = SpawnedMonster;
+			SpawnedMonster->ApplyWaveStat(InRound, InWave);
+			SpawnedMonsters.Add(SpawnedMonster);
 		}
 	}
 
-	return LastSpawned;
+	return SpawnedMonsters;
 }

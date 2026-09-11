@@ -12,6 +12,7 @@
 #include "Weapon/CPWeaponBase.h"
 #include "Player/CPPlayerCharacter.h"
 #include "Player/Inventory/CPInventoryComponent.h"
+#include "CoinPusher/CPCoinPusher.h"
 
 void UCPDebugWidget::NativeConstruct()
 {
@@ -85,6 +86,10 @@ void UCPDebugWidget::NativeConstruct()
 	if (RemoveItemButton)
 	{
 		RemoveItemButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleRemoveItemClicked);
+	}
+	if (SpawnBigCoinButton)
+	{
+		SpawnBigCoinButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleSpawnBigCoinClicked);
 	}
 
 	RefreshPlayerInfo();
@@ -215,9 +220,9 @@ void UCPDebugWidget::HandleSetTeamCoinClicked()
 
 	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
 	{
-		// Adds to the current count rather than replacing it - this is an "add N coins" button, not a
+		// Adds to the current count rather than replacing it - this is an "add N score" button, not a
 		// "set the count to N" one, so clicking it repeatedly with the same input keeps incrementing
-		PlayerCharacter->AddCoin(FCString::Atoi(*TeamCoinInputText->GetText().ToString()));
+		PlayerCharacter->AddScore(FCString::Atoi(*TeamCoinInputText->GetText().ToString()));
 	}
 }
 
@@ -311,5 +316,19 @@ void UCPDebugWidget::HandleRemoveItemClicked()
 			const FName ItemCode(*ItemCodeInputText->GetText().ToString());
 			Inventory->RemoveItem(ItemCode, FCString::Atoi(*ItemCountInputText->GetText().ToString()));
 		}
+	}
+}
+
+void UCPDebugWidget::HandleSpawnBigCoinClicked()
+{
+	if (!BigCoinItemIDInputText || !BigCoinSpawnCountInputText)
+	{
+		return;
+	}
+
+	if (ACPCoinPusher* CoinPusher = Cast<ACPCoinPusher>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPCoinPusher::StaticClass())))
+	{
+		const FName BigCoinItemID(*BigCoinItemIDInputText->GetText().ToString());
+		CoinPusher->SpawnBigCoin(BigCoinItemID, FCString::Atoi(*BigCoinSpawnCountInputText->GetText().ToString()));
 	}
 }

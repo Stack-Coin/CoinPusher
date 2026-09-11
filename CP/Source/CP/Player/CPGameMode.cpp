@@ -8,7 +8,7 @@
 #include "Monster/Spawner/CPUserWidget_WaveStatus.h"
 #include "Player/CPPlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
-#include "UI/CPHealthBarWidget.h"
+#include "UI/CPHorizonGuageBarWidget.h"
 #include "UI/CPTicketCountWidget.h"
 #include "UI/CPCoinCountWidget.h"
 #include "UI/CPRadialGaugeComponent.h"
@@ -77,13 +77,13 @@ void ACPGameMode::SetupPlayerWalletWidgets(ACPPlayerCharacter* PlayerCharacter)
 		if (UCPCoinCountWidget* CoinWidget = CreateWidget<UCPCoinCountWidget>(GetWorld(), CoinWidgetClass))
 		{
 			CoinWidget->AddToViewport();
-			PlayerCharacter->OnCoinChanged.AddDynamic(CoinWidget, &UCPCoinCountWidget::UpdateCoinCount);
-			CoinWidget->UpdateCoinCount(PlayerCharacter->GetCoinAmount());
+			PlayerCharacter->OnScoreChanged.AddDynamic(CoinWidget, &UCPCoinCountWidget::UpdateCoinCount);
+			CoinWidget->UpdateCoinCount(PlayerCharacter->GetScoreAmount());
 		}
 	}
 }
 
-void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHealthBarWidget> HealthBarWidgetClass)
+void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHorizonGuageBarWidget> HealthBarWidgetClass)
 {
 	if (!PlayerCharacter || !HealthBarWidgetClass)
 	{
@@ -96,7 +96,7 @@ void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter
 		return;
 	}
 
-	UCPHealthBarWidget* HealthBarWidget = CreateWidget<UCPHealthBarWidget>(OwningController, HealthBarWidgetClass);
+	UCPHorizonGuageBarWidget* HealthBarWidget = CreateWidget<UCPHorizonGuageBarWidget>(OwningController, HealthBarWidgetClass);
 	if (!HealthBarWidget)
 	{
 		return;
@@ -104,8 +104,8 @@ void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter
 
 	HealthBarWidget->AddToViewport();
 
-	PlayerCharacter->OnHealthChanged.AddDynamic(HealthBarWidget, &UCPHealthBarWidget::UpdateHealth);
-	HealthBarWidget->UpdateHealth(PlayerCharacter->GetStat(ECPStatType::Health), PlayerCharacter->GetMaxHealth());
+	PlayerCharacter->OnHealthChanged.AddDynamic(HealthBarWidget, &UCPHorizonGuageBarWidget::Update);
+	HealthBarWidget->Update(PlayerCharacter->GetStat(ECPStatType::Health), PlayerCharacter->GetMaxHealth());
 }
 
 void ACPGameMode::SetupPlayerInventoryWidget(ACPPlayerCharacter* PlayerCharacter)
