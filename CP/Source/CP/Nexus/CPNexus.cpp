@@ -14,7 +14,7 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
-#include "Player/CPCoinWallet.h"
+#include "Player/CPPlayerCharacter.h"
 
 int32 ACPNexus::GlobalRemainingRespawns = 2;
 
@@ -95,8 +95,8 @@ void ACPNexus::Interact(AActor* Interactor)
 	// 코인을 전혀 소모하지 않아 UI도 갱신되지 않았음)
 	if (CoinCostPerInteract > 0)
 	{
-		ICPCoinWallet* Wallet = Cast<ICPCoinWallet>(Interactor);
-		if (!Wallet || !Wallet->TrySpendCoin(CoinCostPerInteract))
+		ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(Interactor);
+		if (!PlayerCharacter || !PlayerCharacter->TrySpendScore(CoinCostPerInteract))
 		{
 			return;
 		}

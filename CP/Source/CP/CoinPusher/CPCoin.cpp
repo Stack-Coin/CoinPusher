@@ -58,16 +58,20 @@ void ACPCoin::ClearLaunchedState()
 	bIsLaunched = false;
 }
 
-void ACPCoin::Collect()
+bool ACPCoin::Collect()
 {
-	if (!bCollected)
+	if (bCollected)
 	{
-		bCollected = true;
-
-		BP_OnCollected();
-
-		Destroy();
+		return false;
 	}
+
+	bCollected = true;
+
+	BP_OnCollected();
+
+	Destroy();
+
+	return true;
 }
 
 void ACPCoin::OnDroppedInZone(ACPDropZone* DropZone)
@@ -100,17 +104,30 @@ void ACPCoin::SetCoinType(ECPCoinType NewType)
 	switch (CoinType)
 	{
 	case ECPCoinType::Passive:
+		ItemID = PassiveCoinId;
+		StartScaleAnimation();
+		break;
+
 	case ECPCoinType::HP:
+		ItemID = HPCoinId;
+		StartScaleAnimation();
+		break;
+
 	case ECPCoinType::Monster:
+		ItemID = MonsterCoinId;
 		StartScaleAnimation();
 		break;
 
 	case ECPCoinType::Big:
+		ItemID = BigCoinId;
 		// Passive/HP와 달리 애니메이션 없이 즉시 커지고 원상복구되지 않음
 		SetActorScale3D(GetActorScale3D() * BigScaleMultiplier);
 		break;
 
 	case ECPCoinType::Normal:
+		ItemID = NormalCoinId;
+		break;
+
 	default:
 		// 추가 타입별 연출/행동은 BP_OnCoinTypeChanged에서 BP로 확장
 		break;

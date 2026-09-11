@@ -28,23 +28,27 @@ ACPItem::ACPItem()
 	Mesh->bNavigationRelevant = false;
 }
 
-void ACPItem::OnDroppedInZone(ACPDropZone* DropZone)
+bool ACPItem::Collect()
 {
 	// only process this once
 	if (bCollected)
 	{
-		return;
+		return false;
 	}
 
 	bCollected = true;
-
-	if (DropZone)
-	{
-		DropZone->RecordCollectedItem(ItemCode);
-	}
 
 	// call the BP handler to play effects, etc.
 	BP_OnCollected();
 
 	Destroy();
+
+	return true;
+}
+
+void ACPItem::OnDroppedInZone(ACPDropZone* DropZone)
+{
+	// DropZone already read GetItemCode() and called RecordCollectedItem() directly at the overlap - just
+	// clean ourselves up, no need to report back to it
+	Collect();
 }

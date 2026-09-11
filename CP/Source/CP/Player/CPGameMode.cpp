@@ -77,8 +77,8 @@ void ACPGameMode::SetupPlayerWalletWidgets(ACPPlayerCharacter* PlayerCharacter)
 		if (UCPCoinCountWidget* CoinWidget = CreateWidget<UCPCoinCountWidget>(GetWorld(), CoinWidgetClass))
 		{
 			CoinWidget->AddToViewport();
-			PlayerCharacter->OnCoinChanged.AddDynamic(CoinWidget, &UCPCoinCountWidget::UpdateCoinCount);
-			CoinWidget->UpdateCoinCount(PlayerCharacter->GetCoinAmount());
+			PlayerCharacter->OnScoreChanged.AddDynamic(CoinWidget, &UCPCoinCountWidget::UpdateCoinCount);
+			CoinWidget->UpdateCoinCount(PlayerCharacter->GetScoreAmount());
 		}
 	}
 }

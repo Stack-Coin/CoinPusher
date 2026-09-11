@@ -220,9 +220,9 @@ void UCPDebugWidget::HandleSetTeamCoinClicked()
 
 	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
 	{
-		// Adds to the current count rather than replacing it - this is an "add N coins" button, not a
+		// Adds to the current count rather than replacing it - this is an "add N score" button, not a
 		// "set the count to N" one, so clicking it repeatedly with the same input keeps incrementing
-		PlayerCharacter->AddCoin(FCString::Atoi(*TeamCoinInputText->GetText().ToString()));
+		PlayerCharacter->AddScore(FCString::Atoi(*TeamCoinInputText->GetText().ToString()));
 	}
 }
 

@@ -49,8 +49,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPTicketCountWidget> TicketWidgetClass;
 
-	/** Widget Blueprint (inheriting UCPCoinCountWidget) for the player's coin count HUD. Created once in
-	 *  BeginPlay and bound directly to the player's OnCoinChanged in C++ - no BP graph wiring needed */
+	/** Widget Blueprint (inheriting UCPCoinCountWidget) for the player's score count HUD. Created once in
+	 *  BeginPlay and bound directly to the player's OnScoreChanged in C++ - no BP graph wiring needed */
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPCoinCountWidget> CoinWidgetClass;
 
@@ -82,7 +82,7 @@ public:
 protected:
 
 	/** Creates PlayerCharacter's ticket/coin HUD widgets (see TicketWidgetClass/CoinWidgetClass) and binds
-	 *  them directly to PlayerCharacter's OnTicketChanged/OnCoinChanged. Called once per local player from BeginPlay */
+	 *  them directly to PlayerCharacter's OnTicketChanged/OnScoreChanged. Called once per local player from BeginPlay */
 	void SetupPlayerWalletWidgets(ACPPlayerCharacter* PlayerCharacter);
 
 	/** Creates a health bar widget using HealthBarWidgetClass, adds it to PlayerCharacter's owning

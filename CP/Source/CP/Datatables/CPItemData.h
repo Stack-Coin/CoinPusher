@@ -8,6 +8,7 @@
 #include "CPItemData.generated.h"
 
 class AActor;
+class UTexture2D;
 
 /** 아이템 마스터 데이터 한 행. UCPItemDataTableGameInstance::ItemDataTable의 Row Struct로 쓰인다 */
 USTRUCT(BlueprintType)
@@ -59,4 +60,16 @@ struct FItemData : public FTableRowBase
 	/** 이 아이템이 룰렛에서 당첨된 후 CoinPusher에 스폰되는지 여부 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Data")
 	bool bRouletteToCoinPusher = false;
+
+	/** Category가 Coin일 때, 이 행의 코인이 드랍되면 플레이어에게 지급할 경험치 양 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
+	float ExperienceAmount = 0.0f;
+
+	/** Category가 Coin일 때, 이 행의 코인이 드랍되면 플레이어에게 지급할 Score 양 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
+	int32 ScoreAmount = 0;
+
+	/** 인벤토리 슬롯에 표시할 아이콘 이미지 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
+	TObjectPtr<UTexture2D> InventoryIcon = nullptr;
 };

@@ -65,11 +65,11 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* ItemPickupCheckBox;
 
-	/** Amount added to the team coin count when SetTeamCoinButton is clicked (see ACPGameMode::AddCoin) */
+	/** Amount added to the team score count when SetTeamCoinButton is clicked (see ACPPlayerCharacter::AddScore) */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* TeamCoinInputText;
 
-	/** Adds TeamCoinInputText's value to the local player's coin count via ACPPlayerCharacter::AddCoin */
+	/** Adds TeamCoinInputText's value to the local player's score count via ACPPlayerCharacter::AddScore */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* SetTeamCoinButton;
 
