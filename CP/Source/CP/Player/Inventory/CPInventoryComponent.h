@@ -5,13 +5,15 @@
 #include "Player/Inventory/CPSlotInventory.h"
 #include "CPInventoryComponent.generated.h"
 
+class ACPCoinPusher;
+struct FItemData;
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class CP_API UCPInventoryComponent : public UActorComponent, public ICPSlotInventory
 {
 	GENERATED_BODY()
 
 public:
-
 	UCPInventoryComponent();
 
 protected:
@@ -21,8 +23,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory", meta = (EditFixedSize))
 	TArray<FCPInventorySlot> Slots;
 
-	/** GetOwner()를 ACPPlayerCharacter로 캐스팅해 그 CoinPusher(->GetCoinPusher())의
-	 *  LinkedRoulette(->GetLinkedRoulette())를 찾아, 그 OnPickedUp에 HandleRoulettePickedUp()을
+	/** Owner의 ACPCoinPusher 참조. BeginPlay에서 캐싱해서 StoreItem()의 ItemDataTable 조회에도
+	 *  재사용한다 (LinkedRoulette 구독에 쓰던 지역 변수를 멤버로 승격) */
+	UPROPERTY()
+	TObjectPtr<ACPCoinPusher> CoinPusher;
+
+	/** GetOwner()를 ACPPlayerCharacter로 캐스팅해 그 CoinPusher(->GetCoinPusher())를 캐싱하고,
+	 *  그 LinkedRoulette(->GetLinkedRoulette())를 찾아 OnPickedUp에 HandleRoulettePickedUp()을
 	 *  등록해 룰렛에서 뽑힌 아이템이 자동으로 이 인벤토리에 쌓이도록 한다 */
 	virtual void BeginPlay() override;
 
@@ -34,6 +41,11 @@ protected:
 	void HandleRoulettePickedUp(FName ItemID, int32 Count);
 
 public:
+
+	/** CoinPusher->GetItemDataTable()에서 ItemID 행을 조회 (없으면 nullptr). 슬롯은 ItemID만
+	 *  들고 있으므로, 이름/아이콘/효과 등이 필요한 곳(StoreItem, UseSlotItem, 인벤토리 위젯)은
+	 *  전부 이 헬퍼로 ItemDataTable을 원본 삼아 조회한다 */
+	const FItemData* FindItemData(FName ItemID) const;
 
 	virtual bool StoreItem(FName ItemCode, int32 Count) override;
 
@@ -47,4 +59,8 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category="Inventory")
 	FOnCPInventoryChanged OnInventoryChanged;
+
+	/** UseSlotItem()이 아이템을 실제로 소모할 때마다 Broadcast (ItemID, Count) */
+	UPROPERTY(BlueprintAssignable, Category="Inventory")
+	FOnCPInventoryItemUsed OnItemUsed;
 };

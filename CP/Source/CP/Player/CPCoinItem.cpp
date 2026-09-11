@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Player/CPCoinItem.h"
-#include "Player/CPCoinWallet.h"
+#include "Player/CPPlayerCharacter.h"
 #include "Player/CPInteractor.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -69,15 +69,15 @@ void ACPCoinItem::Interact(AActor* Interactor)
 		return;
 	}
 
-	ICPCoinWallet* Wallet = Cast<ICPCoinWallet>(Interactor);
-	if (!Wallet)
+	ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(Interactor);
+	if (!PlayerCharacter)
 	{
 		return;
 	}
 
 	bCollected = true;
 
-	Wallet->AddCoin(CoinValue);
+	PlayerCharacter->HandleFieldCoinCollected(CoinValue);
 
 	Destroy();
 }

@@ -20,6 +20,8 @@
 #include "Weapon/CPWeaponBase.h"
 #include "Roulette/CPRoulette.h"
 #include "CoinPusher/CPCoinPusher.h"
+#include "Datatables/CPItemData.h"
+#include "Engine/DataTable.h"
 #include "UI/CPRadialGaugeComponent.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
@@ -126,6 +128,24 @@ void ACPPlayerCharacter::BeginPlay()
 	InitStatsFromDataTable();
 	ApplyStatsToGameplay();
 
+	// PostInitializeComponents()에서 CoinPusher는 이미 캐싱해뒀지만, GetDropZoneDroppedDelegate()는
+	// DropZone의 ChildActorComponent가 스폰된 뒤에야 유효한 포인터를 반환한다 - 그 스폰이 CoinPusher의
+	// PostInitializeComponents()에서 일어나는데 액터 간 초기화 순서는 보장되지 않으므로, 모든 액터의
+	// PostInitializeComponents가 끝난 뒤 실행되는 BeginPlay에서 구독한다 (ACPCoinPusher 자신도
+	// LinkedRoulette->OnPickedUp을 PostInitializeComponents가 아닌 BeginPlay에서 구독하는 것과 같은 이유)
+	if (CoinPusher)
+	{
+		if (FOnCPDropZoneDropped* DropZoneDropped = CoinPusher->GetDropZoneDroppedDelegate())
+		{
+			DropZoneDropped->AddDynamic(this, &ACPPlayerCharacter::HandleDropZoneItemDropped);
+		}
+	}
+
+	if (InventoryComponent)
+	{
+		InventoryComponent->OnItemUsed.AddDynamic(this, &ACPPlayerCharacter::HandleInventoryItemUsed);
+	}
+
 	TArray<UMeshComponent*> PlayerMeshComponents;
 	GetComponents<UMeshComponent>(PlayerMeshComponents);
 	for (UMeshComponent* PlayerMeshComponent : PlayerMeshComponents)
@@ -169,6 +189,61 @@ void ACPPlayerCharacter::HandleDebugCollisionVisibilityChanged(ECPDebugCollision
 	{
 		SetReviveRangeDebugDrawEnabled(bVisible);
 	}
+}
+
+void ACPPlayerCharacter::HandleDropZoneItemDropped(FName ItemID)
+{
+	UE_LOG(LogTemp, Warning, TEXT("dropped -> %s"), *ItemID.ToString());
+
+	// 무기 패시브 스킬 트리거 - ItemDataTable/Category와 무관한 별도의 리터럴 ID 체크
+	if (ItemID == PassiveSkillItemID)
+	{
+		if (ACPWeaponBase* Weapon = GetCurrentWeapon())
+		{
+			Weapon->ActivatePassiveSkill();
+		}
+	}
+
+	// 기존 HP 보상은 그대로 유지
+	if (ItemID == HealthItemID)
+	{
+		ModifyStat(ECPStatType::Health, HealthGrantAmount);
+	}
+
+	// ItemDataTable에서 이 ItemID를 조회해 Category가 CoinCategoryName과 같으면, 그 행에 지정된
+	// ExperienceAmount/ScoreAmount만큼 경험치/Score를 지급한다
+	UDataTable* ItemDataTable = CoinPusher ? CoinPusher->GetItemDataTable() : nullptr;
+	const FItemData* Row = ItemDataTable
+		? ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPPlayerCharacter::HandleDropZoneItemDropped"))
+		: nullptr;
+
+	if (Row && Row->Category == CoinCategoryName)
+	{
+		if (Row->ExperienceAmount > 0.0f)
+		{
+			ModifyStat(ECPStatType::Experience, Row->ExperienceAmount);
+		}
+
+		if (Row->ScoreAmount > 0)
+		{
+			AddScore(Row->ScoreAmount);
+		}
+	}
+}
+
+void ACPPlayerCharacter::HandleInventoryItemUsed(FName ItemID, int32 Count)
+{
+	if (!CoinPusher)
+	{
+		return;
+	}
+
+	// 4개 다 호출 - 각자 ValidateItemCoinType으로 자기 타입(Big/CoinTower/Passive/HP)이 아니면
+	// 알아서 no-op하므로, 실제 사용된 아이템의 CoinType과 일치하는 것 하나만 실질적으로 동작한다
+	CoinPusher->SpawnBigCoin(ItemID, Count);
+	CoinPusher->SpawnTower(ItemID, Count);
+	CoinPusher->ConvertActive(ItemID, Count);
+	CoinPusher->HPConvertActive(ItemID, Count);
 }
 
 void ACPPlayerCharacter::SetReviveRangeDebugDrawEnabled(bool bEnabled)
@@ -223,8 +298,19 @@ void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 		return;
 	}
 
+	// 티켓이 없으면 룰렛 자체를 시도하지 않음
+	if (!TrySpendTicket(1))
+	{
+		return;
+	}
+
 	UE_LOG(LogPlayer, Warning, TEXT("Rollin"));
-	Roulette->Roll();
+
+	// Roll()이 실패하면(이미 회전 중 등) 소모한 티켓을 돌려준다
+	if (!Roulette->Roll())
+	{
+		AddTicket(1);
+	}
 }
 
 void ACPPlayerCharacter::UseSlotEast(const FInputActionValue& Value)
@@ -889,30 +975,52 @@ float ACPPlayerCharacter::GetRequiredExperienceForLevel(int32 InLevel) const
 	return ExperienceRange.Max;
 }
 
-void ACPPlayerCharacter::AddCoin(int32 Amount)
+void ACPPlayerCharacter::AddScore(int32 Amount)
 {
 	if (Amount <= 0)
 	{
 		return;
 	}
 
-	CoinCount += Amount;
+	const int32 OldScoreCount = ScoreCount;
+	ScoreCount += Amount;
 
-	OnCoinChanged.Broadcast(CoinCount);
+	OnScoreChanged.Broadcast(ScoreCount);
+
+	// ScorePerTicket개(기본 10개)를 채울 때마다 티켓 1개 - Amount가 한 번에 여러 구간을 건너뛰어도
+	// (예: 8개 -> 23개) 정수 나눗셈 차이로 정확한 개수만큼 지급됨
+	if (ScorePerTicket > 0)
+	{
+		const int32 TicketsEarned = (ScoreCount / ScorePerTicket) - (OldScoreCount / ScorePerTicket);
+		if (TicketsEarned > 0)
+		{
+			AddTicket(TicketsEarned);
+		}
+	}
 }
 
-bool ACPPlayerCharacter::TrySpendCoin(int32 Amount)
+bool ACPPlayerCharacter::TrySpendScore(int32 Amount)
 {
-	if (!HasEnoughCoin(Amount))
+	if (!HasEnoughScore(Amount))
 	{
 		return false;
 	}
 
-	CoinCount -= Amount;
+	ScoreCount -= Amount;
 
-	OnCoinChanged.Broadcast(CoinCount);
+	OnScoreChanged.Broadcast(ScoreCount);
 
 	return true;
+}
+
+void ACPPlayerCharacter::HandleFieldCoinCollected(int32 Amount)
+{
+	AddScore(Amount);
+
+	if (CoinPusher)
+	{
+		CoinPusher->ItemSpawn(FieldCoinSpawnItemID, 1);
+	}
 }
 
 void ACPPlayerCharacter::AddTicket(int32 Amount)

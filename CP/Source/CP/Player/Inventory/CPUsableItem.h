@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "Player/CPItemTypes.h"
+#include "Datatables/CPItemData.h"
 #include "CPUsableItem.generated.h"
 
 UINTERFACE(MinimalAPI, NotBlueprintable)
@@ -18,5 +18,5 @@ class ICPUsableItem
 public:
 
 	UFUNCTION(BlueprintCallable, Category="Item")
-	virtual void UseItem(AActor* User, const FCPItemData& ItemData) = 0;
+	virtual void UseItem(AActor* User, const FItemData& ItemData) = 0;
 };

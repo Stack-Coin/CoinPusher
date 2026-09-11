@@ -8,7 +8,6 @@
 #include "Engine/TimerHandle.h"
 #include "Player/CPStatInterface.h"
 #include "Player/CPStatTypes.h"
-#include "Player/CPCoinWallet.h"
 #include "Player/CPInteractable.h"
 #include "Player/CPInteractor.h"
 #include "Player/CPItemInventory.h"
@@ -56,7 +55,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerRevived);
  *  here to keep a health bar in sync - done automatically by ACPGameMode::SetupPlayerHealthBarWidget */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPPlayerHealthChanged, float, CurrentHealth, float, MaxHealth);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerCoinChanged, int32, NewCoinCount);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerScoreChanged, int32, NewScoreCount);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerTicketChanged, int32, NewTicketCount);
 
@@ -73,7 +72,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerTicketChanged, int32, New
  *    current movement direction relative to that facing, for a 4-way movement Blend Space in the Anim BP
  */
 UCLASS(abstract)
-class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable, public ICPReviveProgressProvider, public ICPCoinWallet
+class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable, public ICPReviveProgressProvider
 {
 	GENERATED_BODY()
 
@@ -207,10 +206,14 @@ protected:
 	float HitCameraShakeIntensity = 1.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category="Wallet")
-	int32 CoinCount = 0;
+	int32 ScoreCount = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category="Wallet")
 	int32 TicketCount = 0;
+
+	/** Score 보유량이 이 개수만큼 늘어날 때마다 티켓 1개 획득 (see AddScore) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Wallet", meta = (ClampMin = 1))
+	int32 ScorePerTicket = 10;
 
 	/** After an attack's motion actually ends (attack montage finished, or the last combo swing was
 	 *  dispatched if no montage is assigned - see ACPWeaponBase::OnAttackStateChanged), how long to keep
@@ -384,6 +387,27 @@ protected:
 	 *  PostInitializeComponents()에서 미리 채워둔다 */
 	TObjectPtr<ACPCoinPusher> CoinPusher;
 
+	/** DropZone에 이 ItemID가 떨어지면 HealthGrantAmount만큼 HP 획득 (see HandleDropZoneItemDropped) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	FName HealthItemID = FName("3C");
+
+	/** HealthItemID가 떨어졌을 때 ModifyStat(Health, ...)에 넘길 양 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards", meta = (ClampMin = 0))
+	float HealthGrantAmount = 10.0f;
+
+	/** DropZone에 이 ItemID가 떨어지면 현재 무기의 패시브 스킬 실행 (see HandleDropZoneItemDropped) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	FName PassiveSkillItemID = FName("2C");
+
+	/** ItemDataTable에서 조회한 FItemData::Category가 이 값과 같으면 코인으로 취급해 그 행의
+	 *  ExperienceAmount/ScoreAmount만큼 경험치/Score를 지급한다 (see HandleDropZoneItemDropped) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	FName CoinCategoryName = FName("Coin");
+
+	/** 필드 코인(ACPCoinItem)을 먹었을 때 CoinPusher->ItemSpawn()에 넘길 ItemID (see HandleFieldCoinCollected) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Field Coin")
+	FName FieldCoinSpawnItemID = FName("1C");
+
 public:
 
 	/** Constructor */
@@ -474,6 +498,21 @@ protected:
 	 *  (ReviveDetectionRange) - the other categories are handled by DebugHitboxShape directly */
 	UFUNCTION()
 	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
+
+	/** Bound to CoinPusher->GetDropZoneDroppedDelegate() in BeginPlay. Activates the current weapon's
+	 *  passive skill when ItemID matches PassiveSkillItemID, grants HealthGrantAmount health when it
+	 *  matches HealthItemID, and separately looks the ItemID up in CoinPusher's ItemDataTable - if the
+	 *  row's Category matches CoinCategoryName, grants that row's ExperienceAmount experience and
+	 *  ScoreAmount score. No-ops for any ItemID that matches none of these */
+	UFUNCTION()
+	void HandleDropZoneItemDropped(FName ItemID);
+
+	/** Bound to InventoryComponent->OnItemUsed in BeginPlay. Forwards the used item's ID/Count to all
+	 *  four of CoinPusher's SpawnBigCoin/SpawnTower/ConvertActive/HPConvertActive - each of those already
+	 *  validates the ItemID's own CoinType internally and no-ops if it doesn't match, so calling all four
+	 *  unconditionally is safe; only the one matching the used item's actual CoinType does anything */
+	UFUNCTION()
+	void HandleInventoryItemUsed(FName ItemID, int32 Count);
 
 	/** Starts/stops DebugReviveRangeTimerHandle and updates bDrawDebugReviveRange to match */
 	void SetReviveRangeDebugDrawEnabled(bool bEnabled);
@@ -602,17 +641,22 @@ public:
 
 	// ~end ICPStatInterface
 
-	// ~begin ICPCoinWallet
+	UFUNCTION(BlueprintCallable, Category="Wallet")
+	void AddScore(int32 Amount);
 
-	virtual void AddCoin(int32 Amount) override;
+	UFUNCTION(BlueprintPure, Category="Wallet")
+	int32 GetScoreAmount() const { return ScoreCount; }
 
-	virtual int32 GetCoinAmount() const override { return CoinCount; }
+	UFUNCTION(BlueprintPure, Category="Wallet")
+	bool HasEnoughScore(int32 Amount) const { return ScoreCount >= Amount; }
 
-	virtual bool HasEnoughCoin(int32 Amount) const override { return CoinCount >= Amount; }
+	UFUNCTION(BlueprintCallable, Category="Wallet")
+	bool TrySpendScore(int32 Amount);
 
-	virtual bool TrySpendCoin(int32 Amount) override;
-
-	// ~end ICPCoinWallet
+	/** ACPCoinItem(필드 코인)이 Interact()에서 호출 - Amount만큼 Score를 지급하고, CoinPusher가 있으면
+	 *  CoinPusher->ItemSpawn(FieldCoinSpawnItemID, 1)을 실행해 코인 1개를 CoinPusher에 스폰한다 */
+	UFUNCTION(BlueprintCallable, Category="Wallet")
+	void HandleFieldCoinCollected(int32 Amount);
 
 	UFUNCTION(BlueprintCallable, Category="Wallet")
 	void AddTicket(int32 Amount = 1);
@@ -692,7 +736,7 @@ public:
 	FOnCPPlayerHealthChanged OnHealthChanged;
 
 	UPROPERTY(BlueprintAssignable, Category="Events")
-	FOnCPPlayerCoinChanged OnCoinChanged;
+	FOnCPPlayerScoreChanged OnScoreChanged;
 
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnCPPlayerTicketChanged OnTicketChanged;

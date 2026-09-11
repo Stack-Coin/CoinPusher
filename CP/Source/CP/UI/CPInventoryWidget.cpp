@@ -3,6 +3,7 @@
 #include "Components/TextBlock.h"
 #include "Player/CPPlayerCharacter.h"
 #include "Player/Inventory/CPInventoryComponent.h"
+#include "Datatables/CPItemData.h"
 
 void UCPInventoryWidget::NativeConstruct()
 {
@@ -34,13 +35,16 @@ void UCPInventoryWidget::SetSlotDisplay(UImage* SlotImage, UTextBlock* SlotCount
 	const TArray<FCPInventorySlot>* Slots = Inventory ? &Inventory->GetSlots() : nullptr;
 	const FCPInventorySlot* InventorySlot = (Slots && Slots->IsValidIndex(SlotIndex)) ? &(*Slots)[SlotIndex] : nullptr;
 
-	const bool bHasItem = InventorySlot && !InventorySlot->IsEmpty() && InventorySlot->Item.Icon;
+	const FItemData* ItemData = (InventorySlot && !InventorySlot->IsEmpty() && Inventory)
+		? Inventory->FindItemData(InventorySlot->ItemID)
+		: nullptr;
+	const bool bHasItem = ItemData && ItemData->InventoryIcon;
 
 	if (SlotImage)
 	{
 		if (bHasItem)
 		{
-			SlotImage->SetBrushFromTexture(InventorySlot->Item.Icon, false);
+			SlotImage->SetBrushFromTexture(ItemData->InventoryIcon, false);
 		}
 
 		// 수량이 0(빈 슬롯)이면 완전히 숨기는 대신 투명하게 - 슬롯 프레임/레이아웃과 상호작용(호버, 드래그앤드롭

@@ -36,7 +36,7 @@ protected:
 
 	/** Identifies which item this is */
 	UPROPERTY(EditAnywhere, Category="Item")
-	FName ItemCode;
+	FName ItemId;
 
 	/** If true, this item has already been collected and is awaiting destruction */
 	bool bCollected = false;
@@ -45,11 +45,18 @@ public:
 
 	/** Returns this item's identifying code */
 	UFUNCTION(BlueprintPure, Category="Item")
-	FName GetItemCode() const { return ItemCode; }
+	FName GetItemId() const { return ItemId; }
+
+	/** Called by ACPDropZone once it has already recorded this item (RecordCollectedItem) - plays the BP
+	 *  collection effect and destroys this actor. Returns false (and does nothing else) if this item was
+	 *  already collected, so a duplicate call can't double up */
+	UFUNCTION(BlueprintCallable, Category="Item")
+	bool Collect();
 
 	// ~begin ICPCoinPusherItem interface
 
-	/** Records the item code with the drop zone, then removes itself */
+	/** Calls Collect() (DropZone already read GetItemCode() and recorded this item directly at the
+	 *  overlap, so this no longer reports anything back to it) */
 	virtual void OnDroppedInZone(ACPDropZone* DropZone) override;
 
 	// ~end ICPCoinPusherItem interface
