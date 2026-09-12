@@ -9,6 +9,7 @@
 class UCapsuleComponent;
 class UArrowComponent;
 class ACPMonsterBase;
+struct FNavAgentProperties;
 
 UCLASS()
 class CP_API ACPMonsterSpawner : public AActor
@@ -29,11 +30,12 @@ protected:
 	/** InDesiredLocation이 다른 몬스터/장애물과 겹치면, 그 주변을 원형으로 훑어서 비어있는 자리를 찾아 반환함.
 	 *  전부 막혀있으면 원래 위치를 그대로 반환함 - 이 경우 실제 스폰은 SpawnActor의
 	 *  AdjustIfPossibleButAlwaysSpawn 옵션이 최후 보정을 시도함(스폰 자체가 실패하는 일은 없음) */
-	FVector ResolveFreeSpawnLocation(const FVector& InDesiredLocation) const;
+	FVector ResolveFreeSpawnLocation(const FVector& InDesiredLocation, const FNavAgentProperties& InNavAgentProps) const;
 
 	/** InLocation을 NavMesh 위의 가장 가까운 유효 위치로 투영함. 투영 범위 밖(NavMesh 자체가 없음)이면
-	 *  원래 위치를 그대로 반환함 */
-	FVector ProjectToNavMesh(const FVector& InLocation) const;
+	 *  원래 위치를 그대로 반환함. InNavAgentProps로 스폰될 몬스터 크기에 맞는 NavMesh(Supported Agent)를
+	 *  골라서 투영함 - Boss처럼 큰 몬스터가 일반 몬스터용 좁은 NavMesh에 투영되는 걸 방지 */
+	FVector ProjectToNavMesh(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps) const;
 
 public:
 	/** ResolveFreeSpawnLocation에서 겹침 검사에 쓰는 구체 반경(cm) */

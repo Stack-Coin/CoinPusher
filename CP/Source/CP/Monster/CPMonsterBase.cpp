@@ -93,6 +93,11 @@ void ACPMonsterBase::BeginPlay()
 		// 몬스터끼리만 서로 피하도록 그룹 마스크 설정
 		MoveComp->SetAvoidanceGroup(1);
 		MoveComp->SetGroupsToAvoid(1);
+
+		// NavMesh Agent 매칭용 - 타입별로 크기 차이가 커서(Boss vs 일반) 프로젝트 세팅에
+		// Supported Agent를 여러 개 등록해뒀다면 이 값 기준으로 알맞은 NavMesh를 골라 씀
+		MoveComp->NavAgentProps.AgentRadius = GetAICollisionRadius();
+		MoveComp->NavAgentProps.AgentHeight = GetAICollisionHalfHeight() * 2.f;
 	}
 
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
@@ -573,14 +578,37 @@ float ACPMonsterBase::GetAIAttackInterval()
 	return StatComponent ? StatComponent->DefaultStat.AttackInterval : 1.0f;
 }
 
+namespace
+{
+	/** 캡슐 Radius/HalfHeight는 SKM 실측 크기 기반 고정값 - 기획자가 DataTable에서 임의로 바꾸지
+	 *  못하게 일부러 코드에 하드코딩함(스폰 위치/공격 판정/RVO가 전부 이 값에 엮여있어서 값이
+	 *  틀어지면 여러 시스템이 동시에 깨짐) */
+	void GetDefaultCollisionSize(ECPMonsterType InType, float& OutRadius, float& OutHalfHeight)
+	{
+		switch (InType)
+		{
+		case ECPMonsterType::Normal: OutRadius = 61.f;  OutHalfHeight = 76.f;  break;
+		case ECPMonsterType::Ranged: OutRadius = 59.f;  OutHalfHeight = 79.f;  break;
+		case ECPMonsterType::Tanker: OutRadius = 95.f;  OutHalfHeight = 95.f;  break;
+		case ECPMonsterType::Bomb:   OutRadius = 95.f;  OutHalfHeight = 95.f;  break;
+		case ECPMonsterType::Boss:   OutRadius = 293.f; OutHalfHeight = 304.f; break;
+		default:                     OutRadius = 0.f;   OutHalfHeight = 0.f;   break;
+		}
+	}
+}
+
 float ACPMonsterBase::GetAICollisionRadius()
 {
-	return StatComponent ? StatComponent->DefaultStat.CollisionRadius : 0.0f;
+	float Radius, HalfHeight;
+	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
+	return Radius;
 }
 
 float ACPMonsterBase::GetAICollisionHalfHeight()
 {
-	return StatComponent ? StatComponent->DefaultStat.CollisionHalfHeight : 0.0f;
+	float Radius, HalfHeight;
+	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
+	return HalfHeight;
 }
 
 float ACPMonsterBase::GetAIAttackRange()

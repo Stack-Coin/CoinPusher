@@ -27,13 +27,6 @@ struct FCPMonsterDefaultStat
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float AttackInterval = 0.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float CollisionRadius = 0.f;
-
-	/** 캡슐 Half Height (cm). 몬스터 실제 메쉬 크기에 맞춰 지정 - 0이면 BP에 설정된 기존 캡슐 값을 그대로 씀 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float CollisionHalfHeight = 0.f;
-
 	/** 공격 사거리 (cm) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float AttackRange = 0.f;
@@ -76,13 +69,6 @@ struct FCPMonsterStatRow : public FTableRowBase
 	/** 공격 사이 간격 (초). 낮을수록 더 자주 공격함 (예전 이름 AttackSpeed는 오해 소지가 있어 변경됨) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
 	float AttackInterval = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float CollisionRadius = 0.f;
-
-	/** 캡슐 Half Height (cm). 몬스터 실제 메쉬 크기에 맞춰 지정 - 0이면 BP에 설정된 기존 캡슐 값을 그대로 씀 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float CollisionHalfHeight = 0.f;
 
 	/** 공격 사거리 (cm) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")

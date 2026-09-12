@@ -1,6 +1,6 @@
----,MaxHealth,MoveSpeed,AttackPower,AttackInterval,CollisionRadius,CollisionHalfHeight,AttackRange,TurnSpeed,MoveAcceptableRadius,SeparationPadding,SeparationSpeed
-Normal,40,350,8,1,100,45,100,180,90,70,400
-Tanker,70,250,15,1,150,55,100,150,90,70,400
-Ranged,20,300,6,2,100,45,300,180,280,70,400
-Boss,2000,280,40,1.5,300,200,200,120,250,70,400
-Bomb,15,380,25,1,70,95,0,200,50,70,400
+---,MaxHealth,MoveSpeed,AttackPower,AttackInterval,AttackRange,TurnSpeed,MoveAcceptableRadius,SeparationPadding,SeparationSpeed
+Normal,40,350,8,1,100,180,90,70,400
+Tanker,70,250,15,1,100,150,90,70,400
+Ranged,20,300,6,2,300,180,280,70,400
+Boss,2000,280,40,1.5,200,120,250,70,400
+Bomb,15,380,25,1,0,200,50,70,400
