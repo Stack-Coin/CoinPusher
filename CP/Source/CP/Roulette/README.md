@@ -100,7 +100,7 @@ CoinPusher가 자신의 `ItemDataTable`에서 그 `ItemID`의 `FItemData::bRoule
 true인 경우에만 `ItemSpawn(ItemID, SpawnCount)`으로 천장 Dispenser 중 하나에서 그 아이템을 스폰한다.
 자세한 내용은 `CoinPusher/README.md`의 `ACPCoinPusher` 섹션 참고.
 
-## 추가 데이터 테이블 (RouletteDataTable / LevelRouletteProbabilityDataTable)
+## 추가 데이터 테이블 (RouletteDataTable / RouletteProbabilityDataTable)
 
 `ItemDataTable`(`FItemData`, `Datatables/CPItemData.h`)은 그대로 두고, 룰렛에서만 의미 있는
 부가 규칙을 담기 위해 완전히 별개의 신규 테이블 2개를 `Roulette/CPRouletteDataTypes.h`에 Row
@@ -112,13 +112,14 @@ Struct로만 정의해뒀다(둘 다 아직 어떤 추첨 로직에도 반영되
 
 - `UCPRouletteDataTableGameInstance` (`UCPItemDataTableGameInstance` 상속 - 기존 `ItemDataTable`/
   `GetItemDataTable()`은 그대로 물려받아 손대지 않음)
-  - `RouletteDataTable`(`TObjectPtr<UDataTable>`, Row Struct `FCPRouletteDataRow`) : `ID`(항목
-    식별, `ItemDataTable`의 ID와 매칭), `bRouletteToCoinPusher`(당첨 시 CoinPusher로 전달되는지),
-    `MustLevelPick`(이 항목이 후보로 뽑히기 위해 팀이 최소로 도달해 있어야 하는 레벨) -
-    `GetRouletteDataTable()`로 조회
-  - `LevelRouletteProbabilityDataTable`(`TObjectPtr<UDataTable>`, Row Struct
-    `FCPLevelRouletteProbabilityRow`) : `Level`(팀 레벨), `Probability`(그 레벨에 적용할 확률
-    가중치) - 레벨 1~9 각각 1행씩 총 9행으로 채워 쓴다 - `GetLevelRouletteProbabilityDataTable()`로 조회
+  - `RouletteDataTable`(`TObjectPtr<UDataTable>`, Row Struct `FCPRouletteDataRow`) : `ItemID`
+    (항목 식별, `ItemDataTable`의 ID와 매칭), `PickEA`(당첨 시 지급 개수), `bRouletteToCoinPusher`
+    (당첨 시 CoinPusher로 전달되는지), `MustPickLevel`(이 항목이 후보로 뽑히기 위해 팀이 최소로
+    도달해 있어야 하는 레벨) - `GetRouletteDataTable()`로 조회
+  - `RouletteProbabilityDataTable`(`TObjectPtr<UDataTable>`, Row Struct
+    `FCPRouletteProbabilityRow`) : `RouletteProbability_Level1`~`RouletteProbability_Level9`
+    (팀 레벨 1~9 각각에 적용할 확률 가중치, 기본값 0.0) - 항목(Row Name)당 1행에 레벨별 확률을
+    모두 담는 구조 - `GetRouletteProbabilityDataTable()`로 조회
 - 실제 적용하려면 기존 `BP_ItemDataTableGameInstance`(또는 그 상속 BP)의 부모 클래스를
   `UCPRouletteDataTableGameInstance`로 재부모(Reparent)하면 된다 - Project Settings의 Game
   Instance Class 자체는 그대로 두고 BP만 재부모하면 되므로 별도 프로젝트 설정 변경은 필요 없다
@@ -149,9 +150,9 @@ Struct로만 정의해뒀다(둘 다 아직 어떤 추첨 로직에도 반영되
    `RouletteWidget`을 배치한) `WBP_InGameWidget`이 지정돼 있어야 한다 - 없으면 `Roll()`은 정상
    동작하지만(폴백) 화면에 스핀 연출 없이 결과만 `OnPickedUp`으로 전달된다
 5. (선택) 위 "추가 데이터 테이블" 절의 두 테이블을 실제로 쓰려면, Row Struct를 각각
-   `FCPRouletteDataRow`/`FCPLevelRouletteProbabilityRow`로 지정해 DataTable 에셋을 만들고,
+   `FCPRouletteDataRow`/`FCPRouletteProbabilityRow`로 지정해 DataTable 에셋을 만들고,
    기존 `BP_ItemDataTableGameInstance`(또는 그 상속 BP)의 부모 클래스를
    `UCPRouletteDataTableGameInstance`로 재부모한 뒤 `RouletteDataTable`/
-   `LevelRouletteProbabilityDataTable`에 연결한다 - 다만 현재는 어떤 추첨 로직도 이 값을 읽지
+   `RouletteProbabilityDataTable`에 연결한다 - 다만 현재는 어떤 추첨 로직도 이 값을 읽지
    않으므로, 실제로 반영하려면 `ACPRoulette::PickWeightedItem()` 쪽에 조회 로직을 추가하는 별도
    작업이 필요하다
