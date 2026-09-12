@@ -12,7 +12,6 @@
 #include "Player/CPInteractor.h"
 #include "Player/CPItemInventory.h"
 #include "Player/CPItemTypes.h"
-#include "Player/CPReviveInterface.h"
 #include "Weapon/CPAimDirectionInterface.h"
 #include "Player/CPWeaponEquipper.h"
 #include "Weapon/CPKnockbackInterface.h"
@@ -21,8 +20,6 @@
 
 class USpringArmComponent;
 class UCameraComponent;
-class USphereComponent;
-class UCPRadialGaugeComponent;
 class UInputAction;
 struct FInputActionValue;
 class UCPWeaponManagerComponent;
@@ -45,11 +42,8 @@ DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
  *  should react to this event instead of the item actor touching any UI directly. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPItemAcquired, FCPItemData, AcquiredItem);
 
-/** Broadcast the moment this player's Health reaches 0 and it enters the downed (revivable) state */
+/** Broadcast the moment this player's Health reaches 0 and it enters the downed state */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerDowned);
-
-/** Broadcast the moment a downed player finishes being revived */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPPlayerRevived);
 
 /** Broadcast whenever Health changes (see SetStat). Bind a UCPHorizonGuageBarWidget's Update (or a
  *  UCPHealthBarComponent/UCPViewportHealthBarComponent's UpdateHealth) here to keep a health bar in
@@ -82,7 +76,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPPlayerTicketChanged, int32, New
  *    current movement direction relative to that facing, for a 4-way movement Blend Space in the Anim BP
  */
 UCLASS(abstract)
-class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable, public ICPReviveProgressProvider
+class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, public ICPInteractor, public ICPItemInventory, public ICPAimDirectionProvider, public ICPWeaponEquipper, public ICPKnockbackable
 {
 	GENERATED_BODY()
 
@@ -97,11 +91,6 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	/** Owns weapon equip/swap/unequip and the currently held weapon. See Weapon/CPWeaponManagerComponent */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCPWeaponManagerComponent* WeaponManager;
-
-	/** Detects other players standing nearby while this character is downed, to drive the revive
-	 *  timer. Always overlap-active; the overlap handlers no-op unless bIsDowned is true */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	USphereComponent* ReviveDetectionRange;
 
 	/** Draws GetCapsuleComponent()'s wireframe while the F1 debug widget's PlayerHitbox checkbox is on */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -263,40 +252,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Knockback", meta = (Units = "cm/s"))
 	float KnockbackLaunchStrength = 500.0f;
 
-	/** How long another player must stand in ReviveDetectionRange to fully revive this character */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Revive", meta = (ClampMin = 0, Units = "s"))
-	float ReviveDuration = 5.0f;
-
-	/** Radius of ReviveDetectionRange, i.e. how close another player must be to start/continue a revive */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Revive", meta = (ClampMin = 0, Units = "cm"))
-	float ReviveDetectionRadius = 150.0f;
-
-	/** Fraction of max Health restored when this character is revived */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Revive", meta = (ClampMin = 0, ClampMax = 1))
-	float ReviveHealthPercent = 0.5f;
-
-	/** How long this character stays invincible immediately after being revived */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Revive", meta = (ClampMin = 0, Units = "s"))
-	float PostReviveInvincibilityDuration = 1.5f;
-
-	/** If true, redraws ReviveDetectionRange's sphere at its current location on a short repeating timer.
-	 *  Uses DebugReviveRangeColor normally, and turns red automatically while a character is downed */
-	UPROPERTY(EditAnywhere, Category="Stats|Revive|Debug")
-	bool bDrawDebugReviveRange = false;
-
-	/** Color used to draw ReviveDetectionRange's debug sphere while not downed. Also applied to
-	 *  ReviveDetectionRange's own ShapeColor, so the collision wireframe matches too */
-	UPROPERTY(EditAnywhere, Category="Stats|Revive|Debug", meta = (EditCondition = "bDrawDebugReviveRange"))
-	FColor DebugReviveRangeColor = FColor::Cyan;
-
 	/** True while the dash movement is in progress */
 	bool bIsDashing = false;
 
-	/** Number of active invincibility sources (dash, the post-revive window, a debug override via
-	 *  SetDebugInvincible). Damage/knockback are ignored whenever this is > 0. Use BeginInvincibility()/
-	 *  EndInvincibilityRequest() to add/remove a source instead of tracking a single bool directly, so
-	 *  overlapping windows (e.g. a dash ending while a post-revive window is still active) don't cancel
-	 *  each other out */
+	/** Number of active invincibility sources (dash, a debug override via SetDebugInvincible). Damage/
+	 *  knockback are ignored whenever this is > 0. Use BeginInvincibility()/EndInvincibilityRequest() to
+	 *  add/remove a source instead of tracking a single bool directly, so overlapping windows don't
+	 *  cancel each other out */
 	int32 InvincibilityRequestCount = 0;
 
 	/** True while SetDebugInvincible(true) is active - tracked separately so a redundant call doesn't
@@ -336,25 +298,8 @@ protected:
 	 *  ends. Restarted/cleared by HandleAttackStateChanged and DoDash */
 	FTimerHandle PostAttackRotationTimerHandle;
 
-	/** True while Health is at 0 and the character is lying down, uncontrollable, waiting to be revived */
+	/** True while Health is at 0 and the character is lying down, uncontrollable */
 	bool bIsDowned = false;
-
-	/** The other player currently standing in ReviveDetectionRange and reviving this character, if any */
-	TWeakObjectPtr<AActor> CurrentReviver;
-
-	/** Timer that fires Revive() once ReviveDuration has elapsed with CurrentReviver still in range */
-	FTimerHandle ReviveTimerHandle;
-
-	/** World time the current revive attempt started, or -1 if none is in progress. Used to compute
-	 *  GetReviveTimeRemaining() without ticking */
-	float ReviveStartTime = -1.0f;
-
-	/** Redraws ReviveDetectionRange's sphere at its current location. Bound to DebugReviveRangeTimerHandle
-	 *  when bDrawDebugReviveRange is true */
-	FTimerHandle DebugReviveRangeTimerHandle;
-
-	/** Ends the post-revive invincibility window (see PostReviveInvincibilityDuration). Started in Revive() */
-	FTimerHandle PostReviveInvincibilityTimerHandle;
 
 	/** Items the player has picked up. Never modify directly - go through AddOwnedItem/ICPItemInventory */
 	UPROPERTY(BlueprintReadOnly, Category="Item")
@@ -363,19 +308,6 @@ protected:
 	/** Broadcast right after an item is added to OwnedItems */
 	UPROPERTY(BlueprintAssignable, Category="Item")
 	FOnCPItemAcquired OnItemAcquired;
-
-	/** Broadcast when this character is revived out of the downed state */
-	UPROPERTY(BlueprintAssignable, Category="Events")
-	FOnCPPlayerRevived OnPlayerRevived;
-
-	/** The RadialGaugeComponent ACPGameMode attaches to this player at creation time (see
-	 *  ACPGameMode::AttachReviveGaugeToPlayer), driven during a revive attempt to show progress. May be
-	 *  null if none was assigned (e.g. testing this character outside ACPGameMode) */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCPRadialGaugeComponent> ReviveGaugeComponent;
-
-	/** Periodically pushes revive progress to ReviveGaugeComponent while a revive attempt is in progress */
-	FTimerHandle ReviveGaugeUpdateTimerHandle;
 
 	/** Every ICPInteractable currently in range of at least one registered interactable's collision */
 	TArray<TWeakObjectPtr<AActor>> NearbyInteractables;
@@ -476,34 +408,8 @@ protected:
 	UFUNCTION()
 	void HandleAttackStateChanged(bool bIsAttacking);
 
-	/** Bound to ReviveDetectionRange's OnComponentBeginOverlap. Starts a revive attempt if downed and
-	 *  no revive is already in progress */
-	UFUNCTION()
-	void OnReviveRangeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
-
-	/** Bound to ReviveDetectionRange's OnComponentEndOverlap. Resets the in-progress revive attempt if
-	 *  the reviving player leaves range before it completes */
-	UFUNCTION()
-	void OnReviveRangeEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
-
 	/** Puts the character into the downed (uncontrollable, lying down) state. Called when Health reaches 0 */
 	void EnterDownedState();
-
-	/** Starts (or restarts) a revive attempt credited to Reviver. Resets on OnReviveRangeEndOverlap,
-	 *  completes into Revive() after ReviveDuration */
-	void StartRevive(AActor* Reviver);
-
-	/** Ends the downed state: restores movement/mesh rotation and partially restores Health */
-	void Revive();
-
-	/** Draws ReviveDetectionRange's sphere at its current location. Called on DebugReviveRangeTimerHandle
-	 *  while bDrawDebugReviveRange is true */
-	void DrawDebugReviveRangeShape() const;
-
-	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged. Reacts to PlayerRevive
-	 *  (ReviveDetectionRange) - the other categories are handled by DebugHitboxShape directly */
-	UFUNCTION()
-	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
 
 	/** Bound to CoinPusher->GetDropZoneDroppedDelegate() in BeginPlay. Activates the current weapon's
 	 *  passive skill when ItemID matches PassiveSkillItemID, grants HealthGrantAmount health when it
@@ -519,13 +425,6 @@ protected:
 	 *  unconditionally is safe; only the one matching the used item's actual CoinType does anything */
 	UFUNCTION()
 	void HandleInventoryItemUsed(FName ItemID, int32 Count);
-
-	/** Starts/stops DebugReviveRangeTimerHandle and updates bDrawDebugReviveRange to match */
-	void SetReviveRangeDebugDrawEnabled(bool bEnabled);
-
-	/** Pushes current revive progress (elapsed time out of ReviveDuration) to ReviveGaugeComponent. Bound
-	 *  to ReviveGaugeUpdateTimerHandle while a revive attempt is in progress */
-	void UpdateReviveGaugeDisplay();
 
 public:
 
@@ -604,7 +503,7 @@ protected:
 	/** Ends the dash movement and invincibility window */
 	void EndDash();
 
-	/** Adds one invincibility source (dash starting, a post-revive window, a debug override) */
+	/** Adds one invincibility source (dash starting, a debug override) */
 	void BeginInvincibility();
 
 	/** Removes one invincibility source. Clamped at 0, so a mismatched extra call is harmless */
@@ -718,18 +617,9 @@ public:
 
 	// ~end ICPKnockbackable
 
-	// ~begin ICPReviveProgressProvider
-
-	/** Returns true while this character is downed and waiting to be revived */
-	virtual bool IsDowned() const override { return bIsDowned; }
-
-	/** Returns how many seconds of revive time remain, or 0 if no revive is currently in progress */
-	virtual float GetReviveTimeRemaining() const override;
-
-	/** Returns ReviveDuration, for UI progress-bar normalization */
-	virtual float GetReviveDuration() const override { return ReviveDuration; }
-
-	// ~end ICPReviveProgressProvider
+	/** Returns true while this character is downed */
+	UFUNCTION(BlueprintPure, Category="Combat")
+	bool IsDowned() const { return bIsDowned; }
 
 	/** Returns the upper bound of the Health stat, for UI that needs Max as well as Current */
 	UFUNCTION(BlueprintPure, Category="Stats")
@@ -771,13 +661,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnCPPlayerTicketChanged OnTicketChanged;
 
-	/** Assigns the RadialGaugeComponent this character drives to show revive progress. Called once by
-	 *  ACPGameMode right after this character is created (see ACPGameMode::AttachReviveGaugeToPlayer) */
-	void SetReviveGaugeComponent(UCPRadialGaugeComponent* InComponent) { ReviveGaugeComponent = InComponent; }
-
-	/** Returns the RadialGaugeComponent assigned via SetReviveGaugeComponent, or null if none yet */
-	UCPRadialGaugeComponent* GetReviveGaugeComponent() const { return ReviveGaugeComponent; }
-
 	/** Returns true while the dash movement is in progress */
 	UFUNCTION(BlueprintPure, Category="Dash")
 	bool IsDashing() const { return bIsDashing; }
@@ -796,12 +679,11 @@ public:
 	UFUNCTION(BlueprintPure, Category="Animation")
 	float GetMovementDirection() const;
 
-	/** Returns true while the character is invincible, for any reason (dash, post-revive window, or a
-	 *  debug override) */
+	/** Returns true while the character is invincible, for any reason (dash, or a debug override) */
 	UFUNCTION(BlueprintPure, Category="Dash")
 	bool IsInvincible() const { return InvincibilityRequestCount > 0; }
 
-	/** Debug-only: force this character invincible (or not) regardless of dash/revive state, until
+	/** Debug-only: force this character invincible (or not) regardless of dash state, until
 	 *  toggled off again. Used by the F1 debug widget's per-player invincibility checkbox */
 	UFUNCTION(BlueprintCallable, Category="Dash")
 	void SetDebugInvincible(bool bEnabled);

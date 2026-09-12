@@ -23,7 +23,6 @@ void UCPDebugWidget::NativeConstruct()
 	InitializeCheckBox(EnemyHitboxCheckBox, ECPDebugCollisionCategory::EnemyHitbox);
 	InitializeCheckBox(MonsterAttackRangeCheckBox, ECPDebugCollisionCategory::MonsterAttackRange);
 	InitializeCheckBox(MonsterDetectRangeCheckBox, ECPDebugCollisionCategory::MonsterDetectRange);
-	InitializeCheckBox(PlayerReviveCheckBox, ECPDebugCollisionCategory::PlayerRevive);
 	InitializeCheckBox(CoinNexusCheckBox, ECPDebugCollisionCategory::CoinNexus);
 	InitializeCheckBox(ItemPickupCheckBox, ECPDebugCollisionCategory::ItemPickup);
 
@@ -46,10 +45,6 @@ void UCPDebugWidget::NativeConstruct()
 	if (MonsterDetectRangeCheckBox)
 	{
 		MonsterDetectRangeCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandleMonsterDetectRangeCheckChanged);
-	}
-	if (PlayerReviveCheckBox)
-	{
-		PlayerReviveCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayerReviveCheckChanged);
 	}
 	if (CoinNexusCheckBox)
 	{
@@ -194,11 +189,6 @@ void UCPDebugWidget::HandleMonsterAttackRangeCheckChanged(bool bIsChecked)
 void UCPDebugWidget::HandleMonsterDetectRangeCheckChanged(bool bIsChecked)
 {
 	SetCategoryVisible(ECPDebugCollisionCategory::MonsterDetectRange, bIsChecked);
-}
-
-void UCPDebugWidget::HandlePlayerReviveCheckChanged(bool bIsChecked)
-{
-	SetCategoryVisible(ECPDebugCollisionCategory::PlayerRevive, bIsChecked);
 }
 
 void UCPDebugWidget::HandleCoinNexusCheckChanged(bool bIsChecked)

@@ -3,8 +3,6 @@
 #include "Player/CPPlayerCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/SphereComponent.h"
-#include "DrawDebugHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
@@ -22,8 +20,6 @@
 #include "CoinPusher/CPCoinPusher.h"
 #include "Datatables/CPItemData.h"
 #include "Engine/DataTable.h"
-#include "UI/CPRadialGaugeComponent.h"
-#include "Debug/CPDebugCollisionSubsystem.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
 #include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
 #include "Player/Stat/CPPlayerStatTableTypes.h"
@@ -36,12 +32,6 @@
 #include "Camera/CameraShakeBase.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
-
-namespace
-{
-	constexpr float ReviveDebugDrawInterval = 0.1f;
-	constexpr float ReviveGaugeUpdateInterval = 0.1f;
-}
 
 ACPPlayerCharacter::ACPPlayerCharacter()
 {
@@ -82,15 +72,6 @@ ACPPlayerCharacter::ACPPlayerCharacter()
 	// Bound in the constructor (not BeginPlay) so it's already in place before WeaponManager's own BeginPlay
 	// equips DefaultWeaponClass and broadcasts this for the very first weapon
 	WeaponManager->OnWeaponChanged.AddDynamic(this, &ACPPlayerCharacter::HandleWeaponChanged);
-
-	ReviveDetectionRange = CreateDefaultSubobject<USphereComponent>(TEXT("ReviveDetectionRange"));
-	ReviveDetectionRange->SetupAttachment(RootComponent);
-	ReviveDetectionRange->InitSphereRadius(ReviveDetectionRadius);
-	ReviveDetectionRange->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
-	// Radius is re-applied in BeginPlay (see below) so a Blueprint-tuned ReviveDetectionRadius takes
-	// effect - InitSphereRadius here only seeds a sane editor-time default
-	ReviveDetectionRange->OnComponentBeginOverlap.AddDynamic(this, &ACPPlayerCharacter::OnReviveRangeBeginOverlap);
-	ReviveDetectionRange->OnComponentEndOverlap.AddDynamic(this, &ACPPlayerCharacter::OnReviveRangeEndOverlap);
 
 	DebugHitboxShape = CreateDefaultSubobject<UCPDebugCollisionShapeComponent>(TEXT("DebugHitboxShape"));
 	DebugHitboxShape->Category = ECPDebugCollisionCategory::PlayerHitbox;
@@ -167,28 +148,6 @@ void ACPPlayerCharacter::BeginPlay()
 		HitFlashTimeline->SetLooping(false);
 		HitFlashTimeline->SetPlayRate(HitFlashSpeed);
 	}
-
-	ReviveDetectionRange->SetSphereRadius(ReviveDetectionRadius);
-	ReviveDetectionRange->ShapeColor = DebugReviveRangeColor;
-
-	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
-	{
-		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPPlayerCharacter::HandleDebugCollisionVisibilityChanged);
-		SetReviveRangeDebugDrawEnabled(Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::PlayerRevive));
-	}
-	else if (bDrawDebugReviveRange)
-	{
-		DrawDebugReviveRangeShape();
-		GetWorldTimerManager().SetTimer(DebugReviveRangeTimerHandle, this, &ACPPlayerCharacter::DrawDebugReviveRangeShape, ReviveDebugDrawInterval, true);
-	}
-}
-
-void ACPPlayerCharacter::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
-{
-	if (Category == ECPDebugCollisionCategory::PlayerRevive)
-	{
-		SetReviveRangeDebugDrawEnabled(bVisible);
-	}
 }
 
 void ACPPlayerCharacter::HandleDropZoneItemDropped(FName ItemID)
@@ -244,18 +203,6 @@ void ACPPlayerCharacter::HandleInventoryItemUsed(FName ItemID, int32 Count)
 	CoinPusher->SpawnTower(ItemID, Count);
 	CoinPusher->ConvertActive(ItemID, Count);
 	CoinPusher->HPConvertActive(ItemID, Count);
-}
-
-void ACPPlayerCharacter::SetReviveRangeDebugDrawEnabled(bool bEnabled)
-{
-	bDrawDebugReviveRange = bEnabled;
-	GetWorldTimerManager().ClearTimer(DebugReviveRangeTimerHandle);
-
-	if (bEnabled)
-	{
-		DrawDebugReviveRangeShape();
-		GetWorldTimerManager().SetTimer(DebugReviveRangeTimerHandle, this, &ACPPlayerCharacter::DrawDebugReviveRangeShape, ReviveDebugDrawInterval, true);
-	}
 }
 
 void ACPPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -734,40 +681,6 @@ void ACPPlayerCharacter::ApplyKnockback(const FVector& Direction, float Distance
 	ApplyCPKnockbackToCharacter(this, Direction, Distance, KnockbackDuration, KnockbackLaunchStrength);
 }
 
-void ACPPlayerCharacter::OnReviveRangeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	if (!bIsDowned || CurrentReviver.IsValid())
-	{
-		return;
-	}
-
-	if (!OtherActor || OtherActor == this || !OtherActor->IsA<ACPPlayerCharacter>())
-	{
-		return;
-	}
-
-	StartRevive(OtherActor);
-}
-
-void ACPPlayerCharacter::OnReviveRangeEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-{
-	if (!OtherActor || OtherActor != CurrentReviver.Get())
-	{
-		return;
-	}
-
-	// Leaving the revive area resets progress entirely, rather than pausing it
-	GetWorldTimerManager().ClearTimer(ReviveTimerHandle);
-	CurrentReviver.Reset();
-	ReviveStartTime = -1.0f;
-
-	GetWorldTimerManager().ClearTimer(ReviveGaugeUpdateTimerHandle);
-	if (ReviveGaugeComponent)
-	{
-		ReviveGaugeComponent->SetGaugeEnabled(false);
-	}
-}
-
 void ACPPlayerCharacter::EnterDownedState()
 {
 	if (bIsDowned)
@@ -789,99 +702,8 @@ void ACPPlayerCharacter::EnterDownedState()
 	}
 
 	GetCharacterMovement()->DisableMovement();
-	ReviveDetectionRange->ShapeColor = FColor::Red;
 
 	OnPlayerDowned.Broadcast();
-
-	// A reviver may already be standing in range when this character goes down - OnComponentBeginOverlap
-	// won't re-fire for an already-overlapping actor, so check for one explicitly
-	TArray<AActor*> OverlappingActors;
-	ReviveDetectionRange->GetOverlappingActors(OverlappingActors, ACPPlayerCharacter::StaticClass());
-	for (AActor* OverlappingActor : OverlappingActors)
-	{
-		if (OverlappingActor && OverlappingActor != this)
-		{
-			StartRevive(OverlappingActor);
-			break;
-		}
-	}
-}
-
-void ACPPlayerCharacter::StartRevive(AActor* Reviver)
-{
-	CurrentReviver = Reviver;
-	ReviveStartTime = GetWorld()->GetTimeSeconds();
-
-	GetWorldTimerManager().SetTimer(ReviveTimerHandle, this, &ACPPlayerCharacter::Revive, ReviveDuration, false);
-
-	if (ReviveGaugeComponent)
-	{
-		ReviveGaugeComponent->SetGaugeEnabled(true);
-		UpdateReviveGaugeDisplay();
-		GetWorldTimerManager().SetTimer(ReviveGaugeUpdateTimerHandle, this, &ACPPlayerCharacter::UpdateReviveGaugeDisplay, ReviveGaugeUpdateInterval, true);
-	}
-}
-
-void ACPPlayerCharacter::Revive()
-{
-	bIsDowned = false;
-	CurrentReviver.Reset();
-	ReviveStartTime = -1.0f;
-	GetWorldTimerManager().ClearTimer(ReviveTimerHandle);
-
-	GetWorldTimerManager().ClearTimer(ReviveGaugeUpdateTimerHandle);
-	if (ReviveGaugeComponent)
-	{
-		ReviveGaugeComponent->SetGaugeEnabled(false);
-	}
-
-	ReviveDetectionRange->ShapeColor = DebugReviveRangeColor;
-	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-
-	SetStat(ECPStatType::Health, HealthRange.Max * ReviveHealthPercent);
-
-	// Brief invincibility window right after coming back up, so a nearby monster can't immediately
-	// down the character again before they can react
-	if (PostReviveInvincibilityDuration > 0.0f)
-	{
-		BeginInvincibility();
-		GetWorldTimerManager().SetTimer(PostReviveInvincibilityTimerHandle, this, &ACPPlayerCharacter::EndInvincibilityRequest, PostReviveInvincibilityDuration, false);
-	}
-
-	OnPlayerRevived.Broadcast();
-}
-
-float ACPPlayerCharacter::GetReviveTimeRemaining() const
-{
-	if (!bIsDowned || ReviveStartTime < 0.0f)
-	{
-		return 0.0f;
-	}
-
-	const float Elapsed = GetWorld()->GetTimeSeconds() - ReviveStartTime;
-	return FMath::Max(ReviveDuration - Elapsed, 0.0f);
-}
-
-void ACPPlayerCharacter::UpdateReviveGaugeDisplay()
-{
-	if (!ReviveGaugeComponent)
-	{
-		return;
-	}
-
-	const float Elapsed = ReviveDuration - GetReviveTimeRemaining();
-	ReviveGaugeComponent->UpdateGauge(Elapsed, ReviveDuration);
-}
-
-void ACPPlayerCharacter::DrawDebugReviveRangeShape() const
-{
-	if (!ReviveDetectionRange)
-	{
-		return;
-	}
-
-	const FColor SphereColor = bIsDowned ? FColor::Red : DebugReviveRangeColor;
-	DrawDebugSphere(GetWorld(), ReviveDetectionRange->GetComponentLocation(), ReviveDetectionRange->GetScaledSphereRadius(), 16, SphereColor, false, ReviveDebugDrawInterval * 1.5f, 0, 1.0f);
 }
 
 void ACPPlayerCharacter::ApplyStatsToGameplay()
