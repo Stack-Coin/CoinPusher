@@ -65,20 +65,6 @@ void ACPMonsterBase::BeginPlay()
 		MeshComp->SetRelativeLocation(MeshRelativeLocation);
 	}
 
-	// [임시 디버그] 스폰 직후 DataTable에서 실제로 어떤 수치가 들어왔는지 한 번에 확인용
-	UE_LOG(LogTemp, Warning,
-		TEXT("[임시 디버그] %s BeginPlay 스탯 - MonsterType=%d, MaxHealth=%.1f, MoveSpeed=%.1f, AttackPower=%.1f, AttackRange=%.1f, CollisionRadius=%.1f(실제 캡슐=%.1f), MoveAcceptableRadius=%.1f, TurnSpeed=%.1f"),
-		*GetName(),
-		static_cast<int32>(MonsterType),
-		GetAIMaxHealth(),
-		GetAIMoveSpeed(),
-		GetAIAttackPower(),
-		GetAIAttackRange(),
-		GetAICollisionRadius(),
-		GetCapsuleComponent()->GetScaledCapsuleRadius(),
-		GetAIMoveAcceptableRadius(),
-		GetAITurnSpeed());
-
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
 		// RVO 회피 반경 배율 / 비중은 몬스터마다 다르게 줄 이유가 없어서 데이터테이블에서 빼고
@@ -111,14 +97,6 @@ void ACPMonsterBase::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	// [임시 디버그] player 다운 시 몬스터가 실제로 계속 틱되고 있는지 확인용 (1초에 한 번만 출력)
-	DebugTickLogAccum += DeltaSeconds;
-	if (DebugTickLogAccum >= 1.0f)
-	{
-		DebugTickLogAccum = 0.f;
-		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s Tick 살아있음 - CurrentCCState=%d"), *GetName(), static_cast<uint8>(CurrentCCState));
-	}
-
 	if (!bIsDead)
 	{
 		SeparateFromOtherMonsters(DeltaSeconds);
@@ -147,58 +125,67 @@ void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCate
 	}
 }
 
-void ACPMonsterBase::AttackHitCheck()
+ACPMonsterBase::FAttackSweepShape ACPMonsterBase::GetAttackSweepShape(const FVector& InForwardOverride)
 {
-	// 이번 AttackHitCheck() 호출의 결과로 새로 채워짐 - 못 맞추면 nullptr로 남음
-	LastAttackHitActor = nullptr;
-
 	// 스윕 시작점을 액터 피벗(캡슐 중심)이 아니라 "자기 몸통 표면"에서 출발하도록 자신의
 	// 콜리전 반경만큼 앞으로 밀어줌. 기존엔 피벗에서 AttackRange만큼만 재서, 일반/탱커처럼
 	// 캡슐이 작은 몬스터는 티가 안 났지만 보스처럼 캡슐이 큰 몬스터는 실제 몸통 밖으로 뻗는
 	// 유효 사거리가 그만큼 짧아져서 육안상 딱 붙어있어도 스윕이 플레이어까지 안 닿는 문제가 있었음
 	const float SelfRadius = GetAICollisionRadius();
-	const FVector SweepStart = GetActorLocation() + GetActorForwardVector() * SelfRadius;
-	const FVector SweepEnd = SweepStart + GetActorForwardVector() * GetAIAttackRange();
+	const FVector Forward = InForwardOverride.IsNearlyZero() ? GetActorForwardVector() : InForwardOverride.GetSafeNormal();
 
-	// 튜브 두께(SweepRadius)도 몬스터 몸집에 비례하게 함. 기존엔 고정 10cm라서 캡슐이 큰(그래서
+	FAttackSweepShape Shape;
+	Shape.Start = GetActorLocation() + Forward * SelfRadius;
+	Shape.End = Shape.Start + Forward * GetAIAttackRange();
+
+	// 튜브 두께(Radius)도 몬스터 몸집에 비례하게 함. 기존엔 고정 10cm라서 캡슐이 큰(그래서
 	// 피벗 높이도 훨씬 높은) 보스 같은 몬스터는, 스윕이 자기 몸통 중심 높이에서 완전히 수평으로만
 	// 지나가는데 두께가 얇아 상대방 캡슐 범위(특히 높이)를 살짝만 벗어나도 그냥 미스가 났음.
 	// 자기 반경에 비례해서 두께를 키우면 몸집이 큰 몬스터일수록 판정에 여유(특히 상하 방향)가
 	// 생겨서, 피벗 높이 차이로 인한 미스가 줄어듦 - 최소값은 기존 10cm로 유지
-	const float SweepRadius = FMath::Max(10.f, SelfRadius * 0.5f);
+	Shape.Radius = FMath::Max(10.f, SelfRadius * 0.5f);
+
+	return Shape;
+}
+
+void ACPMonsterBase::AttackHitCheck()
+{
+	// 이번 AttackHitCheck() 호출의 결과로 새로 채워짐 - 못 맞추면 nullptr로 남음
+	LastAttackHitActor = nullptr;
+
+	const FAttackSweepShape SweepShape = GetAttackSweepShape();
 
 	FHitResult HitResult;
 	FCollisionQueryParams Params(NAME_None, false, this);
 	bool bResult = GetWorld()->SweepSingleByChannel
 	(
 		HitResult,
-		SweepStart,
-		SweepEnd,
+		SweepShape.Start,
+		SweepShape.End,
 		FQuat::Identity,
 		ECollisionChannel::ECC_GameTraceChannel1,
-		FCollisionShape::MakeSphere(SweepRadius),
+		FCollisionShape::MakeSphere(SweepShape.Radius),
 		Params
 	);
 
 	// [임시 디버그] 실제 스윕 범위/결과 확인용 - AnimNotify는 호출되는데 데미지가 안 들어가는 경우와
 	// AnimNotify 자체가 안 불리는 경우를 구분하기 위함
 	UE_LOG(LogTemp, Warning,
-		TEXT("[임시 디버그] %s AttackHitCheck - SelfRadius=%.1f, AttackRange=%.1f, Start=%s, End=%s, bResult=%d, HitActor=%s"),
+		TEXT("[임시 디버그] %s AttackHitCheck - AttackRange=%.1f, Start=%s, End=%s, bResult=%d, HitActor=%s"),
 		*GetName(),
-		SelfRadius,
 		GetAIAttackRange(),
-		*SweepStart.ToString(),
-		*SweepEnd.ToString(),
+		*SweepShape.Start.ToString(),
+		*SweepShape.End.ToString(),
 		bResult ? 1 : 0,
 		(bResult && HitResult.GetActor()) ? *HitResult.GetActor()->GetName() : TEXT("NULL"));
 
 	if (bDrawDebugAttackRange)
 	{
 		// Visualizes the swept sphere (Start->End, radius SweepRadius) as the equivalent capsule
-		const FVector Center = (SweepStart + SweepEnd) * 0.5f;
-		const float HalfHeight = (SweepEnd - SweepStart).Size() * 0.5f + SweepRadius;
+		const FVector Center = (SweepShape.Start + SweepShape.End) * 0.5f;
+		const float HalfHeight = (SweepShape.End - SweepShape.Start).Size() * 0.5f + SweepShape.Radius;
 		const FQuat CapsuleRotation = FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat();
-		DrawDebugCapsule(GetWorld(), Center, HalfHeight, SweepRadius, CapsuleRotation, bResult ? FColor::Red : FColor::Orange, false, 0.5f, 0, 1.5f);
+		DrawDebugCapsule(GetWorld(), Center, HalfHeight, SweepShape.Radius, CapsuleRotation, bResult ? FColor::Red : FColor::Orange, false, 0.5f, 0, 1.5f);
 	}
 
 	if (bResult)
@@ -209,10 +196,6 @@ void ACPMonsterBase::AttackHitCheck()
 			UGameplayStatics::ApplyDamage(HitActor, GetAIAttackPower(), GetController(), this, UDamageType::StaticClass());
 			LastAttackHitActor = HitActor;
 		}
-	}
-	else 
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Boss 충돌 반지름 문제"));
 	}
 }
 
@@ -307,8 +290,6 @@ void ACPMonsterBase::PlayAttackMontage(UAnimMontage* Montage)
 	TObjectPtr<UAnimInstance> AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && Montage)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s PlayAttackMontage: %s 재생 시작"), *GetName(), *Montage->GetName());
-
 		AddCCState(ECPMonsterCCState::Attacking);
 
 		AnimInstance->StopAllMontages(0.0f);
@@ -322,10 +303,6 @@ void ACPMonsterBase::PlayAttackMontage(UAnimMontage* Montage)
 	else
 	{
 		// 여기로 빠지면 몽타주가 재생되지 않고, BT의 Attack 태스크도 완료 델리게이트를 못 받아서 InProgress로 멈춰있게 됨
-		UE_LOG(LogTemp, Error, TEXT("[임시 디버그] %s PlayAttackMontage 실패 - AnimInstance=%s, Montage=%s"),
-			*GetName(),
-			AnimInstance ? TEXT("Valid") : TEXT("NULL"),
-			Montage ? *Montage->GetName() : TEXT("NULL"));
 	}
 }
 
@@ -336,22 +313,13 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	// 포효 등으로 무적 상태면 데미지 무시
 	if (HasCCState(ECPMonsterCCState::Invulnerable))
 	{
-		// [임시 디버그] 무적 상태에서 들어온 데미지가 실제로 무시되는지 확인용
-		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s TakeDamage 무시됨(무적) - DamageAmount=%.1f, CurrentCCState=%d, CurrentHealth=%.1f"),
-			*GetName(), DamageAmount, static_cast<uint8>(CurrentCCState), StatComponent ? StatComponent->CurrentHealth : -1.f);
 		return 0.f;
 	}
 
 	if (StatComponent)
 	{
-		const float HealthBefore = StatComponent->CurrentHealth;
 		StatComponent->CurrentHealth -= DamageAmount;
 		StatComponent->OnMonsterHealthChanged.Broadcast(StatComponent->CurrentHealth, StatComponent->MaxHealth);
-
-		// [임시 디버그] 무적이 아닐 때 실제로 얼마나 깎이는지, bIsDead/bPendingDeath 상태 확인용
-		UE_LOG(LogTemp, Warning,
-			TEXT("[임시 디버그] %s TakeDamage 적용됨 - DamageAmount=%.1f, HealthBefore=%.1f, HealthAfter=%.1f, bIsDead=%d, bPendingDeath=%d"),
-			*GetName(), DamageAmount, HealthBefore, StatComponent->CurrentHealth, bIsDead, bPendingDeath);
 
 		// 체력이 0 이하여도 바로 죽이지 않고, 공격자가 TakeDamage 직후 별도로 거는 ApplyKnockback이
 		// 먼저 재생될 시간(KnockbackDuration)을 준 다음에 실제 Dead()를 호출함
@@ -458,8 +426,6 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s NotifyAttackActionEnd 호출됨 - bInterrupted=%d"), *GetName(), bInterrupted);
-
 	RemoveCCState(ECPMonsterCCState::Attacking);
 
 	OnAttackFinished.ExecuteIfBound();

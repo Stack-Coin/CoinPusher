@@ -2,11 +2,17 @@
 
 #include "Monster/Bomb/CPMonsterBomb.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "NiagaraComponent.h"
 #include "Player/CPPlayerCharacter.h"
 
 ACPMonsterBomb::ACPMonsterBomb()
 {
 	FlightSpawnHeight = 150.f;
+
+	// Niagara System 에셋은 BP_Bomb에서 지정(예: Shooter_VFXPack/P_Hit_Classic_Custom)
+	FuseEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("FuseEffect"));
+	FuseEffect->SetupAttachment(GetMesh(), TEXT("Wick"));
+	FuseEffect->bAutoActivate = true;
 }
 
 void ACPMonsterBomb::BeginPlay()

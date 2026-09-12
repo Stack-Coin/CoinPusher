@@ -47,6 +47,24 @@ protected:
 	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
 
 public:
+	/** 정면 스윕 공격 판정의 시작/끝/두께 - AttackHitCheck()와 공격범위 표시 NotifyState가 항상
+	 *  같은 값을 쓰도록 여기로 뽑음(따로 계산하면 판정이랑 화면에 보이는 범위가 어긋날 수 있음) */
+	struct FAttackSweepShape
+	{
+		FVector Start = FVector::ZeroVector;
+		FVector End = FVector::ZeroVector;
+		float Radius = 0.f;
+	};
+	/** InForwardOverride를 주면 그 방향 기준으로 계산함(예: 공격범위 표시가 TurnToTarget이 덜 끝난
+	 *  상태에서도 실제 플레이어 방향을 보여주고 싶을 때) - 비워두면(기본) 캡슐 Forward 그대로 씀,
+	 *  AttackHitCheck()의 실제 판정은 항상 기본값으로 호출해서 동작 그대로 유지됨 */
+	FAttackSweepShape GetAttackSweepShape(const FVector& InForwardOverride = FVector::ZeroVector);
+
+	/** 원형 AOE 공격(보스 슬램 등)의 판정 반경 - 기본은 AttackRange를 그대로 씀. AOE 판정을
+	 *  따로 쓰는 서브클래스(보스)는 이걸 오버라이드해서 그 판정에 실제로 쓰는 반경을 반환하면,
+	 *  공격범위 표시 NotifyState도 같은 값으로 그려짐 */
+	virtual float GetAIAOERadius() { return GetAIAttackRange(); }
+
 	// 공격 판정 함수
 	virtual void AttackHitCheck() override;
 	virtual void Dead();
@@ -174,7 +192,4 @@ protected:
 	 *  넉백이 연속으로 걸려도 이전 복구 타이머를 취소하고 새로 걸 수 있게 함(안 그러면 먼저 걸린 타이머가
 	 *  나중 넉백을 중간에 취소시켜버림) */
 	FTimerHandle KnockbackRestoreHandle;
-
-	// [임시 디버그] Tick 생존 확인용 로그 스로틀 (인스턴스별로 따로 누적되어야 해서 static 지역변수 대신 멤버로 둠)
-	float DebugTickLogAccum = 0.f;
 };

@@ -61,7 +61,6 @@ void ACPMonsterRanged::Fire()
 {
 	if (!ProjectileClass)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[임시 디버그] %s Fire() 실패 - ProjectileClass가 비어있음"), *GetName());
 		return;
 	}
 
@@ -71,10 +70,6 @@ void ACPMonsterRanged::Fire()
 	if (GetMesh() && GetMesh()->DoesSocketExist(MuzzleSocketName))
 	{
 		SpawnLocation = GetMesh()->GetSocketLocation(MuzzleSocketName);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s Muzzle 소켓(%s) 없음 - 액터 위치로 스폰"), *GetName(), *MuzzleSocketName.ToString());
 	}
 
 	FActorSpawnParameters SpawnParams;

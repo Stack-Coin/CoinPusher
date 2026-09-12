@@ -385,8 +385,8 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		// RoundInfoTable의 보스 전용 값(포효 임계치/슬램 쿨타임/포효 지속시간 등)을 스폰된 인스턴스에 적용
 		if (ACPMonsterBoss* Boss = Cast<ACPMonsterBoss>(SpawnedBoss))
 		{
-			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown, RoundInfo->RoarDuration,
-				RoundInfo->AddBossMaxHealth, RoundInfo->AddBossMoveSpeed, RoundInfo->AddBossAttackPower);
+			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown, RoundInfo->SlamRadius, RoundInfo->RoarDuration,
+				RoundInfo->AddBossMaxHealth, RoundInfo->AddBossMoveSpeed, RoundInfo->AddBossAttackPower, RoundInfo->AddBossAttackRange);
 
 			// 보스 공격이 플레이어에게 명중할 때마다 CoinPusher의 활성 코인을 몬스터 코인으로 전환
 			Boss->OnBossAttackedPlayer.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBossAttackedPlayer);
@@ -744,17 +744,8 @@ void UCPMonsterSpawnManagerComponent::HandleBossDied()
 	// 보스 페이즈 동안 계속 돌던 RoundMob 스폰 타이머를 멈춤
 	StopRoundMobSpawning();
 
-	// 기획서: 보스 사망시 나머지 일반 몬스터도 즉시 제거
-	TArray<AActor*> RemainingMonsters;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBase::StaticClass(), RemainingMonsters);
-
-	for (AActor* Actor : RemainingMonsters)
-	{
-		if (IsValid(Actor) && Actor != ActiveBoss.Get())
-		{
-			Actor->Destroy();
-		}
-	}
+	// 보스와 동시에 스폰된 마지막 웨이브 몹은 보스가 죽어도 그대로 남아서 플레이어가 직접 잡아야 함 -
+	// 그냥 놔둠(별도 정리 없음)
 
 	ActiveBoss = nullptr;
 

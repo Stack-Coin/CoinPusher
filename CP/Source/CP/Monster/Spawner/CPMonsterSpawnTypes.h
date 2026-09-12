@@ -118,6 +118,11 @@ struct FCPMonsterRoundInfoRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
 	float SlamCooldown = 4.0f;
 
+	/** 슬램(내려찍기) 판정 반경(cm) - 보스 위치 중심 원형 AOE. ACPMonsterBoss::ApplyBossWaveStat으로
+	 *  전달되어 SlamRadius를 덮어씀(공격범위 표시도 이 값 그대로 씀) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss", meta = (ClampMin = 0))
+	float SlamRadius = 300.0f;
+
 	/** 포효(무적) 지속시간(초) - ACPMonsterBoss::ApplyBossWaveStat으로 전달됨.
 	 *  포효 몽타주는 원본 길이와 상관없이 이 시간에 딱 맞춰 재생 속도가 자동 조절되고,
 	 *  무적 해제도 몽타주 종료 이벤트가 아니라 이 시간을 그대로 타이머로 써서 데이터로 제어됨 */
@@ -135,4 +140,9 @@ struct FCPMonsterRoundInfoRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss|Stat")
 	float AddBossAttackPower = 0.f;
+
+	/** 일반 휘두르기 공격 사거리(cm) 증가치 - DT_MonsterStat의 AttackRange(몬스터 공용 기본값) 위에
+	 *  더해짐. DT_MonsterStat 필드와 이름이 겹치면 헷갈려서 Add 접두사로 구분함 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss|Stat")
+	float AddBossAttackRange = 0.f;
 };

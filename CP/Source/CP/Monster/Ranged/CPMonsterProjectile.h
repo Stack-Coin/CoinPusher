@@ -7,9 +7,9 @@
 #include "CPMonsterProjectile.generated.h"
 
 class USphereComponent;
-class UStaticMeshComponent;
 class UProjectileMovementComponent;
 class UNiagaraSystem;
+class UNiagaraComponent;
 
 UCLASS(Blueprintable)
 class CP_API ACPMonsterProjectile : public AActor
@@ -38,8 +38,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USphereComponent> CollisionComp;
 
+	/** 메쉬 없이 이 이펙트(Niagara System은 BP에서 지정, 예: P_Trail_Darkness)만으로 투사체를 표현함 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> ProjectileMesh;
+	TObjectPtr<UNiagaraComponent> TrailEffect;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UProjectileMovementComponent> ProjectileMovement;

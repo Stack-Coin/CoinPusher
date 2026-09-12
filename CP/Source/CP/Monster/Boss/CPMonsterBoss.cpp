@@ -5,27 +5,34 @@
 #include "Monster/CPMonsterAIController.h"
 #include "Player/CPPlayerCharacter.h"
 #include "TimerManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/OverlapResult.h"
+#include "DrawDebugHelpers.h"
 
 ACPMonsterBoss::ACPMonsterBoss()
 {
 	MonsterType = ECPMonsterType::Boss;
 }
 
-void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InRoarDuration,
-	float InAddMaxHealth, float InAddMoveSpeed, float InAddAttackPower)
+void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float InSlamCooldown, float InSlamRadius, float InRoarDuration,
+	float InAddMaxHealth, float InAddMoveSpeed, float InAddAttackPower, float InAddAttackRange)
 {
 	RoarHealthPercentThreshold = InRoarHealthPercentThreshold;
 	SlamCooldown = InSlamCooldown;
+	SlamRadius = InSlamRadius;
 	RoarDuration = InRoarDuration;
 
 	// 보스 라운드 스탯 보정치 - DT_RoundStat이 아니라 RoundInfo에서만 관리됨. ApplyWaveStat(BaseStat만
-	// 반영된 상태)이 스폰 시 이미 호출된 뒤이므로, 여기서는 그 위에 그대로 더해주기만 하면 됨
+	// 반영된 상태)이 스폰 시 이미 호출된 뒤이므로, 여기서는 그 위에 그대로 더해주기만 하면 됨.
+	// AttackRange는 DefaultStat 쪽 필드라 별도 전용 멤버 없이 여기서 바로 더함 - GetAIAttackRange()는
+	// Boss가 따로 오버라이드 안 해도 이 값을 그대로 읽음(Super가 이미 StatComponent->DefaultStat.AttackRange를 씀)
 	if (UCPMonsterStatComponent* StatComp = GetAIStatComponent())
 	{
 		StatComp->MaxHealth += InAddMaxHealth;
 		StatComp->CurrentHealth = StatComp->MaxHealth;
 		StatComp->MoveSpeed += InAddMoveSpeed;
 		StatComp->AttackPower += InAddAttackPower;
+		StatComp->DefaultStat.AttackRange += InAddAttackRange;
 	}
 }
 
@@ -52,19 +59,57 @@ void ACPMonsterBoss::AttackByAI()
 	if (SlamMontage && (Now - LastSlamTime) >= SlamCooldown)
 	{
 		LastSlamTime = Now;
+		bIsSlamAttack = true;
 		PlayAttackMontage(SlamMontage);
 	}
 	else
 	{
+		bIsSlamAttack = false;
 		PlayAttackMontage(AttackMontage);
 	}
 }
 
 void ACPMonsterBoss::AttackHitCheck()
 {
-	Super::AttackHitCheck();
+	if (bIsSlamAttack)
+	{
+		// 슬램(내려찍기) - 정면 스윕이 아니라 자기 위치 중심 원형 AOE로 판정. 공격범위 표시
+		// NotifyState도 GetAIAOERadius()로 같은 반경을 그려서 실제 판정과 항상 일치함
+		LastAttackHitActor = nullptr;
 
-	// 방금 스윕이 실제로 플레이어를 맞췄을 때만 - 넥서스를 맞췄거나 빗나간 경우는 제외
+		TArray<FOverlapResult> Overlaps;
+		FCollisionQueryParams Params(NAME_None, false, this);
+		GetWorld()->OverlapMultiByObjectType(
+			Overlaps,
+			GetActorLocation(),
+			FQuat::Identity,
+			FCollisionObjectQueryParams(ECC_Pawn),
+			FCollisionShape::MakeSphere(SlamRadius),
+			Params);
+
+		for (const FOverlapResult& Overlap : Overlaps)
+		{
+			if (ACPPlayerCharacter* Player = Cast<ACPPlayerCharacter>(Overlap.GetActor()))
+			{
+				UGameplayStatics::ApplyDamage(Player, GetAIAttackPower(), GetController(), this, UDamageType::StaticClass());
+				LastAttackHitActor = Player;
+			}
+		}
+
+		if (bDrawDebugAttackRange)
+		{
+			// F1 디버그 위젯의 MonsterAttackRange 체크박스로 토글 - 정면 스윕 쪽 디버그(ACPMonsterBase)와
+			// 같은 규칙: 실제로 맞췄으면 빨간색, 못 맞췄으면 주황색
+			const bool bHitAnyone = LastAttackHitActor != nullptr;
+			DrawDebugSphere(GetWorld(), GetActorLocation(), SlamRadius, 24, bHitAnyone ? FColor::Red : FColor::Orange, false, 0.5f, 0, 1.5f);
+		}
+	}
+	else
+	{
+		Super::AttackHitCheck();
+	}
+
+	// 방금 판정이 실제로 플레이어를 맞췄을 때만 - 넥서스를 맞췄거나 빗나간 경우는 제외
 	if (Cast<ACPPlayerCharacter>(LastAttackHitActor))
 	{
 		OnBossAttackedPlayer.Broadcast();
@@ -129,14 +174,19 @@ void ACPMonsterBoss::HandleRoarMontageEnded(UAnimMontage* Montage, bool bInterru
 	OnRoarFinished.ExecuteIfBound();
 }
 
+void ACPMonsterBoss::CancelRoar()
+{
+	GetWorldTimerManager().ClearTimer(RoarDurationTimerHandle);
+	RemoveCCState(ECPMonsterCCState::Invulnerable);
+
+	if (UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
+	{
+		AnimInstance->StopAllMontages(0.1f);
+	}
+}
+
 void ACPMonsterBoss::Dead()
 {
-	// [임시 디버그] 죽음 처리가 몇 번이나, 어떤 상태로 호출되는지 확인용 - 강제 포효 없이 바로
-	// Super::Dead()로 빠지는지, 강제 포효 경로를 타는지 구분
-	UE_LOG(LogTemp, Warning,
-		TEXT("[임시 디버그] %s Boss::Dead() 호출 - bIsDead=%d, bFinalRoarPlaying=%d, bArmedForRoar=%d, RoarMontage=%s, CurrentCCState=%d"),
-		*GetName(), bIsDead, bFinalRoarPlaying, bArmedForRoar, RoarMontage ? TEXT("Valid") : TEXT("NULL"), static_cast<uint8>(CurrentCCState));
-
 	// 이미 한 번이라도 포효했다면(bArmedForRoar==false) 여기서 더 할 일 없이 평소대로 바로 죽음.
 	// 재진입 가드(bFinalRoarPlaying)는 지금 재생 중인 강제 포효가 끝나 다시 이 함수가 호출됐을 때
 	// 또 포효를 걸지 않고 바로 Super::Dead()로 넘어가게 해줌

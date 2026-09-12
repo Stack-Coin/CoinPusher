@@ -6,6 +6,8 @@
 #include "Monster/CPMonsterBase.h"
 #include "CPMonsterBomb.generated.h"
 
+class UNiagaraComponent;
+
 /** 자폭 몬스터가 플레이어에 닿아 자폭할 때 Broadcast (스윕이 빗나갔거나 넥서스를 맞춰 자폭한 경우는 제외) -
  *  UCPMonsterSpawnManagerComponent가 구독해서 CoinPusher에 몬스터 코인을 스폰시키는 데 사용 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBombExplodedOnPlayer);
@@ -53,4 +55,9 @@ protected:
 	 *  블루프린트(BP_Bomb)의 Class Defaults 값은 자동으로 안 바뀌니 주의 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bomb")
 	float FlightSpawnHeight;
+
+	/** 심지 이펙트 - 메쉬의 "Wick" 소켓에 부착, 스폰부터 계속 재생됨(Niagara System은 BP에서 지정,
+	 *  예: Shooter_VFXPack/P_Hit_Classic_Custom) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UNiagaraComponent> FuseEffect;
 };
