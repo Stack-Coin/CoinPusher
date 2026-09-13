@@ -27,20 +27,29 @@ public:
 	/** InMonsterType은 몬스터 풀(UCPMonsterPoolSubsystem) 조회 키로만 씀 - MonsterClass의 CDO에서
 	 *  재추론하지 않고, 호출부(RoundInfo/WaveInfo)가 이미 알고 있는 권위있는 값을 그대로 받음.
 	 *  CDO의 MonsterType 필드가 실제 값과 다르게 세팅돼있어도(BP 설정 누락 등) 풀이 엉뚱한 타입으로
-	 *  섞이지 않도록 하기 위함 */
+	 *  섞이지 않도록 하기 위함.
+	 *  bAllowFallbackOutsideNavMesh가 false(기본)면 이 행의 몬스터는 NavMesh 투영에 실패한 자리에
+	 *  스폰을 시도하지 않고 그 마리만 건너뜀(검증 안 된 위치에 몬스터를 두지 않기 위함 - AI가 NavMesh
+	 *  밖에서 먹통이 되는 문제 방지). true면(보스 전용) 실패해도 원래 위치에 강제로라도 스폰함 - 보스는
+	 *  절대 스폰 자체가 스킵되면 안 되므로 */
 	UFUNCTION(BlueprintCallable, Category = "Spawn")
-	TArray<ACPMonsterBase*> SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, ECPMonsterType InMonsterType, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave);
+	TArray<ACPMonsterBase*> SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, ECPMonsterType InMonsterType, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave, bool bAllowFallbackOutsideNavMesh = false);
 
 protected:
-	/** InDesiredLocation이 다른 몬스터/장애물과 겹치면, 그 주변을 원형으로 훑어서 비어있는 자리를 찾아 반환함.
-	 *  전부 막혀있으면 원래 위치를 그대로 반환함 - 이 경우 실제 스폰은 SpawnActor의
-	 *  AdjustIfPossibleButAlwaysSpawn 옵션이 최후 보정을 시도함(스폰 자체가 실패하는 일은 없음) */
-	FVector ResolveFreeSpawnLocation(const FVector& InDesiredLocation, const FNavAgentProperties& InNavAgentProps) const;
+	/** InDesiredLocation이 다른 몬스터/장애물과 겹치면, 그 주변을 원형으로 훑어서 비어있는 자리를 찾음.
+	 *  찾은 자리(또는 전부 막혀서 원래 위치)가 NavMesh에 실제로 투영되면 OutLocation에 채우고 true 반환.
+	 *  NavMesh 투영 자체가 끝까지 실패하면(주변에 NavMesh가 전혀 없음) false를 반환 - 호출부가 이 자리를
+	 *  스폰 후보에서 제외할지 판단하는 근거로 씀(검증 안 된 위치를 검증된 것처럼 속이지 않기 위함) */
+	bool ResolveFreeSpawnLocation(const FVector& InDesiredLocation, const FNavAgentProperties& InNavAgentProps, FVector& OutLocation) const;
 
-	/** InLocation을 NavMesh 위의 가장 가까운 유효 위치로 투영함. 투영 범위 밖(NavMesh 자체가 없음)이면
-	 *  원래 위치를 그대로 반환함. InNavAgentProps로 스폰될 몬스터 크기에 맞는 NavMesh(Supported Agent)를
-	 *  골라서 투영함 - Boss처럼 큰 몬스터가 일반 몬스터용 좁은 NavMesh에 투영되는 걸 방지 */
-	FVector ProjectToNavMesh(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps) const;
+	/** InLocation을 NavMesh 위의 가장 가까운 유효 위치로 투영해 OutLocation에 채우고 true 반환.
+	 *  투영 범위 밖(NavMesh 자체가 없음)이면 OutLocation을 건드리지 않고 false 반환 - 호출부가 이
+	 *  실패를 "검증 안 됨"으로 취급하도록 함(예전처럼 원래 위치를 검증된 것처럼 돌려주지 않음).
+	 *  InNavAgentProps로 스폰될 몬스터 크기에 맞는 NavMesh(Supported Agent)를 골라서 투영함 -
+	 *  Boss처럼 큰 몬스터가 일반 몬스터용 좁은 NavMesh에 투영되는 걸 방지.
+	 *  InExtentXY/InExtentZ로 탐색 범위를 조절함 - 보스 전용 2단계(넓은 범위 재탐색)에서 기본값보다
+	 *  훨씬 넓게 줘서 씀(SpawnMonsterRow 참고) */
+	bool ProjectToNavMesh(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps, FVector& OutLocation, float InExtentXY = 200.f, float InExtentZ = 200.f) const;
 
 public:
 	/** ResolveFreeSpawnLocation에서 겹침 검사에 쓰는 구체 반경(cm) */

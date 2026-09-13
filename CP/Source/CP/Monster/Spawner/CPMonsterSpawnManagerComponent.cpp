@@ -417,7 +417,8 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		return;
 	}
 
-	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, RoundInfo->BossMonsterType, 1, 0.f, CurrentRound, GetWaveCount());
+	// 보스는 절대 스폰이 스킵되면 안 되므로 NavMesh 투영 실패해도 강제로 스폰(bAllowFallbackOutsideNavMesh=true)
+	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, RoundInfo->BossMonsterType, 1, 0.f, CurrentRound, GetWaveCount(), /*bAllowFallbackOutsideNavMesh=*/true);
 	ACPMonsterBase* SpawnedBoss = SpawnedBossRow.IsValidIndex(0) ? SpawnedBossRow[0] : nullptr;
 	if (SpawnedBoss)
 	{
@@ -497,12 +498,15 @@ bool UCPMonsterSpawnManagerComponent::IsSpawnerLocationValid(const FVector& InLo
 	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 	if (!NavSys)
 	{
-		// 네브메시가 아예 없는(빌드 안 된) 테스트 레벨에서는 검증을 생략하고 항상 유효 처리
+		// 검증할 방법이 없는 상태(NavMesh 시스템 자체가 없음)를 "유효함"으로 속이지 않고 그대로
+		// 무효 처리함 - 예전엔 여기서 true를 반환해 검증 안 된 위치에도 스포너/몬스터가 배치됐음.
+		// 주의: 이 레벨에 NavMesh가 아예 빌드되어 있지 않으면 스포너가 전부 무효 판정을 받아
+		// 웨이브가 하나도 스폰되지 않게 됨 - 테스트용 빈 레벨이라면 NavMesh부터 빌드해야 함
 		if (OutProjectedLocation)
 		{
 			*OutProjectedLocation = InLocation;
 		}
-		return true;
+		return false;
 	}
 
 	FNavLocation OutNavLocation;

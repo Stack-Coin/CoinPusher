@@ -29,12 +29,12 @@ ACPMonsterSpawner::ACPMonsterSpawner()
 	SpawnDirection->SetupAttachment(RootComponent);
 }
 
-FVector ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLocation, const FNavAgentProperties& InNavAgentProps) const
+bool ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLocation, const FNavAgentProperties& InNavAgentProps, FVector& OutLocation) const
 {
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		return InDesiredLocation;
+		return false;
 	}
 
 	const FCollisionShape ProbeShape = FCollisionShape::MakeSphere(OverlapCheckRadius);
@@ -43,10 +43,15 @@ FVector ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLoca
 
 	if (!World->OverlapAnyTestByChannel(InDesiredLocation, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
 	{
-		return ProjectToNavMesh(InDesiredLocation, InNavAgentProps); // 원래 위치가 비어있으면 그대로 사용(단, NavMesh 위로 보정)
+		// 원래 위치가 비어있으면 NavMesh 위로 보정해서 그대로 사용
+		if (ProjectToNavMesh(InDesiredLocation, InNavAgentProps, OutLocation))
+		{
+			return true;
+		}
 	}
 
-	// 이미 다른 몬스터/장애물이 있으면, 원래 위치 주변을 원형으로 훑어서 비어있는 자리를 찾음
+	// 이미 다른 몬스터/장애물이 있거나(위에서 실패) 원래 위치가 NavMesh 밖이면, 주변을 원형으로
+	// 훑어서 겹치지 않고 NavMesh에도 유효한 자리를 찾음
 	for (int32 Attempt = 1; Attempt <= MaxRelocationAttempts; ++Attempt)
 	{
 		const float AngleDeg = (360.f / MaxRelocationAttempts) * Attempt;
@@ -55,36 +60,40 @@ FVector ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLoca
 
 		if (!World->OverlapAnyTestByChannel(Candidate, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
 		{
-			return ProjectToNavMesh(Candidate, InNavAgentProps);
+			if (ProjectToNavMesh(Candidate, InNavAgentProps, OutLocation))
+			{
+				return true;
+			}
 		}
 	}
 
-	// 전부 막혀있으면 원래 위치를 그대로 반환 - SpawnActor의 AdjustIfPossibleButAlwaysSpawn이 최후 보정을 시도함
-	return ProjectToNavMesh(InDesiredLocation, InNavAgentProps);
+	// 마지막 수단: 겹침 여부와 무관하게 원래 위치라도 NavMesh에 투영되면 사용(겹침은 SpawnActor의
+	// AdjustIfPossibleButAlwaysSpawn이 물리적으로 밀어내 줌). 이것마저 실패하면(NavMesh 자체가 없거나
+	// 투영 범위 밖) 더 이상 보정할 방법이 없으므로 이 자리는 스폰 불가로 판단해서 호출부에 알림
+	return ProjectToNavMesh(InDesiredLocation, InNavAgentProps, OutLocation);
 }
 
-FVector ACPMonsterSpawner::ProjectToNavMesh(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps) const
+bool ACPMonsterSpawner::ProjectToNavMesh(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps, FVector& OutLocation, float InExtentXY, float InExtentZ) const
 {
 	UWorld* World = GetWorld();
 	UNavigationSystemV1* NavSys = World ? FNavigationSystem::GetCurrent<UNavigationSystemV1>(World) : nullptr;
 	if (!NavSys)
 	{
-		return InLocation;
+		return false;
 	}
 
 	FNavLocation OutNavLocation;
-	constexpr float ProjectionExtentXY = 200.f;
-	constexpr float ProjectionExtentZ = 200.f;
-	if (NavSys->ProjectPointToNavigation(InLocation, OutNavLocation, FVector(ProjectionExtentXY, ProjectionExtentXY, ProjectionExtentZ), &InNavAgentProps))
+	if (NavSys->ProjectPointToNavigation(InLocation, OutNavLocation, FVector(InExtentXY, InExtentXY, InExtentZ), &InNavAgentProps))
 	{
-		return OutNavLocation.Location;
+		OutLocation = OutNavLocation.Location;
+		return true;
 	}
 
-	// 투영 범위 안에 NavMesh가 전혀 없으면 보정할 방법이 없으므로 원래 위치를 그대로 반환
-	return InLocation;
+	// 투영 범위 안에 NavMesh가 전혀 없음 - 검증 안 된 위치를 검증된 것처럼 돌려주지 않고 실패로 알림
+	return false;
 }
 
-TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, ECPMonsterType InMonsterType, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave)
+TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, ECPMonsterType InMonsterType, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave, bool bAllowFallbackOutsideNavMesh)
 {
 	TArray<ACPMonsterBase*> SpawnedMonsters;
 
@@ -139,7 +148,36 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 		const float DesiredSpawnZ = SpawnTransform.GetLocation().Z;
 
 		// 이 자리에 이미 다른 몬스터/장애물이 있으면 주변의 비어있는 자리로 대신 스폰함
-		FVector ResolvedLocation = ResolveFreeSpawnLocation(SpawnTransform.GetLocation(), SpawnNavAgentProps);
+		FVector ResolvedLocation;
+		const bool bResolved = ResolveFreeSpawnLocation(SpawnTransform.GetLocation(), SpawnNavAgentProps, ResolvedLocation);
+
+		if (!bResolved)
+		{
+			if (!bAllowFallbackOutsideNavMesh)
+			{
+				// 검증 안 된(NavMesh 밖) 위치에는 스폰하지 않고 이 마리만 건너뜀 - AI가 NavMesh 밖에서
+				// 먹통이 되는 문제를 근본적으로 막기 위함(원래 위치를 검증된 것처럼 속이지 않음)
+				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawner] SpawnMonsterRow - NavMesh 투영 실패로 스폰을 건너뜁니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
+				continue;
+			}
+
+			// 보스 등 절대 스폰이 스킵되면 안 되는 경우 - 2단계 Resilient 전략:
+			// 1) 기본 범위(200)에서 실패했으니, 훨씬 넓은 범위로 한 번 더 NavMesh를 찾아봄
+			constexpr float WideProjectionExtentXY = 5000.f;
+			constexpr float WideProjectionExtentZ = 2000.f;
+			if (ProjectToNavMesh(SpawnTransform.GetLocation(), SpawnNavAgentProps, ResolvedLocation, WideProjectionExtentXY, WideProjectionExtentZ))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawner] SpawnMonsterRow - 기본 범위 NavMesh 투영 실패, 넓은 범위 재탐색으로 보정했습니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
+			}
+			else
+			{
+				// 2) 그마저도 실패하면(주변에 NavMesh 자체가 없음) 최후의 수단으로 원래 위치에 강제 스폰 -
+				// 게임 진행이 막히는 것보다는 낫지만, 레벨의 NavMesh 커버리지 문제이므로 Error로 남김
+				UE_LOG(LogTemp, Error, TEXT("[CPMonsterSpawner] SpawnMonsterRow - CRITICAL: 넓은 범위 재탐색도 실패해 NavMesh 밖에 강제 스폰합니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
+				ResolvedLocation = SpawnTransform.GetLocation();
+			}
+		}
+
 		if (bUseFixedSpawnHeight)
 		{
 			// NavMesh 투영이 돌려준 XY(장애물 회피/유효 위치)는 그대로 쓰되, Z만 원래 의도한
