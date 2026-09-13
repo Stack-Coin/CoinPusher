@@ -6,8 +6,7 @@
 
 void UCPMonsterPoolSubsystem::WarmUp(ECPMonsterType Type, TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount)
 {
-	UWorld* World = GetWorld();
-	if (!IsValid(MonsterClass) || InCount <= 0 || !World)
+	if (!IsValid(MonsterClass) || InCount <= 0 || !GetWorld())
 	{
 		return;
 	}
@@ -15,6 +14,18 @@ void UCPMonsterPoolSubsystem::WarmUp(ECPMonsterType Type, TSubclassOf<ACPMonster
 	FCPMonsterPool& Pool = Pools.FindOrAdd(Type);
 	Pool.MonsterClass = MonsterClass;
 	Pool.MaxPoolSize = FMath::Max(Pool.MaxPoolSize, InCount);
+
+	WarmUpBudgeted(Type, InCount);
+}
+
+void UCPMonsterPoolSubsystem::WarmUpBudgeted(ECPMonsterType Type, int32 TargetCount)
+{
+	UWorld* World = GetWorld();
+	FCPMonsterPool* Pool = Pools.Find(Type);
+	if (!World || !Pool || !IsValid(Pool->MonsterClass))
+	{
+		return;
+	}
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
@@ -24,14 +35,17 @@ void UCPMonsterPoolSubsystem::WarmUp(ECPMonsterType Type, TSubclassOf<ACPMonster
 	// 잡혀서, 나중에 Acquire()로 재배치해도 시각적으로 파묻힌 것처럼 보일 수 있음. 최소한 CDO의
 	// GetSpawnHeightOffset()만큼은 띄운 위치에서 BeginPlay가 돌게 해 기준점 자체를 정상 범위로 만들어둠
 	FTransform WarmUpTransform = FTransform::Identity;
-	if (ACPMonsterBase* MonsterCDO = MonsterClass->GetDefaultObject<ACPMonsterBase>())
+	if (ACPMonsterBase* MonsterCDO = Pool->MonsterClass->GetDefaultObject<ACPMonsterBase>())
 	{
 		WarmUpTransform.SetLocation(FVector(0.f, 0.f, MonsterCDO->GetSpawnHeightOffset()));
 	}
 
-	while (Pool.InactiveActors.Num() < InCount)
+	// 한 번 호출에 WarmUpBatchSize만큼만 스폰함 - TargetCount가 크면(수백 마리) 한 프레임에 몰아서
+	// SpawnActor를 반복 호출하지 않기 위함(이게 바로 HandleSpawnJobTick에 예산+커서를 넣은 이유와 동일)
+	int32 SpawnedThisBatch = 0;
+	while (Pool->InactiveActors.Num() < TargetCount && SpawnedThisBatch < WarmUpBatchSize)
 	{
-		ACPMonsterBase* Monster = World->SpawnActor<ACPMonsterBase>(MonsterClass, WarmUpTransform, SpawnParams);
+		ACPMonsterBase* Monster = World->SpawnActor<ACPMonsterBase>(Pool->MonsterClass, WarmUpTransform, SpawnParams);
 		if (!Monster)
 		{
 			break;
@@ -40,7 +54,22 @@ void UCPMonsterPoolSubsystem::WarmUp(ECPMonsterType Type, TSubclassOf<ACPMonster
 		// 스폰 직후 AutoPossessAI가 자동으로 AI를 돌려버리므로(ACPMonsterAIController::OnPossess),
 		// 미리 채워두는 액터도 반드시 이 함수로 꺼줘야 함
 		Monster->OnReturnedToPool();
-		Pool.InactiveActors.Add(Monster);
+		Pool->InactiveActors.Add(Monster);
+		++SpawnedThisBatch;
+	}
+
+	if (Pool->InactiveActors.Num() < TargetCount)
+	{
+		// 아직 다 못 채웠으면 다음 프레임에 이어서 - TWeakObjectPtr로 잡아서, 그 사이 월드가 정리돼도
+		// (레벨 전환 등) 안전하게 무시되도록 함
+		TWeakObjectPtr<UCPMonsterPoolSubsystem> WeakThis(this);
+		World->GetTimerManager().SetTimerForNextTick([WeakThis, Type, TargetCount]()
+		{
+			if (UCPMonsterPoolSubsystem* StrongThis = WeakThis.Get())
+			{
+				StrongThis->WarmUpBudgeted(Type, TargetCount);
+			}
+		});
 	}
 }
 

@@ -162,12 +162,28 @@ protected:
 protected:
 	void SeparateFromOtherMonsters(float DeltaSeconds);
 
-	/** SeparateFromOtherMonsters()는 몬스터당 매 틱 OverlapMulti를 돌려서 비용이 큼(몹 수가 늘수록
-	 *  O(n^2)에 가까워짐) - 몬스터마다 GetUniqueID() 기준으로 실행 프레임을 분산시켜, 이 값만큼의
-	 *  프레임에 한 번씩만 계산하고 그동안 누적된 DeltaSeconds를 몰아서 넘김(이동 거리는 보존, 계산
-	 *  빈도만 줄임). 타입별로 다르게 주고 싶으면(예: 보스는 매틱, 잡몹은 4~8프레임) BP에서 오버라이드 */
+	/** 플레이어와의 거리에 따라 SetActorTickInterval()을 조절함 - Tick() 자체가 덜 불리게 해서
+	 *  SeparateFromOtherMonsters를 포함한 Tick 전체 비용이 같이 줄어듦(멀수록 DeltaSeconds가 커진
+	 *  만큼만 드물게 호출되므로 이동/분리 거리는 왜곡되지 않음). 거리 계산 자체도 몹 수가 많으면
+	 *  비용이라, 매틱 하지 않고 몬스터별로 프레임을 분산시켜 DistanceCheckFrameInterval마다 한 번만 검사함 */
+	void UpdateTickThrottle();
+
 	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 1))
-	int32 SeparationFrameInterval = 4;
+	int32 DistanceCheckFrameInterval = 10;
+
+	/** 이 거리보다 가까우면 매 프레임 그대로 Tick(TickInterval=0) */
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 0))
+	float NearDistanceThreshold = 2000.f;
+
+	/** 이 거리보다 멀면 FarTickInterval, Near~Far 사이면 MidTickInterval 적용 */
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 0))
+	float FarDistanceThreshold = 4000.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 0))
+	float MidTickInterval = 0.1f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 0))
+	float FarTickInterval = 0.5f;
 
 public:
 	FAICharacterAttackFinished OnAttackFinished;

@@ -151,7 +151,10 @@ void UCPMonsterSpawnManagerComponent::WarmUpMonsterPools(int32 InRound, const FC
 			continue;
 		}
 
-		const int32 RowMaxAlive = Row->CountPerSpawnPoint * Row->SpawnerIndices.Num();
+		// CountPerSpawnPoint(라운드 수) x MonstersPerSpawn(스폰 1회당 마릿수) x 스포너 수 = 이 행이
+		// 만들어낼 수 있는 실제 최대 동시 마릿수 - MonstersPerSpawn을 빠뜨리면 풀이 턱없이 작게 예열돼서
+		// (예: MonstersPerSpawn=60인데 5마리만 예열) 나머지는 전부 매번 새로 SpawnActor가 떨어짐
+		const int32 RowMaxAlive = Row->CountPerSpawnPoint * FMath::Max(1, Row->MonstersPerSpawn) * Row->SpawnerIndices.Num();
 		int32& Existing = ExpectedMaxByType.FindOrAdd(Row->MonsterType);
 		Existing = FMath::Max(Existing, RowMaxAlive);
 	}
@@ -568,8 +571,16 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 		return;
 	}
 
-	for (ACPMonsterSpawner* Spawner : Job.TargetSpawners)
+	// 이번 틱에 처리할 스포너 개수를 예산(MaxMonstersPerJobTick)으로 제한 - 스포너 수 x MonstersPerSpawn이
+	// 예산을 넘으면(대규모 웨이브) 한 프레임에 몰아서 스폰하지 않고 NextSpawnerCursor로 이어서 다음
+	// 틱(SpawnInterval 후)에 계속 처리함
+	const int32 MonstersPerSpawner = FMath::Max(1, Job.MonstersPerSpawn);
+	const int32 MaxSpawnersThisTick = FMath::Max(1, MaxMonstersPerJobTick / MonstersPerSpawner);
+	const int32 SpawnerEndIndex = FMath::Min(Job.TargetSpawners.Num(), Job.NextSpawnerCursor + MaxSpawnersThisTick);
+
+	for (int32 SpawnerIndex = Job.NextSpawnerCursor; SpawnerIndex < SpawnerEndIndex; ++SpawnerIndex)
 	{
+		ACPMonsterSpawner* Spawner = Job.TargetSpawners[SpawnerIndex];
 		if (IsValid(Spawner))
 		{
 			// TargetSpawners는 StartWave() 시점에 한 번만 검증됨 - 스포너가 플레이어에 붙어 따라다니므로
@@ -600,6 +611,13 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 		}
 	}
 
+	Job.NextSpawnerCursor = SpawnerEndIndex;
+	if (Job.NextSpawnerCursor < Job.TargetSpawners.Num())
+	{
+		return; // 이번 라운드 아직 안 끝남(예산 초과분은 다음 틱에 커서 이어서 계속) - 다음 틱을 기다림
+	}
+
+	Job.NextSpawnerCursor = 0;
 	++Job.SpawnedCount;
 
 	if (Job.SpawnedCount < Job.CountPerSpawnPoint)
@@ -717,8 +735,15 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 		return;
 	}
 
-	for (ACPMonsterSpawner* Spawner : Job.TargetSpawners)
+	// HandleSpawnJobTick과 동일한 이유 - 한 프레임에 스포너 수 x MonstersPerSpawn만큼 몰아서 스폰하지
+	// 않고 예산(MaxMonstersPerJobTick)만큼만 처리한 뒤 커서를 남겨서 다음 틱에 이어감
+	const int32 MonstersPerSpawner = FMath::Max(1, Job.MonstersPerSpawn);
+	const int32 MaxSpawnersThisTick = FMath::Max(1, MaxMonstersPerJobTick / MonstersPerSpawner);
+	const int32 SpawnerEndIndex = FMath::Min(Job.TargetSpawners.Num(), Job.NextSpawnerCursor + MaxSpawnersThisTick);
+
+	for (int32 SpawnerIndex = Job.NextSpawnerCursor; SpawnerIndex < SpawnerEndIndex; ++SpawnerIndex)
 	{
+		ACPMonsterSpawner* Spawner = Job.TargetSpawners[SpawnerIndex];
 		if (IsValid(Spawner))
 		{
 			// TargetSpawners는 StartRoundMobSpawning() 시점에 한 번만 검증됨 - 스포너가 플레이어에 붙어
@@ -749,6 +774,13 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 		}
 	}
 
+	Job.NextSpawnerCursor = SpawnerEndIndex;
+	if (Job.NextSpawnerCursor < Job.TargetSpawners.Num())
+	{
+		return; // 이번 라운드 아직 안 끝남(예산 초과분은 다음 틱에 커서 이어서 계속)
+	}
+
+	Job.NextSpawnerCursor = 0;
 	++Job.SpawnedCount;
 
 	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleRoundMobSpawnTick(%d) - SpawnedCount=%d/%d"),

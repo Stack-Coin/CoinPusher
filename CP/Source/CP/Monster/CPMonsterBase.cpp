@@ -105,11 +105,51 @@ void ACPMonsterBase::Tick(float DeltaSeconds)
 
 	if (!bIsDead)
 	{
-		// GetUniqueID()로 몬스터마다 실행 프레임을 분산시켜, SeparationFrameInterval프레임에 한 번만
-		// OverlapMulti를 돌림 - 매틱 전부가 같은 프레임에 몰리면 분산 의미가 없으므로 몬스터별로 어긋나게 함
-		if ((GFrameCounter + GetUniqueID()) % SeparationFrameInterval == 0)
+		UpdateTickThrottle();
+		SeparateFromOtherMonsters(DeltaSeconds);
+	}
+}
+
+void ACPMonsterBase::UpdateTickThrottle()
+{
+	// GetUniqueID()로 몬스터마다 검사 프레임을 분산시켜, DistanceCheckFrameInterval프레임에 한 번만
+	// 거리 계산함 - 매틱 전부가 같은 프레임에 몰리면 분산 의미가 없으므로 몬스터별로 어긋나게 함
+	if ((GFrameCounter + GetUniqueID()) % DistanceCheckFrameInterval != 0)
+	{
+		return;
+	}
+
+	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!PlayerPawn)
+	{
+		return;
+	}
+
+	const float DistanceToPlayer = FVector::Dist(GetActorLocation(), PlayerPawn->GetActorLocation());
+
+	float NewInterval = 0.f; // 기본(근접): 매 프레임
+	if (DistanceToPlayer > FarDistanceThreshold)
+	{
+		NewInterval = FarTickInterval;
+	}
+	else if (DistanceToPlayer > NearDistanceThreshold)
+	{
+		NewInterval = MidTickInterval;
+	}
+
+	if (GetActorTickInterval() != NewInterval)
+	{
+		SetActorTickInterval(NewInterval);
+	}
+
+	// SetActorTickInterval은 ACPMonsterBase::Tick()만 늦춤 - CharacterMovementComponent는 자기
+	// PrimaryComponentTick으로 독립적으로 돌아서 실제 이동 연산(무브먼트 갱신) 비용은 안 줄어듦.
+	// 무브먼트 컴포넌트 틱 간격도 같이 늘려줘야 거리 기반 스로틀링이 실질적인 효과가 있음
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		if (MoveComp->PrimaryComponentTick.TickInterval != NewInterval)
 		{
-			SeparateFromOtherMonsters(DeltaSeconds * SeparationFrameInterval);
+			MoveComp->PrimaryComponentTick.TickInterval = NewInterval;
 		}
 	}
 }
@@ -138,6 +178,11 @@ void ACPMonsterBase::OnReturnedToPool()
 	{
 		PooledMovementMode = MoveComp->MovementMode;
 		MoveComp->DisableMovement();
+
+		// SetActorTickEnabled(false)는 액터 자신의 Tick()만 끌 뿐 컴포넌트의 PrimaryComponentTick은
+		// 안 건드림 - 무브먼트 컴포넌트를 그냥 두면 풀 안에서 숨어있는 동안에도 매 프레임 계속 돎.
+		// 풀에 있는 동안은 이동 연산이 전혀 필요 없으므로 아예 꺼버림(TickInterval을 늘리는 것보다 확실함)
+		MoveComp->SetComponentTickEnabled(false);
 	}
 
 	if (ACPMonsterAIController* AIController = GetController<ACPMonsterAIController>())
@@ -158,6 +203,7 @@ void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
 	SetActorHiddenInGame(false);
 	SetActorEnableCollision(true);
 	SetActorTickEnabled(true);
+	SetActorTickInterval(0.f); // 풀에 들어가기 전 거리 기반 스로틀로 늘어나 있었을 수 있음 - UpdateTickThrottle()이 곧 다시 알맞게 조절함
 
 	GetCapsuleComponent()->SetCollisionEnabled(DefaultCapsuleCollisionEnabled);
 	GetMesh()->SetCollisionEnabled(DefaultMeshCollisionEnabled);
@@ -173,6 +219,8 @@ void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
 			MoveComp->SetPlaneConstraintEnabled(false);
 		}
 
+		MoveComp->SetComponentTickEnabled(true); // OnReturnedToPool()에서 꺼뒀던 것 복구
+		MoveComp->PrimaryComponentTick.TickInterval = 0.f; // 풀에 들어가기 전 거리 스로틀로 늘어나 있었을 수 있음
 		SetActorLocationAndRotation(NewTransform.GetLocation(), NewTransform.GetRotation());
 		MoveComp->SetMovementMode(PooledMovementMode);
 

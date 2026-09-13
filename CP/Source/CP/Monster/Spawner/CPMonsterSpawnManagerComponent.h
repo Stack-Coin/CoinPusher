@@ -43,6 +43,13 @@ struct FCPActiveSpawnJob
 
 	UPROPERTY()
 	FTimerHandle TimerHandle;
+
+	/** 이번 "라운드"(TargetSpawners 전체에 MonstersPerSpawn씩 스폰하는 한 바퀴) 안에서 어디까지
+	 *  처리했는지 - MaxMonstersPerJobTick 예산을 넘는 라운드를 여러 틱(SpawnInterval마다)에 걸쳐
+	 *  나눠서 처리하기 위한 커서. 라운드를 끝까지 돌면 0으로 리셋되고 SpawnedCount가 증가함(한 프레임에
+	 *  스포너 수 x MonstersPerSpawn만큼 몰아서 스폰해 프레임 히치가 나는 걸 막기 위함) */
+	UPROPERTY()
+	int32 NextSpawnerCursor = 0;
 };
 
 /*
@@ -214,6 +221,13 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Data")
 	TObjectPtr<UDataTable> RoundInfoTable;
+
+	/** 스폰 Job 하나가 한 틱(SpawnInterval마다)당 최대 몇 마리까지 스폰할지. 웨이브 데이터
+	 *  (CountPerSpawnPoint/MonstersPerSpawn x 스포너 수)가 이보다 크면 한 틱에 몰아서 스폰하지 않고
+	 *  여러 틱에 걸쳐 나눠서 처리함(FCPActiveSpawnJob::NextSpawnerCursor 참고) - 한 웨이브에 수백
+	 *  마리를 스폰하는 기획에서 프레임 히치를 막기 위함 */
+	UPROPERTY(EditAnywhere, Category = "Performance", meta = (ClampMin = 1))
+	int32 MaxMonstersPerJobTick = 30;
 
 	TMap<ECPMonsterType, TSubclassOf<ACPMonsterBase>> MonsterClassByType;
 

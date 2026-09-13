@@ -38,7 +38,9 @@ class CP_API UCPMonsterPoolSubsystem : public UWorldSubsystem
 
 public:
 	/** 라운드 시작 시 호출 - InCount만큼 미리 스폰해서 비활성 상태로 채워둠(이미 그만큼 있으면 아무것도
-	 *  안 함, 모자라면 부족한 만큼만 추가). MaxPoolSize도 InCount 기준으로 갱신됨(늘어나기만 함) */
+	 *  안 함, 모자라면 부족한 만큼만 추가). MaxPoolSize도 InCount 기준으로 갱신됨(늘어나기만 함).
+	 *  InCount가 크면(수백 마리) 한 프레임에 몰아서 스폰하지 않고 WarmUpBatchSize만큼씩 나눠 프레임을
+	 *  넘겨가며 채움(WarmUpBudgeted 참고) - 라운드 시작 시점의 히치를 막기 위함 */
 	void WarmUp(ECPMonsterType Type, TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount);
 
 	/** 풀에 재사용 가능한 액터가 있으면 꺼내서 Transform 위치로 재배치 후 반환, 없으면 새로 스폰함 */
@@ -48,6 +50,14 @@ public:
 	void Release(ACPMonsterBase* Monster);
 
 private:
+	/** WarmUp()의 실제 작업 - 한 번 호출에 WarmUpBatchSize만큼만 스폰하고, 아직 TargetCount에 못
+	 *  미치면 다음 프레임에 스스로를 다시 예약해서 이어감 */
+	void WarmUpBudgeted(ECPMonsterType Type, int32 TargetCount);
+
+	/** WarmUpBudgeted()가 한 번 호출(한 프레임)에 실제로 SpawnActor할 최대 개수 */
+	UPROPERTY(EditDefaultsOnly, Category = "Pool", meta = (ClampMin = 1))
+	int32 WarmUpBatchSize = 20;
+
 	UPROPERTY()
 	TMap<ECPMonsterType, FCPMonsterPool> Pools;
 };
