@@ -67,14 +67,14 @@ void ACPMonsterBase::BeginPlay()
 
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
-		// RVO 회피 반경 배율 / 비중은 몬스터마다 다르게 줄 이유가 없어서 데이터테이블에서 빼고
-		// 코드 상 권장값으로 고정함 (AvoidanceWeight는 0~1 사이 값이어야 함)
+		// RVO 회피 반경 배율은 몬스터마다 다르게 줄 이유가 없어서 코드 상수로 고정함. 가중치만
+		// GetAIAvoidanceWeight()로 뽑아서, 보스처럼 "남들이 나한테 더 비켜줘야 하는" 예외가
+		// 오버라이드로 값을 올릴 수 있게 함 (0~1 사이 값이어야 함)
 		constexpr float RVOAvoidanceRadiusMultiplier = 3.f;
-		constexpr float RVOAvoidanceWeight = 0.5f;
 
 		MoveComp->bUseRVOAvoidance = true;
 		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * RVOAvoidanceRadiusMultiplier;
-		MoveComp->AvoidanceWeight = RVOAvoidanceWeight;
+		MoveComp->AvoidanceWeight = GetAIAvoidanceWeight();
 
 		// 몬스터끼리만 서로 피하도록 그룹 마스크 설정
 		MoveComp->SetAvoidanceGroup(1);
@@ -167,17 +167,6 @@ void ACPMonsterBase::AttackHitCheck()
 		FCollisionShape::MakeSphere(SweepShape.Radius),
 		Params
 	);
-
-	// [임시 디버그] 실제 스윕 범위/결과 확인용 - AnimNotify는 호출되는데 데미지가 안 들어가는 경우와
-	// AnimNotify 자체가 안 불리는 경우를 구분하기 위함
-	UE_LOG(LogTemp, Warning,
-		TEXT("[임시 디버그] %s AttackHitCheck - AttackRange=%.1f, Start=%s, End=%s, bResult=%d, HitActor=%s"),
-		*GetName(),
-		GetAIAttackRange(),
-		*SweepShape.Start.ToString(),
-		*SweepShape.End.ToString(),
-		bResult ? 1 : 0,
-		(bResult && HitResult.GetActor()) ? *HitResult.GetActor()->GetName() : TEXT("NULL"));
 
 	if (bDrawDebugAttackRange)
 	{
@@ -451,6 +440,15 @@ void ACPMonsterBase::CancelAIAttack()
 
 void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 {
+	// 보스는 몸집이 커서 일반 몹들한테 밀리기 시작하면 플레이어한테 접근을 아예 못 하는 문제가
+	// 있었음(몹이 많이 몰린 라운드일수록 심함) - 보스는 여기서 밀리지 않고, 대신 일반 몹들이 각자
+	// 자기 SeparateFromOtherMonsters()에서 보스와의 거리를 재서 알아서 밀려나므로(보스 캡슐이 커서
+	// MinDistance도 큼) 보스가 무리를 뚫고 들어가는 것처럼 보임
+	if (MonsterType == ECPMonsterType::Boss)
+	{
+		return;
+	}
+
 	const float MyRadius = GetAICollisionRadius();
 	if (MyRadius <= 0.f)
 	{
@@ -589,7 +587,15 @@ float ACPMonsterBase::GetAITurnSpeed()
 
 float ACPMonsterBase::GetAIMoveAcceptableRadius()
 {
-	return StatComponent ? StatComponent->DefaultStat.MoveAcceptableRadius : 0.0f;
+	const float DataValue = StatComponent ? StatComponent->DefaultStat.MoveAcceptableRadius : 0.0f;
+
+	// MoveTo(AcceptableRadius)와 AttackInRange 데코레이터 둘 다 "자기 반경 + 타겟 반경"을 똑같이
+	// 더해서 도달/판정 거리를 계산하므로, 이 값끼리만 비교해도 됨. 이 값이 AttackRange 이상이면
+	// MoveTo가 실제 공격 사거리 안에 들어오기도 전에 "도착"으로 판단해 멈춰버리고, 이후 AttackInRange가
+	// 계속 false라 보스가 제자리에 멈춰 선 채 아무것도 안 하는 상태가 됨(DataTable 값 실수로 실제
+	// 발생했던 버그) - 데이터가 잘못 들어와도 항상 AttackRange보다 여유 있게 작도록 코드에서 방어함
+	constexpr float SafetyMargin = 20.f;
+	return FMath::Min(DataValue, FMath::Max(0.f, GetAIAttackRange() - SafetyMargin));
 }
 
 // 몬스터 간 분리

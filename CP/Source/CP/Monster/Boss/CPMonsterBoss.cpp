@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/OverlapResult.h"
 #include "DrawDebugHelpers.h"
+#include "Components/CapsuleComponent.h"
 
 ACPMonsterBoss::ACPMonsterBoss()
 {
@@ -48,6 +49,98 @@ void ACPMonsterBoss::Tick(float DeltaSeconds)
 		{
 			bArmedForRoar = true;
 		}
+	}
+
+	// 일반 몹들이 플레이어를 둘러싸서 보스가 근접 사거리 안에 계속 못 들어가는 상황 감지 - 일정
+	// 시간 이상 사거리 밖이면 자리를 만들어줌(MakeRoomNearPlayer). CPTDecorator_AttackInRange와
+	// 같은 판정식(자기 반경+타겟 반경+AttackRange)을 그대로 씀
+	if (bIsDead)
+	{
+		TimeBlockedFromTarget = 0.f;
+	}
+	else if (ACPPlayerCharacter* Player = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
+	{
+		const float TargetRadius = Player->GetCapsuleComponent() ? Player->GetCapsuleComponent()->GetScaledCapsuleRadius() : 0.f;
+		const float AttackRangeWithRadius = GetAIAttackRange() + GetAICollisionRadius() + TargetRadius;
+		const bool bInRange = GetDistanceTo(Player) <= AttackRangeWithRadius;
+
+		if (bInRange)
+		{
+			TimeBlockedFromTarget = 0.f;
+		}
+		else
+		{
+			TimeBlockedFromTarget += DeltaSeconds;
+
+			if (TimeBlockedFromTarget >= BlockedMakeRoomThreshold)
+			{
+				TimeBlockedFromTarget = 0.f;
+				MakeRoomNearPlayer();
+			}
+		}
+	}
+}
+
+void ACPMonsterBoss::MakeRoomNearPlayer()
+{
+	ACPPlayerCharacter* Player = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	if (!Player)
+	{
+		return;
+	}
+
+	// 플레이어 주변 몹들 중, 보스가 서 있는 쪽 반구(콘) 안에 있는 애들을 전부 밀어냄. 검색 반경은
+	// 고정 400이 아니라 "보스가 실제로 서려는 지점까지의 거리"(AttackInRange 판정과 동일한
+	// AttackRangeWithRadius)에 여유를 더해서 잡음 - 400 고정이면 보스 사거리가 그보다 큰 경우
+	// (덩치 큰 보스 등) 진짜 막고 있는 몹이 400 밖에 있어서 검색에 아예 안 걸리는 문제가 있었음
+	const float TargetRadius = Player->GetCapsuleComponent() ? Player->GetCapsuleComponent()->GetScaledCapsuleRadius() : 0.f;
+	const float AttackRangeWithRadius = GetAIAttackRange() + GetAICollisionRadius() + TargetRadius;
+	constexpr float SearchRadiusPadding = 150.f;
+	const float SearchRadiusAroundPlayer = AttackRangeWithRadius + SearchRadiusPadding;
+	constexpr float ConeCosThreshold = 0.0f; // cos(90도) - 보스가 있는 쪽 반구 전체를 대상(기존 60도는 너무 좁아서 막고 있는 애들이 자주 빠짐)
+	constexpr float PushDistance = 400.f;
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams Params(NAME_None, false, this);
+	GetWorld()->OverlapMultiByObjectType(
+		Overlaps,
+		Player->GetActorLocation(),
+		FQuat::Identity,
+		FCollisionObjectQueryParams(ECC_Pawn),
+		FCollisionShape::MakeSphere(SearchRadiusAroundPlayer),
+		Params);
+
+	// 오버랩은 액터당 프리미티브 컴포넌트 단위로 잡혀서 중복될 수 있음(플레이어 피직스 바디 등이
+	// 한 액터에서 여러 개 잡힘) - 몬스터 액터 기준으로 먼저 유일화함
+	TSet<ACPMonsterBase*> UniqueMonsters;
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		if (ACPMonsterBase* Other = Cast<ACPMonsterBase>(Overlap.GetActor()))
+		{
+			if (Other != this && !Other->HasCCState(ECPMonsterCCState::Dead))
+			{
+				UniqueMonsters.Add(Other);
+			}
+		}
+	}
+
+	// 플레이어 기준 "보스가 서 있는 쪽" 방향 - 콘 필터 기준(부호 주의: 플레이어->보스 방향이어야
+	// "보스와 같은 쪽에 있는 몹"이 양수 dot로 걸림. Player->Boss가 아니라 반대로 넣으면 진짜
+	// 막고 있는 몹까지 전부 음수가 나와서 필터를 통과 못 하는 버그가 있었음)
+	const FVector DirToBoss = (GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D();
+
+	for (ACPMonsterBase* Other : UniqueMonsters)
+	{
+		// 플레이어 기준으로, 보스가 서 있는 방향과 얼마나 같은 쪽에 있는지 - 반대쪽에서 플레이어를
+		// 공격 중인 몹은 안 건드리고(스웜 유지), 보스 진입로를 막고 있는 애들만 골라냄
+		const FVector ToBossSide = (Other->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D();
+		if (FVector::DotProduct(ToBossSide, DirToBoss) < ConeCosThreshold)
+		{
+			continue;
+		}
+
+		const FVector PushDirection = (Other->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+		Other->ApplyKnockback(PushDirection, PushDistance, this);
 	}
 }
 

@@ -21,9 +21,11 @@ void UCPMonsterAttackRangeNotifyState::NotifyBegin(USkeletalMeshComponent* MeshC
 	// Forward 대신 "몬스터 -> 플레이어" 방향을 직접 구해서 씀 - 실제 판정(AttackHitCheck)은 나중에
 	// 실행돼서 그때는 이미 플레이어 쪽을 보고 있을 거라 캡슐 Forward 그대로 써도 문제 없음
 	FVector EffectiveForward = Monster->GetActorForwardVector();
-	if (APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(Monster->GetWorld(), 0))
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(Monster->GetWorld(), 0);
+	FVector ToPlayer = FVector::ZeroVector;
+	if (PlayerPawn)
 	{
-		const FVector ToPlayer = (PlayerPawn->GetActorLocation() - Monster->GetActorLocation()).GetSafeNormal2D();
+		ToPlayer = (PlayerPawn->GetActorLocation() - Monster->GetActorLocation()).GetSafeNormal2D();
 		if (!ToPlayer.IsNearlyZero())
 		{
 			EffectiveForward = ToPlayer;
@@ -54,10 +56,16 @@ void UCPMonsterAttackRangeNotifyState::NotifyBegin(USkeletalMeshComponent* MeshC
 		const FVector Center = (SweepShape.Start + SweepShape.End) * 0.5f;
 		WorldLocation = Center + GroundOffset;
 
-		const float Length = (SweepShape.End - SweepShape.Start).Size();
-		// MakeFromXZ(-Up, EffectiveForward)로 조립하면 데칼 로컬 Z축=EffectiveForward, 로컬 Y축=측면이
-		// 됨 - 그래서 길이(Length)는 Z, 폭(Radius)은 Y에 들어가야 함
-		DecalSize = FVector(DecalDepth, SweepShape.Radius, Length * 0.5f);
+		const float HalfLength = (SweepShape.End - SweepShape.Start).Size() * 0.5f;
+		// MakeFromXZ(-Up, Forward)로 조립하면 로컬 Z축=Forward(정면/길이), Y축=측면(폭)에 대응함
+		// (축 매핑 자체는 맞음, 실측 로그로 검산 완료) - 근데 몸집 큰 데 사거리 짧은 몬스터(예: 보스)는
+		// Radius(캡슐 반경 비례)가 HalfLength(사거리)보다 커져서 화면상 "폭이 더 넓은 사각형"으로
+		// 보일 수 있음. 실제 판정(GetAttackSweepShape/AttackHitCheck)은 안 건드리고, 표시용 크기만
+		// 큰 값을 정면(Z) 축에 배치해서 항상 "정면이 더 길어 보이게" 함 - 대신 Radius>HalfLength인
+		// 경우 화면상 폭이 실제 판정 폭보다 좁게 보이는 트레이드오프가 있음(합의된 사항)
+		const float DisplayWidth = FMath::Min(SweepShape.Radius, HalfLength);
+		const float DisplayLength = FMath::Max(SweepShape.Radius, HalfLength) + 50.f;
+		DecalSize = FVector(DecalDepth, DisplayWidth, DisplayLength);
 	}
 
 	// KeepRelativeOffset을 쓰면 넘긴 좌표를 부모 로컬 기준으로 해석해서, 월드 스페이스로 계산한

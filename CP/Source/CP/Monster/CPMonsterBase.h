@@ -122,6 +122,13 @@ public:
 	virtual float GetSpawnHeightOffset() const;
 
 protected:
+	/** RVO 회피 가중치(0~1) - 다른 몬스터와 경로가 겹칠 때 자기 진행 방향을 얼마나 고수할지.
+	 *  기본은 전부 동일(일반 몹끼리는 서로 동등하게 비켜줘야 자연스러운 스웜이 됨). 보스처럼
+	 *  "남들이 나한테 더 비켜줘야 하는" 예외만 이걸 오버라이드해서 값을 올리면 됨 - 일반 몹끼리의
+	 *  상호 회피(0.5 vs 0.5)는 그대로 유지되고, 보스와 마주칠 때만 보스가 덜 양보하게 됨 */
+	virtual float GetAIAvoidanceWeight() const { return 0.5f; }
+
+protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
 
 	/** 몽타주 재생 + Attacking CC 상태 부여 + 종료 시 NotifyAttackActionEnd 호출을 하나로 묶은 헬퍼.
