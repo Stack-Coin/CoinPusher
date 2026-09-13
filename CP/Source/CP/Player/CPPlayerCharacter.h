@@ -35,6 +35,7 @@ class UMaterialInstanceDynamic;
 class UCameraShakeBase;
 class UCPInventoryComponent;
 class ACPCoinPusher;
+class USoundBase;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -180,6 +181,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|DataTable")
 	TObjectPtr<UDataTable> LevelStatTable;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Level")
+	TObjectPtr<USoundBase> LevelUpSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Level")
+	FVector LevelUpSoundLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Level", meta = (ClampMin = 0))
+	float LevelUpSoundVolume = 1.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
 	TObjectPtr<UCurveFloat> HitFlashCurve;
 
@@ -242,6 +252,15 @@ protected:
 	/** Minimum time that must pass between dashes */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Dash", meta = (ClampMin = 0, Units = "s"))
 	float DashCooldown = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Dash")
+	TObjectPtr<USoundBase> DashSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Dash")
+	FVector DashSoundLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Dash", meta = (ClampMin = 0))
+	float DashSoundVolume = 1.0f;
 
 	/** Converts ApplyKnockback's Distance into a launch speed: Speed = Distance / KnockbackDuration
 	 *  (same convention as DashDistance/DashDuration) */

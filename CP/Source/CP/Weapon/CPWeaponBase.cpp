@@ -1,7 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Weapon/CPWeaponBase.h"
-#include "Weapon/CPWeaponAnimationData.h"
 #include "Weapon/CPAimDirectionInterface.h"
 #include "Weapon/CPWeaponPassiveSkillModule.h"
 #include "Components/StaticMeshComponent.h"
@@ -51,6 +50,8 @@ void ACPWeaponBase::Unequip()
 {
 	GetWorldTimerManager().ClearTimer(ComboTimerHandle);
 	GetWorldTimerManager().ClearTimer(AttackIntervalTimerHandle);
+	GetWorldTimerManager().ClearTimer(PassiveStatBuffTimerHandle);
+	ClearPassiveStatBuff();
 	bIsAttacking = false;
 
 	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
@@ -80,11 +81,11 @@ void ACPWeaponBase::StartAttack()
 	bWaitingForMontageEnd = false;
 	++AttackSessionId;
 
-	if (AnimationData && AnimationData->AttackMontage)
+	if (AttackMontage)
 	{
 		if (ACharacter* OwnerCharacter = GetOwningCharacter())
 		{
-			const float MontageLength = OwnerCharacter->PlayAnimMontage(AnimationData->AttackMontage, 1.0f); //GetFinalAttackSpeed()
+			const float MontageLength = OwnerCharacter->PlayAnimMontage(AttackMontage, 1.0f); //GetFinalAttackSpeed()
 			USkeletalMeshComponent* OwnerMesh = MontageLength > 0.0f ? OwnerCharacter->GetMesh() : nullptr;
 			UAnimInstance* AnimInstance = OwnerMesh ? OwnerMesh->GetAnimInstance() : nullptr;
 
@@ -104,7 +105,7 @@ void ACPWeaponBase::StartAttack()
 						OnAttackStateChanged.Broadcast(false);
 					}
 				});
-				AnimInstance->Montage_SetEndDelegate(EndDelegate, AnimationData->AttackMontage);
+				AnimInstance->Montage_SetEndDelegate(EndDelegate, AttackMontage);
 			}
 		}
 	}
@@ -125,11 +126,11 @@ void ACPWeaponBase::CancelAttack()
 	GetWorldTimerManager().ClearTimer(AttackIntervalTimerHandle);
 	bIsAttacking = false;
 
-	if (AnimationData && AnimationData->AttackMontage)
+	if (AttackMontage)
 	{
 		if (ACharacter* OwnerCharacter = GetOwningCharacter())
 		{
-			OwnerCharacter->StopAnimMontage(AnimationData->AttackMontage);
+			OwnerCharacter->StopAnimMontage(AttackMontage);
 		}
 	}
 
@@ -173,7 +174,7 @@ float ACPWeaponBase::GetFinalAttackPower() const
 		WielderAttackPower = StatInterface->GetStat(ECPStatType::AttackPower);
 	}
 
-	return WielderAttackPower + WeaponData.AttackPower;
+	return WielderAttackPower + WeaponData.AttackPower + PassiveAttackPowerBonus;
 }
 
 float ACPWeaponBase::GetFinalAttackSpeed() const
@@ -184,7 +185,7 @@ float ACPWeaponBase::GetFinalAttackSpeed() const
 		WielderAttackSpeed = StatInterface->GetStat(ECPStatType::AttackSpeed);
 	}
 
-	return FMath::Max(WielderAttackSpeed * WeaponData.AttackSpeed, KINDA_SMALL_NUMBER);
+	return FMath::Max(WielderAttackSpeed * WeaponData.AttackSpeed * PassiveAttackSpeedMultiplier, KINDA_SMALL_NUMBER);
 }
 
 float ACPWeaponBase::GetFinalAttackInterval() const
@@ -237,10 +238,88 @@ void ACPWeaponBase::ActivatePassiveSkill()
 	PassiveSkillModule->Activate(Context);
 }
 
-void ACPWeaponBase::PlayAttackEffect(const FVector& Location) const
+int32 ACPWeaponBase::GetMaxWeaponLevel() const
 {
-	if (WeaponData.AttackEffect)
+	return PassiveSkillModule ? PassiveSkillModule->GetMaxLevel() : 1;
+}
+
+bool ACPWeaponBase::SetWeaponLevel(int32 NewLevel)
+{
+	const int32 ClampedLevel = FMath::Clamp(NewLevel, 1, GetMaxWeaponLevel());
+	if (ClampedLevel == WeaponLevel)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, WeaponData.AttackEffect, Location);
+		return false;
+	}
+
+	WeaponLevel = ClampedLevel;
+	return true;
+}
+
+bool ACPWeaponBase::LevelUp()
+{
+	return SetWeaponLevel(WeaponLevel + 1);
+}
+
+void ACPWeaponBase::ApplyPassiveStatBuff(float InAttackPowerBonus, float InAttackSpeedMultiplierBonus, float InRangeMultiplierBonus, float InDuration,
+	UNiagaraSystem* InBuffEffect, const FVector& InBuffEffectLocationOffset, const FRotator& InBuffEffectRotationOffset, const FVector& InBuffEffectScale)
+{
+	PassiveAttackPowerBonus = InAttackPowerBonus;
+	PassiveAttackSpeedMultiplier = 1.0f + InAttackSpeedMultiplierBonus;
+	PassiveRangeMultiplier = 1.0f + InRangeMultiplierBonus;
+
+	GetWorldTimerManager().SetTimer(PassiveStatBuffTimerHandle, this, &ACPWeaponBase::ClearPassiveStatBuff, FMath::Max(InDuration, 0.01f), false);
+
+	PassiveBuffAttackEffect = InBuffEffect;
+	PassiveBuffAttackEffectLocationOffset = InBuffEffectLocationOffset;
+	PassiveBuffAttackEffectRotationOffset = InBuffEffectRotationOffset;
+	PassiveBuffAttackEffectScale = InBuffEffectScale;
+}
+
+void ACPWeaponBase::ClearPassiveStatBuff()
+{
+	PassiveAttackPowerBonus = 0.0f;
+	PassiveAttackSpeedMultiplier = 1.0f;
+	PassiveRangeMultiplier = 1.0f;
+
+	PassiveBuffAttackEffect = nullptr;
+	PassiveBuffAttackEffectLocationOffset = FVector::ZeroVector;
+	PassiveBuffAttackEffectRotationOffset = FRotator::ZeroRotator;
+	PassiveBuffAttackEffectScale = FVector(1.0f, 1.0f, 1.0f);
+}
+
+float ACPWeaponBase::GetPassiveStatBuffTimeRemaining() const
+{
+	return GetWorldTimerManager().GetTimerRemaining(PassiveStatBuffTimerHandle);
+}
+
+void ACPWeaponBase::PlayAttackEffect(const FVector& Location, const FRotator& Rotation) const
+{
+	UNiagaraSystem* EffectToPlay = WeaponData.AttackEffect;
+	FVector LocationOffset = WeaponData.AttackEffectLocationOffset;
+	FRotator RotationOffset = WeaponData.AttackEffectRotationOffset;
+	FVector Scale = WeaponData.AttackEffectScale;
+
+	if (PassiveBuffAttackEffect)
+	{
+		EffectToPlay = PassiveBuffAttackEffect;
+		LocationOffset = PassiveBuffAttackEffectLocationOffset;
+		RotationOffset = PassiveBuffAttackEffectRotationOffset;
+		Scale = PassiveBuffAttackEffectScale;
+	}
+
+	if (EffectToPlay)
+	{
+		const FVector FinalLocation = Location + Rotation.RotateVector(LocationOffset);
+		const FRotator FinalRotation = Rotation + RotationOffset;
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, EffectToPlay, FinalLocation, FinalRotation, Scale);
+	}
+}
+
+void ACPWeaponBase::PlayAttackSound(const FVector& Location, const FRotator& Rotation) const
+{
+	if (WeaponData.AttackSound)
+	{
+		const FVector FinalLocation = Location + Rotation.RotateVector(WeaponData.AttackSoundLocationOffset);
+		UGameplayStatics::PlaySoundAtLocation(this, WeaponData.AttackSound, FinalLocation, WeaponData.AttackSoundVolume);
 	}
 }

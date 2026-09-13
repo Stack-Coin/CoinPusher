@@ -463,6 +463,11 @@ void ACPPlayerCharacter::DoDash()
 	const float DashSpeed = DashDuration > 0.0f ? (DashDistance / DashDuration) : DashDistance;
 	LaunchCharacter(DashDirection * DashSpeed, true, true);
 
+	if (DashSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, DashSound, GetActorLocation() + DashSoundLocationOffset, DashSoundVolume);
+	}
+
 	GetWorldTimerManager().SetTimer(DashDurationTimerHandle, this, &ACPPlayerCharacter::EndDash, DashDuration, false);
 }
 
@@ -918,6 +923,11 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 		if (Stats.Level != OldLevel)
 		{
 			OnLevelChanged.Broadcast(Stats.Level);
+
+			if (Stats.Level > OldLevel && LevelUpSound)
+			{
+				UGameplayStatics::PlaySoundAtLocation(this, LevelUpSound, GetActorLocation() + LevelUpSoundLocationOffset, LevelUpSoundVolume);
+			}
 		}
 		break;
 	}
@@ -928,6 +938,11 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 		if (Stats.Level != OldLevel)
 		{
 			OnLevelChanged.Broadcast(Stats.Level);
+
+			if (Stats.Level > OldLevel && LevelUpSound)
+			{
+				UGameplayStatics::PlaySoundAtLocation(this, LevelUpSound, GetActorLocation() + LevelUpSoundLocationOffset, LevelUpSoundVolume);
+			}
 		}
 		break;
 	}

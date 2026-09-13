@@ -20,7 +20,19 @@ public:
 protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
+	TObjectPtr<USceneComponent> ZoneRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<UNiagaraComponent> ZoneEffect;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ground Zone|Effect")
+	FVector ZoneEffectLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ground Zone|Effect")
+	FRotator ZoneEffectRotationOffset = FRotator::ZeroRotator;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ground Zone|Effect")
+	FVector ZoneEffectScale = FVector(1.0f, 1.0f, 1.0f);
 
 	UPROPERTY(EditAnywhere, Category="Ground Zone|Debug")
 	bool bDrawDebugZoneRadius = false;
@@ -28,6 +40,7 @@ protected:
 	float ZoneRadius = 300.0f;
 	float DamagePerTick = 0.0f;
 	float TickInterval = 0.5f;
+	float EffectScaleMultiplier = 1.0f;
 
 	TWeakObjectPtr<AController> InstigatorController;
 	TWeakObjectPtr<AActor> DamageCauserActor;
@@ -37,7 +50,7 @@ protected:
 
 public:
 
-	void InitializeZone(float InZoneRadius, float InDamagePerTick, float InTickInterval, float InDuration, AController* InInstigatorController, AActor* InDamageCauser);
+	void InitializeZone(float InZoneRadius, float InDamagePerTick, float InTickInterval, float InDuration, float InEffectScaleMultiplier, AController* InInstigatorController, AActor* InDamageCauser);
 
 protected:
 

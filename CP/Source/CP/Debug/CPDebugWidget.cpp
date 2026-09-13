@@ -119,29 +119,42 @@ FString UCPDebugWidget::BuildPlayerInfoString() const
 	}
 
 	FString WeaponName = TEXT("Unarmed");
+	const ACPWeaponBase* CurrentWeapon = nullptr;
 	if (ICPWeaponEquipper* WeaponEquipper = Cast<ICPWeaponEquipper>(Pawn))
 	{
-		if (const ACPWeaponBase* CurrentWeapon = WeaponEquipper->GetCurrentWeapon())
+		CurrentWeapon = WeaponEquipper->GetCurrentWeapon();
+		if (CurrentWeapon)
 		{
 			WeaponName = CurrentWeapon->GetWeaponDisplayName().ToString();
+		}
+	}
+
+	FString PassiveBuffInfo = TEXT("None");
+	if (CurrentWeapon)
+	{
+		const float TimeRemaining = CurrentWeapon->GetPassiveStatBuffTimeRemaining();
+		if (TimeRemaining > 0.0f)
+		{
+			PassiveBuffInfo = FString::Printf(TEXT("%.1fs (Range x%.2f)"), TimeRemaining, CurrentWeapon->GetFinalAttackRangeMultiplier());
 		}
 	}
 
 	const ICPStatInterface* StatInterface = Cast<ICPStatInterface>(Pawn);
 	if (!StatInterface)
 	{
-		return FString::Printf(TEXT("Weapon : %s"), *WeaponName);
+		return FString::Printf(TEXT("Weapon : %s\nPassive Buff : %s"), *WeaponName, *PassiveBuffInfo);
 	}
 
 	return FString::Printf(
-		TEXT("Health : %.0f\nAttackPower : %.0f\nMoveSpeed : %.0f\nAttackSpeed : %.2f\nExperience : %.0f\nLevel : %.0f\nWeapon : %s"),
+		TEXT("Health : %.0f\nAttackPower : %.0f\nMoveSpeed : %.0f\nAttackSpeed : %.2f\nExperience : %.0f\nLevel : %.0f\nWeapon : %s\nPassive Buff : %s"),
 		StatInterface->GetStat(ECPStatType::Health),
 		StatInterface->GetStat(ECPStatType::AttackPower),
 		StatInterface->GetStat(ECPStatType::MoveSpeed),
 		StatInterface->GetStat(ECPStatType::AttackSpeed),
 		StatInterface->GetStat(ECPStatType::Experience),
 		StatInterface->GetStat(ECPStatType::Level),
-		*WeaponName);
+		*WeaponName,
+		*PassiveBuffInfo);
 }
 
 void UCPDebugWidget::InitializeCheckBox(UCheckBox* CheckBox, ECPDebugCollisionCategory Category)

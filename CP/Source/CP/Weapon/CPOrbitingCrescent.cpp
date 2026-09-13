@@ -6,6 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
@@ -18,11 +19,26 @@ ACPOrbitingCrescent::ACPOrbitingCrescent()
 	SetRootComponent(CrescentMesh);
 	CrescentMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CrescentMesh->SetGenerateOverlapEvents(false);
+
+	CrescentEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("CrescentEffectComponent"));
+	CrescentEffectComponent->SetupAttachment(CrescentMesh);
 }
 
 void ACPOrbitingCrescent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (CrescentEffectComponent)
+	{
+		CrescentEffectComponent->SetRelativeLocation(CrescentEffectLocationOffset);
+		CrescentEffectComponent->SetRelativeRotation(CrescentEffectRotationOffset);
+		CrescentEffectComponent->SetRelativeScale3D(CrescentEffectScale);
+	}
+
+	if (SpawnSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, SpawnSound, GetActorLocation() + SpawnSoundLocationOffset, SpawnSoundVolume);
+	}
 
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
 	{
@@ -41,7 +57,7 @@ void ACPOrbitingCrescent::HandleDebugCollisionVisibilityChanged(ECPDebugCollisio
 	bDrawDebugHitRadius = bVisible;
 }
 
-void ACPOrbitingCrescent::InitializeCrescent(ACharacter* InOwnerCharacter, float InOrbitRadius, float InOrbitSpeedDegPerSec, float InSelfSpinSpeedDegPerSec, float InHitRadius, float InVerticalOffset, float InDuration, float InDamage, float InKnockbackDistance, float InDamageTickInterval, AController* InInstigatorController, AActor* InDamageCauser)
+void ACPOrbitingCrescent::InitializeCrescent(ACharacter* InOwnerCharacter, float InOrbitRadius, float InOrbitSpeedDegPerSec, float InSelfSpinSpeedDegPerSec, float InHitRadius, float InVerticalOffset, float InBaseOrbitAngleOffset, float InDamage, float InKnockbackDistance, float InDamageTickInterval, float InEffectScaleMultiplier, AController* InInstigatorController, AActor* InDamageCauser)
 {
 	OrbitOwner = InOwnerCharacter;
 	OrbitRadius = InOrbitRadius;
@@ -49,14 +65,19 @@ void ACPOrbitingCrescent::InitializeCrescent(ACharacter* InOwnerCharacter, float
 	SelfSpinSpeedDegPerSec = InSelfSpinSpeedDegPerSec;
 	HitRadius = InHitRadius;
 	VerticalOffset = InVerticalOffset;
+	BaseOrbitAngleOffset = InBaseOrbitAngleOffset;
 	Damage = InDamage;
 	KnockbackDistance = InKnockbackDistance;
+	EffectScaleMultiplier = InEffectScaleMultiplier;
 	InstigatorController = InInstigatorController;
 	DamageCauserActor = InDamageCauser;
 
-	GetWorldTimerManager().SetTimer(DamageTickTimerHandle, this, &ACPOrbitingCrescent::ApplyPulseDamage, FMath::Max(InDamageTickInterval, 0.01f), true);
+	if (CrescentEffectComponent)
+	{
+		CrescentEffectComponent->SetRelativeScale3D(CrescentEffectScale * EffectScaleMultiplier);
+	}
 
-	SetLifeSpan(FMath::Max(InDuration, 0.01f));
+	GetWorldTimerManager().SetTimer(DamageTickTimerHandle, this, &ACPOrbitingCrescent::ApplyPulseDamage, FMath::Max(InDamageTickInterval, 0.01f), true);
 }
 
 void ACPOrbitingCrescent::Tick(float DeltaTime)
@@ -73,7 +94,7 @@ void ACPOrbitingCrescent::Tick(float DeltaTime)
 	CurrentOrbitAngleDegrees += OrbitSpeedDegPerSec * DeltaTime;
 	CurrentSelfSpinDegrees += SelfSpinSpeedDegPerSec * DeltaTime;
 
-	const float OrbitRadians = FMath::DegreesToRadians(CurrentOrbitAngleDegrees);
+	const float OrbitRadians = FMath::DegreesToRadians(BaseOrbitAngleOffset + CurrentOrbitAngleDegrees);
 	const FVector Offset = FVector(FMath::Cos(OrbitRadians), FMath::Sin(OrbitRadians), 0.0f) * OrbitRadius + FVector(0.0f, 0.0f, VerticalOffset);
 
 	SetActorLocation(OrbitCenterCharacter->GetActorLocation() + Offset);

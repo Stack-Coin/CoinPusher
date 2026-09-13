@@ -71,7 +71,7 @@ FVector ACPMeleeWeapon::GetAttackOrigin(float InRangeOffset) const
 	ACharacter* OwnerCharacter = GetOwningCharacter();
 	const FVector BaseLocation = OwnerCharacter ? OwnerCharacter->GetActorLocation() : GetActorLocation();
 
-	return BaseLocation + GetAttackDirection() * InRangeOffset;
+	return BaseLocation + GetAttackDirection() * (InRangeOffset * GetFinalAttackRangeMultiplier());
 }
 
 const FCPMeleeComboStepData& ACPMeleeWeapon::GetComboStepData(int32 ComboIndex) const
@@ -105,6 +105,7 @@ bool ACPMeleeWeapon::IsWithinArc(const FVector& Origin, const FVector& Direction
 void ACPMeleeWeapon::ExecuteMeleeHit()
 {
 	const FCPMeleeComboStepData& StepData = GetComboStepData(PendingHitComboIndex);
+	const FVector ScaledShapeSize = StepData.ShapeSize * GetFinalAttackRangeMultiplier();
 
 	ACharacter* OwnerCharacter = GetOwningCharacter();
 	AActor* DamageCauser = OwnerCharacter ? static_cast<AActor*>(OwnerCharacter) : static_cast<AActor*>(this);
@@ -128,21 +129,21 @@ void ACPMeleeWeapon::ExecuteMeleeHit()
 	case ECPMeleeAttackShape::Sphere:
 	case ECPMeleeAttackShape::Arc:
 		UKismetSystemLibrary::SphereTraceMulti(
-			this, Origin, Origin, StepData.ShapeSize.X,
+			this, Origin, Origin, ScaledShapeSize.X,
 			UEngineTypes::ConvertToTraceType(ECC_Pawn), false, ActorsToIgnore,
 			DebugType, HitResults, true);
 		break;
 
 	case ECPMeleeAttackShape::Box:
 		UKismetSystemLibrary::BoxTraceMulti(
-			this, Origin, Origin, StepData.ShapeSize * 0.5f, Rotation,
+			this, Origin, Origin, ScaledShapeSize * 0.5f, Rotation,
 			UEngineTypes::ConvertToTraceType(ECC_Pawn), false, ActorsToIgnore,
 			DebugType, HitResults, true);
 		break;
 
 	case ECPMeleeAttackShape::Capsule:
 		UKismetSystemLibrary::CapsuleTraceMulti(
-			this, Origin, Origin, StepData.ShapeSize.X, StepData.ShapeSize.Y,
+			this, Origin, Origin, ScaledShapeSize.X, ScaledShapeSize.Y,
 			UEngineTypes::ConvertToTraceType(ECC_Pawn), false, ActorsToIgnore,
 			DebugType, HitResults, true);
 		break;
@@ -153,7 +154,7 @@ void ACPMeleeWeapon::ExecuteMeleeHit()
 	if (bDrawDebugAttackShape && StepData.Shape == ECPMeleeAttackShape::Arc)
 	{
 		const float HalfArcAngle = StepData.ArcAngle * 0.5f;
-		const float ArcRadius = StepData.ShapeSize.X;
+		const float ArcRadius = ScaledShapeSize.X;
 		const FVector FlatDirection = Direction.GetSafeNormal2D();
 
 		constexpr int32 ArcSegments = 16;
@@ -199,7 +200,8 @@ void ACPMeleeWeapon::ExecuteMeleeHit()
 		}
 	}
 
-	PlayAttackEffect(Origin);
+	PlayAttackEffect(Origin, Direction.Rotation());
+	PlayAttackSound(Origin, Direction.Rotation());
 
 	if (!StepData.PostHitModules.IsEmpty())
 	{
