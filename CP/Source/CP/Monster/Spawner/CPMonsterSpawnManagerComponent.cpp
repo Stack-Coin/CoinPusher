@@ -109,12 +109,11 @@ void UCPMonsterSpawnManagerComponent::ApplyRoundInfo(int32 InRound)
 	const int32 ResolvedSpawnerCount = RoundInfo ? RoundInfo->SpawnerCount : SpawnerCount;
 	const float RawSpawnerRadius = RoundInfo ? RoundInfo->SpawnerRadius : SpawnerRadius;
 
-	// ponytail: 현재 아레나 NavMesh(8각형, OuterRadius 2200, AlignToSide=True) 기준 안전 상한.
-	// 스포너 10개가 8각형과 각도가 안 맞아 최악의 경우 변 중점(아포뎀 = 2200*cos(pi/8) ≈ 2032)까지만
-	// 보장되고, 거기서 보스 콜리전 반경(293)+여유를 뺀 값 = 1800. DT_RoundInfo의 SpawnerRadius가 이걸
-	// 넘으면 스포너가 NavMesh 밖에 놓여 보스/라운드몹이 안 보이는 버그(2026-09-13)가 재현됨.
-	// 맵 크기나 NavMesh 형태가 바뀌면 이 상수도 다시 계산해야 함.
-	constexpr float MaxSafeSpawnerRadius = 1800.f;
+	// ponytail: 아레나 NavMesh(8각형) 기준 안전 상한. 스포너 10개가 8각형과 각도가 안 맞아 최악의 경우
+	// 변 중점(아포뎀)까지만 보장되고, 거기서 보스 콜리전 반경(293)+여유를 뺀 값. NavMesh 재작업(2026-09)
+	// 이후 1400으로 낮춤. DT_RoundInfo의 SpawnerRadius가 이걸 넘으면 스포너가 NavMesh 밖에 놓여
+	// 보스/라운드몹이 안 보이는 버그가 재현됨. 맵 크기나 NavMesh 형태가 바뀌면 이 상수도 다시 계산해야 함.
+	constexpr float MaxSafeSpawnerRadius = 1400.f;
 	const float ResolvedSpawnerRadius = FMath::Min(RawSpawnerRadius, MaxSafeSpawnerRadius);
 
 	if (RawSpawnerRadius > MaxSafeSpawnerRadius)
