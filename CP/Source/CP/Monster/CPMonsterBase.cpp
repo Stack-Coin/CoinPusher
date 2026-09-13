@@ -701,14 +701,14 @@ namespace
 	}
 }
 
-float ACPMonsterBase::GetAICollisionRadius()
+float ACPMonsterBase::GetAICollisionRadius() const
 {
 	float Radius, HalfHeight;
 	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
 	return Radius;
 }
 
-float ACPMonsterBase::GetAICollisionHalfHeight()
+float ACPMonsterBase::GetAICollisionHalfHeight() const
 {
 	float Radius, HalfHeight;
 	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);

@@ -119,10 +119,14 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 	// 몬스터 클래스마다 캡슐 Half Height(또는 비행 몬스터의 고정 스폰 높이)가 달라서, SpawnCapsule의
 	// 고정 Z(90)를 그대로 쓰면 살짝 떠서 스폰됐다가 떨어지거나 파묻히는 문제가 생김.
 	// 스포너 액터 자체가 지면에 놓여있다고 가정하고, 그 위로 몬스터별 스폰 높이만큼만 띄움
+	float SpawnHeightOffset = 0.f;
+
 	if (ACPMonsterBase* MonsterCDO = MonsterClass->GetDefaultObject<ACPMonsterBase>())
 	{
+		SpawnHeightOffset = MonsterCDO->GetSpawnHeightOffset();
+
 		FVector SpawnLocation = BaseTransform.GetLocation();
-		SpawnLocation.Z = GetActorLocation().Z + MonsterCDO->GetSpawnHeightOffset();
+		SpawnLocation.Z = GetActorLocation().Z + SpawnHeightOffset;
 		BaseTransform.SetLocation(SpawnLocation);
 
 		EffectiveRowSpacingY = FMath::Max(InRowSpacingY, MonsterCDO->GetAICollisionRadius() * 2.f);
@@ -197,6 +201,24 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 			// NavMesh 투영이 돌려준 XY(장애물 회피/유효 위치)는 그대로 쓰되, Z만 원래 의도한
 			// 고정 비행 고도로 복원 - 안 그러면 투영 결과의 지면 높이로 도로 끌려 내려감
 			ResolvedLocation.Z = DesiredSpawnZ;
+		}
+		else
+		{
+			// NavMesh가 돌려주는 Z는 지면 근사치(리캐스트 생성 시 셀 높이 등으로 실제 충돌 지면과
+			// 몇 cm 오차가 남을 수 있음)라, 그대로 쓰면 캡슐이 큰 몬스터(보스 등)일수록 그 오차가
+			// "살짝 뜬 채 스폰됐다가 떨어짐"으로 눈에 띔. NavMesh 결과는 XY(장애물 회피/유효 위치
+			// 판정)만 신뢰하고, Z는 그 XY 지점에서 실제 지면을 다시 라인트레이스해서 정확히 맞춤
+			constexpr float GroundTraceUp = 500.f;
+			constexpr float GroundTraceDown = 2000.f;
+			const FVector TraceStart(ResolvedLocation.X, ResolvedLocation.Y, ResolvedLocation.Z + GroundTraceUp);
+			const FVector TraceEnd(ResolvedLocation.X, ResolvedLocation.Y, ResolvedLocation.Z - GroundTraceDown);
+
+			FHitResult GroundHit;
+			FCollisionQueryParams TraceParams(NAME_None, false, this);
+			if (GetWorld()->LineTraceSingleByChannel(GroundHit, TraceStart, TraceEnd, ECC_WorldStatic, TraceParams))
+			{
+				ResolvedLocation.Z = GroundHit.Location.Z + SpawnHeightOffset;
+			}
 		}
 		SpawnTransform.SetLocation(ResolvedLocation);
 

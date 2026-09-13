@@ -54,6 +54,11 @@ protected:
 	/** 공격범위 표시 NotifyState가 슬램 판정 반경과 항상 같은 값을 쓰도록 오버라이드 */
 	virtual float GetAIAOERadius() override { return SlamRadius; }
 
+	/** 보스 캡슐 크기는 BeginPlay에서 코드 하드코딩 값(GetDefaultCollisionSize)으로 재설정되는데,
+	 *  스폰 위치 계산(GetSpawnHeightOffset)은 그 전에(BP 디폴트 캡슐 크기로) 일어나 둘이 어긋나면
+	 *  붕 뜬 채로 스폰됐다가 떨어짐 - 스폰 시점부터 같은 하드코딩 값을 쓰도록 오버라이드 */
+	virtual float GetSpawnHeightOffset() const override { return GetAICollisionHalfHeight(); }
+
 	/** 일반 몹들이 플레이어를 둘러싸서 보스가 못 들어가는 상황 완화용 - 일반 몹끼리는 기존처럼
 	 *  0.5로 동등하게 서로 비켜주되(그대로 유지), 보스만 훨씬 높여서 보스와 마주쳤을 때는
 	 *  몹 쪽이 더 양보하게 함 */

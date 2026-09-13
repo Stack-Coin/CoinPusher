@@ -151,6 +151,11 @@ protected:
 	UFUNCTION()
 	void HandleAnyMonsterDied();
 
+	/** 보상 몬스터(SpawnRandomRewardMonster)가 죽을 때마다 호출 - ActiveRewardMonsterCount만 줄임.
+	 *  MaxRewardMonsterCount 상한 체크용으로, HandleAnyMonsterDied와 별개로 보상 몬스터에만 추가로 구독됨 */
+	UFUNCTION()
+	void HandleRewardMonsterDied();
+
 	FCPMonsterRoundInfoRow* FindRoundInfoRow(int32 InRound) const;
 
 	/** 현재 라운드의 RoundInfo에서 MaxAliveMonsterCount를 읽어옴 (행이 없으면 0=무제한) */
@@ -248,6 +253,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 1))
 	int32 MonsterCoinSpawnCountOnBombExplode = 1;
 
+	/** 보상 몬스터(SpawnRandomRewardMonster) 동시 생존 상한 - MaxAliveMonsterCount와는 별개로 관리됨.
+	 *  0이면 무제한(GetMaxAliveMonsterCount()와 같은 컨벤션) */
+	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 0))
+	int32 MaxRewardMonsterCount = 5;
+
 private:
 	UPROPERTY()
 	TMap<int32, TObjectPtr<ACPMonsterSpawner>> SpawnersByIndex;
@@ -281,6 +291,9 @@ private:
 	/** 현재 월드에 살아있는 몬스터(웨이브 몹+RoundMob+보스) 총 수 - MaxAliveMonsterCount 상한 체크용.
 	 *  WaveAliveMonsterCount(웨이브 전멸 판정용, 보스/RoundMob 미포함)와는 별개로 관리됨 */
 	int32 TotalAliveMonsterCount = 0;
+
+	/** 현재 살아있는 보상 몬스터(SpawnRandomRewardMonster) 수 - MaxRewardMonsterCount 상한 체크용 */
+	int32 ActiveRewardMonsterCount = 0;
 
 	FTimerHandle WaveWaitTimer;
 

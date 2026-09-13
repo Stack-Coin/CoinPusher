@@ -103,6 +103,6 @@ void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InRou
 	DefaultStat.AttackRange = BaseRow->AttackRange;
 	DefaultStat.TurnSpeed = BaseRow->TurnSpeed;
 	DefaultStat.MoveAcceptableRadius = BaseRow->MoveAcceptableRadius;
-	DefaultStat.SeparationPadding = BaseRow->SeparationPadding;
-	DefaultStat.SeparationSpeed = BaseRow->SeparationSpeed;
+	// SeparationPadding/SeparationSpeed는 더 이상 DataTable에서 안 옴 - DefaultStat 필드
+	// 기본값(70/400)을 그대로 씀 (CPMonsterStatTypes.h FCPMonsterDefaultStat 참고)
 }

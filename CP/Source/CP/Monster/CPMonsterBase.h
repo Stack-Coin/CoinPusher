@@ -111,8 +111,8 @@ public:
 
 	// Default
 	virtual float GetAIAttackInterval() override;
-	virtual float GetAICollisionRadius() override;
-	virtual float GetAICollisionHalfHeight() override;
+	virtual float GetAICollisionRadius() const override;
+	virtual float GetAICollisionHalfHeight() const override;
 	virtual float GetAIAttackRange() override;
 	virtual float GetAITurnSpeed() override;
 	virtual float GetAIMoveAcceptableRadius() override;
