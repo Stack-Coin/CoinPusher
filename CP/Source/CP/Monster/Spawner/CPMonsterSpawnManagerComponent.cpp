@@ -6,6 +6,7 @@
 #include "Monster/CPMonsterBase.h"
 #include "Monster/Boss/CPMonsterBoss.h"
 #include "Monster/Bomb/CPMonsterBomb.h"
+#include "Monster/Pool/CPMonsterPoolSubsystem.h"
 #include "Player/CPPlayerCharacter.h"
 #include "Player/CPTopDownPlayerController.h"
 #include "UI/CPInGameWidget.h"
@@ -127,6 +128,49 @@ void UCPMonsterSpawnManagerComponent::ApplyRoundInfo(int32 InRound)
 	WaveAliveMonsterCount = 0;
 
 	CreateSpawnerRing(ResolvedSpawnerCount, ResolvedSpawnerRadius);
+
+	WarmUpMonsterPools(InRound, RoundInfo);
+}
+
+void UCPMonsterSpawnManagerComponent::WarmUpMonsterPools(int32 InRound, const FCPMonsterRoundInfoRow* InRoundInfo) const
+{
+	UCPMonsterPoolSubsystem* Pool = GetWorld() ? GetWorld()->GetSubsystem<UCPMonsterPoolSubsystem>() : nullptr;
+	if (!Pool || !WaveInfoTable)
+	{
+		return;
+	}
+
+	TArray<FCPMonsterWaveInfoRow*> AllRows;
+	WaveInfoTable->GetAllRows<FCPMonsterWaveInfoRow>(TEXT("UCPMonsterSpawnManagerComponent::WarmUpMonsterPools"), AllRows);
+
+	TMap<ECPMonsterType, int32> ExpectedMaxByType;
+	for (const FCPMonsterWaveInfoRow* Row : AllRows)
+	{
+		if (!Row || Row->Round != InRound)
+		{
+			continue;
+		}
+
+		const int32 RowMaxAlive = Row->CountPerSpawnPoint * Row->SpawnerIndices.Num();
+		int32& Existing = ExpectedMaxByType.FindOrAdd(Row->MonsterType);
+		Existing = FMath::Max(Existing, RowMaxAlive);
+	}
+
+	// 보스는 위 WaveInfo 루프에 안 잡히는 경우(마지막 웨이브 행에 보스 타입이 없을 수 있음)를 대비해
+	// RoundInfoTable 기준으로 최소 1마리는 보장
+	if (InRoundInfo)
+	{
+		int32& BossCount = ExpectedMaxByType.FindOrAdd(InRoundInfo->BossMonsterType);
+		BossCount = FMath::Max(BossCount, 1);
+	}
+
+	for (const TPair<ECPMonsterType, int32>& Pair : ExpectedMaxByType)
+	{
+		if (TSubclassOf<ACPMonsterBase> MonsterClass = MonsterClassByType.FindRef(Pair.Key))
+		{
+			Pool->WarmUp(Pair.Key, MonsterClass, Pair.Value);
+		}
+	}
 }
 
 void UCPMonsterSpawnManagerComponent::CreateSpawnerRing(int32 InSpawnerCount, float InSpawnerRadius)
@@ -243,6 +287,7 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 	{
 		FCPActiveSpawnJob Job;
 		Job.MonsterClass = MonsterClassByType.FindRef(Entry->MonsterType);
+		Job.MonsterType = Entry->MonsterType;
 		Job.CountPerSpawnPoint = Entry->CountPerSpawnPoint;
 		Job.MonstersPerSpawn = Entry->MonstersPerSpawn;
 		Job.SpawnRowSpacingY = Entry->SpawnRowSpacingY;
@@ -372,7 +417,7 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		return;
 	}
 
-	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, 1, 0.f, CurrentRound, GetWaveCount());
+	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, RoundInfo->BossMonsterType, 1, 0.f, CurrentRound, GetWaveCount());
 	ACPMonsterBase* SpawnedBoss = SpawnedBossRow.IsValidIndex(0) ? SpawnedBossRow[0] : nullptr;
 	if (SpawnedBoss)
 	{
@@ -531,7 +576,7 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 				continue;
 			}
 
-			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, CurrentWaveIndex + 1);
+			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonsterType, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, CurrentWaveIndex + 1);
 			for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 			{
 				if (IsValid(SpawnedMonster))
@@ -610,6 +655,7 @@ void UCPMonsterSpawnManagerComponent::StartRoundMobSpawning()
 
 		FCPActiveSpawnJob Job;
 		Job.MonsterClass = MonsterClassByType.FindRef(Entry->MonsterType);
+		Job.MonsterType = Entry->MonsterType;
 		Job.CountPerSpawnPoint = Entry->CountPerSpawnPoint;
 		Job.MonstersPerSpawn = Entry->MonstersPerSpawn;
 		Job.SpawnRowSpacingY = Entry->SpawnRowSpacingY;
@@ -681,7 +727,7 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 
 			// 보스 페이즈 잡몹은 전멸 판정에 관여하지 않으므로 WaveAliveMonsterCount는 건드리지 않고,
 			// TotalAliveMonsterCount(마릿수 상한 체크용)만 늘림
-			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, GetWaveCount());
+			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonsterType, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, GetWaveCount());
 			for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 			{
 				if (IsValid(SpawnedMonster))
@@ -923,7 +969,7 @@ void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 	}
 
 	ACPMonsterSpawner* ChosenSpawner = ValidSpawners[FMath::RandRange(0, ValidSpawners.Num() - 1)];
-	const TArray<ACPMonsterBase*> SpawnedMonsters = ChosenSpawner->SpawnMonsterRow(ChosenClass, 1, 0.f, CurrentRound, CurrentWaveIndex + 1);
+	const TArray<ACPMonsterBase*> SpawnedMonsters = ChosenSpawner->SpawnMonsterRow(ChosenClass, ChosenType, 1, 0.f, CurrentRound, CurrentWaveIndex + 1);
 
 	for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 	{

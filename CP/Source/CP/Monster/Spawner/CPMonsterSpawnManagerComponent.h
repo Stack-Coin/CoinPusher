@@ -24,6 +24,11 @@ struct FCPActiveSpawnJob
 	UPROPERTY()
 	TSubclassOf<ACPMonsterBase> MonsterClass;
 
+	/** MonsterClass의 CDO에서 재추론하지 않고, WaveInfoTable의 이 Job을 만든 행이 갖고 있던 값을 그대로
+	 *  저장해둠 - 몬스터 풀(UCPMonsterPoolSubsystem)이 타입별로 정확히 나뉘도록 스포너에 그대로 전달됨 */
+	UPROPERTY()
+	ECPMonsterType MonsterType = ECPMonsterType::Normal;
+
 	UPROPERTY()
 	int32 CountPerSpawnPoint = 0;
 
@@ -78,6 +83,13 @@ protected:
 
 	void ApplyRoundInfo(int32 InRound);
 	void CreateSpawnerRing(int32 InSpawnerCount, float InSpawnerRadius);
+
+	/** 이 라운드의 WaveInfoTable 행들(마지막 웨이브=RoundMob 전용 행 포함)을 훑어서, 타입별로 동시에
+	 *  살아있을 수 있는 최대 마릿수를 추정함(같은 웨이브 안의 CountPerSpawnPoint*스포너수 - 웨이브는
+	 *  순차 진행이라 합산이 아니라 최댓값). 보스 타입은 RoundInfoTable 기준으로 항상 1을 보장.
+	 *  UCPMonsterPoolSubsystem::WarmUp() 호출 크기를 정하는 데만 쓰임(성능 힌트일 뿐이라 추정이 어긋나도
+	 *  Acquire()가 새로 스폰해서 동작은 정상적으로 유지됨) */
+	void WarmUpMonsterPools(int32 InRound, const FCPMonsterRoundInfoRow* InRoundInfo) const;
 
 	void StartWave(int32 InWaveIndex);
 	void GetWaveEntries(int32 InRound, int32 InWave, TArray<FCPMonsterWaveInfoRow*>& OutEntries) const;

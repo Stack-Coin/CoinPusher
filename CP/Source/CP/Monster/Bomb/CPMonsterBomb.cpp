@@ -71,3 +71,23 @@ float ACPMonsterBomb::GetSpawnHeightOffset() const
 {
 	return FlightSpawnHeight;
 }
+
+void ACPMonsterBomb::OnReturnedToPool()
+{
+	Super::OnReturnedToPool();
+
+	if (FuseEffect)
+	{
+		FuseEffect->Deactivate();
+	}
+}
+
+void ACPMonsterBomb::OnAcquiredFromPool(const FTransform& NewTransform)
+{
+	Super::OnAcquiredFromPool(NewTransform);
+
+	if (FuseEffect)
+	{
+		FuseEffect->Activate(true);
+	}
+}

@@ -6,6 +6,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/ArrowComponent.h"
 #include "Monster/CPMonsterBase.h"
+#include "Monster/Pool/CPMonsterPoolSubsystem.h"
 #include "Engine/World.h"
 #include "NavigationSystem.h"
 #include "AI/Navigation/NavAgentInterface.h"
@@ -83,7 +84,7 @@ FVector ACPMonsterSpawner::ProjectToNavMesh(const FVector& InLocation, const FNa
 	return InLocation;
 }
 
-TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave)
+TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, ECPMonsterType InMonsterType, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave)
 {
 	TArray<ACPMonsterBase*> SpawnedMonsters;
 
@@ -101,6 +102,11 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 	// NavMesh 투영 시 몬스터 크기에 맞는 Supported Agent를 고르기 위한 값(Default 0/0이면 기본 Agent로 투영)
 	FNavAgentProperties SpawnNavAgentProps;
 
+	// true면(Ranged/Bomb 등 비행형) 아래 ResolveFreeSpawnLocation의 NavMesh 투영 결과 Z를 무시하고
+	// 이 스폰 높이를 그대로 강제함 - NavMesh 투영은 항상 "NavMesh 표면(지면) 위의 점"을 돌려주므로,
+	// 그대로 두면 고정 비행 고도가 지면 높이로 끌려 내려가 파묻혀버림
+	bool bUseFixedSpawnHeight = false;
+
 	// 몬스터 클래스마다 캡슐 Half Height(또는 비행 몬스터의 고정 스폰 높이)가 달라서, SpawnCapsule의
 	// 고정 Z(90)를 그대로 쓰면 살짝 떠서 스폰됐다가 떨어지거나 파묻히는 문제가 생김.
 	// 스포너 액터 자체가 지면에 놓여있다고 가정하고, 그 위로 몬스터별 스폰 높이만큼만 띄움
@@ -114,10 +120,11 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 
 		SpawnNavAgentProps.AgentRadius = MonsterCDO->GetAICollisionRadius();
 		SpawnNavAgentProps.AgentHeight = MonsterCDO->GetAICollisionHalfHeight() * 2.f;
+
+		bUseFixedSpawnHeight = MonsterCDO->ShouldUseFixedSpawnHeight();
 	}
 
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	UCPMonsterPoolSubsystem* Pool = GetWorld()->GetSubsystem<UCPMonsterPoolSubsystem>();
 
 	SpawnedMonsters.Reserve(InCount);
 
@@ -129,10 +136,20 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 		FTransform SpawnTransform = BaseTransform;
 		SpawnTransform.AddToTranslation(RightAxis * Offset);
 
-		// 이 자리에 이미 다른 몬스터/장애물이 있으면 주변의 비어있는 자리로 대신 스폰함
-		SpawnTransform.SetLocation(ResolveFreeSpawnLocation(SpawnTransform.GetLocation(), SpawnNavAgentProps));
+		const float DesiredSpawnZ = SpawnTransform.GetLocation().Z;
 
-		if (ACPMonsterBase* SpawnedMonster = GetWorld()->SpawnActor<ACPMonsterBase>(MonsterClass, SpawnTransform, SpawnParams))
+		// 이 자리에 이미 다른 몬스터/장애물이 있으면 주변의 비어있는 자리로 대신 스폰함
+		FVector ResolvedLocation = ResolveFreeSpawnLocation(SpawnTransform.GetLocation(), SpawnNavAgentProps);
+		if (bUseFixedSpawnHeight)
+		{
+			// NavMesh 투영이 돌려준 XY(장애물 회피/유효 위치)는 그대로 쓰되, Z만 원래 의도한
+			// 고정 비행 고도로 복원 - 안 그러면 투영 결과의 지면 높이로 도로 끌려 내려감
+			ResolvedLocation.Z = DesiredSpawnZ;
+		}
+		SpawnTransform.SetLocation(ResolvedLocation);
+
+		ACPMonsterBase* SpawnedMonster = Pool ? Pool->Acquire(InMonsterType, MonsterClass, SpawnTransform) : nullptr;
+		if (SpawnedMonster)
 		{
 			SpawnedMonster->ApplyWaveStat(InRound, InWave);
 			SpawnedMonsters.Add(SpawnedMonster);

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Monster/Stat/CPMonsterStatTypes.h"
 #include "CPMonsterSpawner.generated.h"
 
 class UCapsuleComponent;
@@ -23,8 +24,12 @@ public:
 	//이 스포너 위치를 중심으로 InCount마리를 Y축(스포너가 바라보는 방향의 좌우)으로 나란히 스폰합니다.
 	//InCount마리 전부(1마리 이상이어도 전부)를 반환합니다 - 호출부가 스폰된 각 몬스터의 죽음 델리게이트를
 	//개별 구독해야 하는 경우(전멸 감지 등)를 위해 마지막 1마리만 반환하던 이전 방식에서 바꿈.
+	/** InMonsterType은 몬스터 풀(UCPMonsterPoolSubsystem) 조회 키로만 씀 - MonsterClass의 CDO에서
+	 *  재추론하지 않고, 호출부(RoundInfo/WaveInfo)가 이미 알고 있는 권위있는 값을 그대로 받음.
+	 *  CDO의 MonsterType 필드가 실제 값과 다르게 세팅돼있어도(BP 설정 누락 등) 풀이 엉뚱한 타입으로
+	 *  섞이지 않도록 하기 위함 */
 	UFUNCTION(BlueprintCallable, Category = "Spawn")
-	TArray<ACPMonsterBase*> SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave);
+	TArray<ACPMonsterBase*> SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, ECPMonsterType InMonsterType, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave);
 
 protected:
 	/** InDesiredLocation이 다른 몬스터/장애물과 겹치면, 그 주변을 원형으로 훑어서 비어있는 자리를 찾아 반환함.

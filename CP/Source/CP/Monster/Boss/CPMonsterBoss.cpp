@@ -9,6 +9,7 @@
 #include "Engine/OverlapResult.h"
 #include "DrawDebugHelpers.h"
 #include "Components/CapsuleComponent.h"
+#include "Weapon/CPKnockbackInterface.h"
 
 ACPMonsterBoss::ACPMonsterBoss()
 {
@@ -140,7 +141,10 @@ void ACPMonsterBoss::MakeRoomNearPlayer()
 		}
 
 		const FVector PushDirection = (Other->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-		Other->ApplyKnockback(PushDirection, PushDistance, this);
+		if (ICPKnockbackable* Knockbackable = Cast<ICPKnockbackable>(Other))
+		{
+			Knockbackable->ApplyKnockback(PushDirection, PushDistance, this);
+		}
 	}
 }
 

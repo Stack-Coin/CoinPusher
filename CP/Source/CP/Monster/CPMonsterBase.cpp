@@ -3,6 +3,7 @@
 
 #include "Monster/CPMonsterBase.h"
 #include "Monster/CPMonsterAIController.h"
+#include "Monster/Pool/CPMonsterPoolSubsystem.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -91,6 +92,11 @@ void ACPMonsterBase::BeginPlay()
 		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPMonsterBase::HandleDebugCollisionVisibilityChanged);
 		bDrawDebugAttackRange = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::MonsterAttackRange);
 	}
+
+	// Dead()가 사망 시 이 값들을 NoCollision으로 꺼버리므로, 풀에서 재사용될 때(OnAcquiredFromPool)
+	// 되돌릴 원래 값을 지금(BP 기본값이 반영된 시점) 캐시해둠
+	DefaultCapsuleCollisionEnabled = GetCapsuleComponent()->GetCollisionEnabled();
+	DefaultMeshCollisionEnabled = GetMesh()->GetCollisionEnabled();
 }
 
 void ACPMonsterBase::Tick(float DeltaSeconds)
@@ -114,6 +120,71 @@ void ACPMonsterBase::ApplyWaveStat(int32 InRound, int32 InWave)
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
 		MoveComp->MaxWalkSpeed = GetAIMoveSpeed();
+	}
+}
+
+void ACPMonsterBase::OnReturnedToPool()
+{
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
+	SetActorTickEnabled(false);
+
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		PooledMovementMode = MoveComp->MovementMode;
+		MoveComp->DisableMovement();
+	}
+
+	if (ACPMonsterAIController* AIController = GetController<ACPMonsterAIController>())
+	{
+		AIController->StopAI();
+	}
+
+	GetWorldTimerManager().ClearTimer(KnockbackRestoreHandle);
+}
+
+void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
+{
+	bIsDead = false;
+	bPendingDeath = false;
+	CurrentCCState = ECPMonsterCCState::None;
+	LastAttackHitActor = nullptr;
+
+	SetActorHiddenInGame(false);
+	SetActorEnableCollision(true);
+	SetActorTickEnabled(true);
+
+	GetCapsuleComponent()->SetCollisionEnabled(DefaultCapsuleCollisionEnabled);
+	GetMesh()->SetCollisionEnabled(DefaultMeshCollisionEnabled);
+
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		// 비행형(Ranged/Bomb)은 PlaneConstraint로 Z를 고정해두는데, 그 기준점이 예전(풀에 들어가기 전)
+		// 위치에 그대로 남아있는 상태로 텔레포트하면 그 낡은 평면에 걸려 Z가 도로 끌려갈 수 있음 -
+		// 텔레포트 전에 일단 꺼서 그 영향을 피하고, 새 위치로 옮긴 다음 새 기준점으로 다시 켬
+		const bool bWasConstrainedToPlane = MoveComp->bConstrainToPlane;
+		if (bWasConstrainedToPlane)
+		{
+			MoveComp->SetPlaneConstraintEnabled(false);
+		}
+
+		SetActorLocationAndRotation(NewTransform.GetLocation(), NewTransform.GetRotation());
+		MoveComp->SetMovementMode(PooledMovementMode);
+
+		if (bWasConstrainedToPlane)
+		{
+			MoveComp->SetPlaneConstraintOrigin(NewTransform.GetLocation());
+			MoveComp->SetPlaneConstraintEnabled(true);
+		}
+	}
+	else
+	{
+		SetActorLocationAndRotation(NewTransform.GetLocation(), NewTransform.GetRotation());
+	}
+
+	if (ACPMonsterAIController* AIController = GetController<ACPMonsterAIController>())
+	{
+		AIController->RunAI();
 	}
 }
 
@@ -250,9 +321,9 @@ void ACPMonsterBase::Dead()
 				[this](UAnimMontage*, bool)
 				{
 					// 몽타주가 끝난 뒤 잠깐이라도 대기하면, 그 사이에 애님 그래프가 베이스 포즈(Idle)로
-					// 블렌드백되면서 몬스터가 다시 일어서는 것처럼 보이는 문제가 있어 지연 없이 바로 파괴함.
+					// 블렌드백되면서 몬스터가 다시 일어서는 것처럼 보이는 문제가 있어 지연 없이 바로 반환함.
 					// (애님 그래프에 "사망 상태 유지"용 스테이트를 추가하는 게 근본적인 해결책이라 추후 필요)
-					Destroy();
+					ReturnToPoolOrDestroy();
 				});
 
 			AnimInstance->Montage_SetEndDelegate(EndDelegate, DeadMontage);
@@ -261,7 +332,23 @@ void ACPMonsterBase::Dead()
 		}
 	}
 
-	SetLifeSpan(2.0f);
+	// DeadMontage가 없으면(또는 AnimInstance가 없으면) 2초 뒤 반환 - 죽는 순간부터 이미 화면에는
+	// 안 보이는 게 자연스러우므로 여기서도 즉시 숨기고, 실제 반환(재사용 가능 상태 전환)만 지연시킴
+	SetActorHiddenInGame(true);
+	FTimerHandle DelayedReturnHandle;
+	GetWorldTimerManager().SetTimer(DelayedReturnHandle, this, &ACPMonsterBase::ReturnToPoolOrDestroy, 2.0f, false);
+}
+
+void ACPMonsterBase::ReturnToPoolOrDestroy()
+{
+	if (UCPMonsterPoolSubsystem* Pool = GetWorld() ? GetWorld()->GetSubsystem<UCPMonsterPoolSubsystem>() : nullptr)
+	{
+		Pool->Release(this);
+	}
+	else
+	{
+		Destroy();
+	}
 }
 
 void ACPMonsterBase::SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished)
