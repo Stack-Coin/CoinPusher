@@ -162,6 +162,13 @@ protected:
 protected:
 	void SeparateFromOtherMonsters(float DeltaSeconds);
 
+	/** SeparateFromOtherMonsters()는 몬스터당 매 틱 OverlapMulti를 돌려서 비용이 큼(몹 수가 늘수록
+	 *  O(n^2)에 가까워짐) - 몬스터마다 GetUniqueID() 기준으로 실행 프레임을 분산시켜, 이 값만큼의
+	 *  프레임에 한 번씩만 계산하고 그동안 누적된 DeltaSeconds를 몰아서 넘김(이동 거리는 보존, 계산
+	 *  빈도만 줄임). 타입별로 다르게 주고 싶으면(예: 보스는 매틱, 잡몹은 4~8프레임) BP에서 오버라이드 */
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 1))
+	int32 SeparationFrameInterval = 4;
+
 public:
 	FAICharacterAttackFinished OnAttackFinished;
 

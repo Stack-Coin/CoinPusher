@@ -105,7 +105,12 @@ void ACPMonsterBase::Tick(float DeltaSeconds)
 
 	if (!bIsDead)
 	{
-		SeparateFromOtherMonsters(DeltaSeconds);
+		// GetUniqueID()로 몬스터마다 실행 프레임을 분산시켜, SeparationFrameInterval프레임에 한 번만
+		// OverlapMulti를 돌림 - 매틱 전부가 같은 프레임에 몰리면 분산 의미가 없으므로 몬스터별로 어긋나게 함
+		if ((GFrameCounter + GetUniqueID()) % SeparationFrameInterval == 0)
+		{
+			SeparateFromOtherMonsters(DeltaSeconds * SeparationFrameInterval);
+		}
 	}
 }
 
