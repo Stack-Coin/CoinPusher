@@ -171,10 +171,24 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 			}
 			else
 			{
-				// 2) 그마저도 실패하면(주변에 NavMesh 자체가 없음) 최후의 수단으로 원래 위치에 강제 스폰 -
-				// 게임 진행이 막히는 것보다는 낫지만, 레벨의 NavMesh 커버리지 문제이므로 Error로 남김
-				UE_LOG(LogTemp, Error, TEXT("[CPMonsterSpawner] SpawnMonsterRow - CRITICAL: 넓은 범위 재탐색도 실패해 NavMesh 밖에 강제 스폰합니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
-				ResolvedLocation = SpawnTransform.GetLocation();
+				// 2) 그마저도 실패하면 - 오너(플레이어)는 항상 NavMesh 위에 서 있어야 이동이 가능하므로,
+				// 오너 위치를 기준으로 다시 넓은 범위 탐색함. "보스는 무조건 스폰"이 "무조건 NavMesh 밖에라도
+				// 스폰"으로 새는 걸 막기 위한 안전망 - 이 스포너 주변 NavMesh가 끊겨있어도 오너 근방엔
+				// 거의 항상 NavMesh가 있음
+				AActor* AttachOwner = GetAttachParentActor();
+				const FVector OwnerLocation = AttachOwner ? AttachOwner->GetActorLocation() : GetActorLocation();
+				if (ProjectToNavMesh(OwnerLocation, SpawnNavAgentProps, ResolvedLocation, WideProjectionExtentXY, WideProjectionExtentZ))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawner] SpawnMonsterRow - 넓은 범위 재탐색도 실패, 오너 위치 기준으로 보정했습니다 (오너 위치 %s)."), *OwnerLocation.ToString());
+				}
+				else
+				{
+					// 3) 그마저도 실패하면(NavMesh 시스템 자체가 없거나 레벨에 전혀 안 빌드됨) 최후의 수단으로
+					// 원래 위치에 강제 스폰 - 게임 진행이 막히는 것보다는 낫지만, 레벨의 NavMesh 커버리지가
+					// 심각하게 잘못됐다는 뜻이므로 Error로 남김
+					UE_LOG(LogTemp, Error, TEXT("[CPMonsterSpawner] SpawnMonsterRow - CRITICAL: 오너 위치 기준 재탐색도 실패해 NavMesh 밖에 강제 스폰합니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
+					ResolvedLocation = SpawnTransform.GetLocation();
+				}
 			}
 		}
 
