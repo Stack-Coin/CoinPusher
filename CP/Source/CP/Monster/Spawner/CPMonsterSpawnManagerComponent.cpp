@@ -253,6 +253,7 @@ void UCPMonsterSpawnManagerComponent::CreateSpawnerRing(int32 InSpawnerCount, fl
 		if (ACPMonsterSpawner* Spawner = GetWorld()->SpawnActor<ACPMonsterSpawner>(ClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams))
 		{
 			Spawner->Tags.Add(*FString::Printf(TEXT("Spawner%d"), Index));
+			Spawner->ArenaCenterLocation = CenterLocation;
 
 			// 오너에 부착 - 플레이어가 움직이면 이 반경 배치가 그대로 따라감
 			Spawner->AttachToActor(Owner, FAttachmentTransformRules::KeepWorldTransform);
@@ -431,7 +432,7 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 	}
 
 	// 보스는 절대 스폰이 스킵되면 안 되므로 NavMesh 투영 실패해도 강제로 스폰(bAllowFallbackOutsideNavMesh=true)
-	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, RoundInfo->BossMonsterType, 1, 0.f, CurrentRound, GetWaveCount(), /*bAllowFallbackOutsideNavMesh=*/true);
+	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, RoundInfo->BossMonsterType, 1, 0.f, CurrentRound, GetWaveCount(), GetPlayerLocation(), /*bAllowFallbackOutsideNavMesh=*/true);
 	ACPMonsterBase* SpawnedBoss = SpawnedBossRow.IsValidIndex(0) ? SpawnedBossRow[0] : nullptr;
 	if (SpawnedBoss)
 	{
@@ -597,7 +598,7 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 			// 그 사이 NavMesh 밖으로 밀려났을 수 있음. 이 함수 진입 전에 이미 상한(MaxAliveMonsterCount)
 			// 체크를 통과한 상태라 스폰 기회를 잃지 않도록, 보스/보상 몬스터와 같은 resilient
 			// 체인(bAllowFallbackOutsideNavMesh=true)에 맡김 - 여기서 미리 걸러 스킵하지 않음
-			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonsterType, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, CurrentWaveIndex + 1, /*bAllowFallbackOutsideNavMesh=*/true);
+			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonsterType, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, CurrentWaveIndex + 1, GetPlayerLocation(), /*bAllowFallbackOutsideNavMesh=*/true);
 			for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 			{
 				if (IsValid(SpawnedMonster))
@@ -759,7 +760,7 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 
 			// 보스 페이즈 잡몹은 전멸 판정에 관여하지 않으므로 WaveAliveMonsterCount는 건드리지 않고,
 			// TotalAliveMonsterCount(마릿수 상한 체크용)만 늘림
-			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonsterType, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, GetWaveCount(), /*bAllowFallbackOutsideNavMesh=*/true);
+			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonsterType, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, GetWaveCount(), GetPlayerLocation(), /*bAllowFallbackOutsideNavMesh=*/true);
 			for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 			{
 				if (IsValid(SpawnedMonster))
@@ -918,6 +919,12 @@ int32 UCPMonsterSpawnManagerComponent::GetMaxAliveMonsterCount() const
 	return RoundInfo ? RoundInfo->MaxAliveMonsterCount : 0;
 }
 
+FVector UCPMonsterSpawnManagerComponent::GetPlayerLocation() const
+{
+	const AActor* Owner = GetOwner();
+	return Owner ? Owner->GetActorLocation() : FVector::ZeroVector;
+}
+
 ACPCoinPusher* UCPMonsterSpawnManagerComponent::GetCoinPusher() const
 {
 	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(GetOwner()))
@@ -1024,7 +1031,7 @@ void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 
 	ACPMonsterSpawner* ChosenSpawner = AvailableSpawners[FMath::RandRange(0, AvailableSpawners.Num() - 1)];
 	// 보스처럼 절대 스킵되면 안 되므로 bAllowFallbackOutsideNavMesh=true
-	const TArray<ACPMonsterBase*> SpawnedMonsters = ChosenSpawner->SpawnMonsterRow(ChosenClass, ChosenType, 1, 0.f, CurrentRound, CurrentWaveIndex + 1, /*bAllowFallbackOutsideNavMesh=*/true);
+	const TArray<ACPMonsterBase*> SpawnedMonsters = ChosenSpawner->SpawnMonsterRow(ChosenClass, ChosenType, 1, 0.f, CurrentRound, CurrentWaveIndex + 1, GetPlayerLocation(), /*bAllowFallbackOutsideNavMesh=*/true);
 
 	for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 	{

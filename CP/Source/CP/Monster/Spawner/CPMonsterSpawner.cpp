@@ -9,6 +9,7 @@
 #include "Monster/Pool/CPMonsterPoolSubsystem.h"
 #include "Engine/World.h"
 #include "NavigationSystem.h"
+#include "NavigationPath.h"
 #include "AI/Navigation/NavAgentInterface.h"
 
 // Sets default values
@@ -29,7 +30,7 @@ ACPMonsterSpawner::ACPMonsterSpawner()
 	SpawnDirection->SetupAttachment(RootComponent);
 }
 
-bool ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLocation, const FNavAgentProperties& InNavAgentProps, FVector& OutLocation) const
+bool ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLocation, const FNavAgentProperties& InNavAgentProps, const FVector& InPlayerLocation, FVector& OutLocation) const
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -41,36 +42,62 @@ bool ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLocatio
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
 
-	if (!World->OverlapAnyTestByChannel(InDesiredLocation, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
+	const float MinPlayerDistSq = FMath::Square(MinPlayerSpawnDistance);
+
+	// 겹침 / 플레이어 근접 / NavMesh 고립 섬(끼임) 여부를 한데 모아 판정하는 공통 후보 검증
+	auto TryResolveAt = [&](const FVector& Candidate, FVector& OutResolved)
 	{
-		// 원래 위치가 비어있으면 NavMesh 위로 보정해서 그대로 사용
-		if (ProjectToNavMesh(InDesiredLocation, InNavAgentProps, OutLocation))
+		if (MinPlayerSpawnDistance > 0.f && FVector::DistSquared(Candidate, InPlayerLocation) < MinPlayerDistSq)
 		{
-			return true;
+			return false;
 		}
+
+		if (World->OverlapAnyTestByChannel(Candidate, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
+		{
+			return false;
+		}
+
+		return ProjectToNavMesh(Candidate, InNavAgentProps, OutResolved) && IsLocationReachableFromArenaCenter(OutResolved, InNavAgentProps);
+	};
+
+	// 원래 위치부터 시도
+	if (TryResolveAt(InDesiredLocation, OutLocation))
+	{
+		return true;
 	}
 
-	// 이미 다른 몬스터/장애물이 있거나(위에서 실패) 원래 위치가 NavMesh 밖이면, 주변을 원형으로
-	// 훑어서 겹치지 않고 NavMesh에도 유효한 자리를 찾음
+	// 막혔거나(겹침/플레이어 근접) 원래 위치가 NavMesh 밖/고립 섬이면, 주변을 원형으로 훑어서 유효한 자리를 찾음
 	for (int32 Attempt = 1; Attempt <= MaxRelocationAttempts; ++Attempt)
 	{
 		const float AngleDeg = (360.f / MaxRelocationAttempts) * Attempt;
 		const FVector Offset = FVector(FMath::Cos(FMath::DegreesToRadians(AngleDeg)), FMath::Sin(FMath::DegreesToRadians(AngleDeg)), 0.f) * RelocationStepDistance;
 		const FVector Candidate = InDesiredLocation + Offset;
 
-		if (!World->OverlapAnyTestByChannel(Candidate, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
+		if (TryResolveAt(Candidate, OutLocation))
 		{
-			if (ProjectToNavMesh(Candidate, InNavAgentProps, OutLocation))
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 
-	// 마지막 수단: 겹침 여부와 무관하게 원래 위치라도 NavMesh에 투영되면 사용(겹침은 SpawnActor의
-	// AdjustIfPossibleButAlwaysSpawn이 물리적으로 밀어내 줌). 이것마저 실패하면(NavMesh 자체가 없거나
-	// 투영 범위 밖) 더 이상 보정할 방법이 없으므로 이 자리는 스폰 불가로 판단해서 호출부에 알림
+	// 마지막 수단: 겹침/플레이어 근접/고립 섬 여부와 무관하게 원래 위치라도 NavMesh에 투영되면 사용(겹침은
+	// SpawnActor의 AdjustIfPossibleButAlwaysSpawn이 물리적으로 밀어내 줌). 이것마저 실패하면(NavMesh 자체가
+	// 없거나 투영 범위 밖) 더 이상 보정할 방법이 없으므로 이 자리는 스폰 불가로 판단해서 호출부에 알림
 	return ProjectToNavMesh(InDesiredLocation, InNavAgentProps, OutLocation);
+}
+
+bool ACPMonsterSpawner::IsLocationReachableFromArenaCenter(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps) const
+{
+	UWorld* World = GetWorld();
+	UNavigationSystemV1* NavSys = World ? FNavigationSystem::GetCurrent<UNavigationSystemV1>(World) : nullptr;
+	if (!NavSys)
+	{
+		return true;
+	}
+
+	const UNavigationPath* Path = NavSys->FindPathToLocationSynchronously(World, InLocation, ArenaCenterLocation);
+
+	// 부분 경로(Partial)는 중간에 끊겨 중심까지 못 이어진 것 - 고립된 NavMesh 조각에 스폰된 경우를 걸러냄
+	return Path && Path->IsValid() && !Path->IsPartial();
 }
 
 bool ACPMonsterSpawner::ProjectToNavMesh(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps, FVector& OutLocation, float InExtentXY, float InExtentZ) const
@@ -93,7 +120,7 @@ bool ACPMonsterSpawner::ProjectToNavMesh(const FVector& InLocation, const FNavAg
 	return false;
 }
 
-TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, ECPMonsterType InMonsterType, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave, bool bAllowFallbackOutsideNavMesh)
+TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonsterBase> MonsterClass, ECPMonsterType InMonsterType, int32 InCount, float InRowSpacingY, int32 InRound, int32 InWave, const FVector& InPlayerLocation, bool bAllowFallbackOutsideNavMesh)
 {
 	TArray<ACPMonsterBase*> SpawnedMonsters;
 
@@ -153,7 +180,7 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 
 		// 이 자리에 이미 다른 몬스터/장애물이 있으면 주변의 비어있는 자리로 대신 스폰함
 		FVector ResolvedLocation;
-		const bool bResolved = ResolveFreeSpawnLocation(SpawnTransform.GetLocation(), SpawnNavAgentProps, ResolvedLocation);
+		const bool bResolved = ResolveFreeSpawnLocation(SpawnTransform.GetLocation(), SpawnNavAgentProps, InPlayerLocation, ResolvedLocation);
 
 		if (!bResolved)
 		{
@@ -169,7 +196,8 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 			// 1) 기본 범위(200)에서 실패했으니, 훨씬 넓은 범위로 한 번 더 NavMesh를 찾아봄
 			constexpr float WideProjectionExtentXY = 5000.f;
 			constexpr float WideProjectionExtentZ = 2000.f;
-			if (ProjectToNavMesh(SpawnTransform.GetLocation(), SpawnNavAgentProps, ResolvedLocation, WideProjectionExtentXY, WideProjectionExtentZ))
+			if (ProjectToNavMesh(SpawnTransform.GetLocation(), SpawnNavAgentProps, ResolvedLocation, WideProjectionExtentXY, WideProjectionExtentZ)
+				&& IsLocationReachableFromArenaCenter(ResolvedLocation, SpawnNavAgentProps))
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawner] SpawnMonsterRow - 기본 범위 NavMesh 투영 실패, 넓은 범위 재탐색으로 보정했습니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
 			}
@@ -181,7 +209,8 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 				// 거의 항상 NavMesh가 있음
 				AActor* AttachOwner = GetAttachParentActor();
 				const FVector OwnerLocation = AttachOwner ? AttachOwner->GetActorLocation() : GetActorLocation();
-				if (ProjectToNavMesh(OwnerLocation, SpawnNavAgentProps, ResolvedLocation, WideProjectionExtentXY, WideProjectionExtentZ))
+				if (ProjectToNavMesh(OwnerLocation, SpawnNavAgentProps, ResolvedLocation, WideProjectionExtentXY, WideProjectionExtentZ)
+					&& IsLocationReachableFromArenaCenter(ResolvedLocation, SpawnNavAgentProps))
 				{
 					UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawner] SpawnMonsterRow - 넓은 범위 재탐색도 실패, 오너 위치 기준으로 보정했습니다 (오너 위치 %s)."), *OwnerLocation.ToString());
 				}

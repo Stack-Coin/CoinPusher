@@ -165,6 +165,10 @@ protected:
 	 *  핸들러들과 DropZone 델리게이트 바인딩(BeginPlay)이 공통으로 사용 */
 	ACPCoinPusher* GetCoinPusher() const;
 
+	/** GetOwner()(=Player)의 현재 위치. 스폰 위치가 플레이어와 너무 가까워지는 걸 막는 데 씀
+	 *  (ACPMonsterSpawner::ResolveFreeSpawnLocation의 MinPlayerSpawnDistance 판정) */
+	FVector GetPlayerLocation() const;
+
 	/** ACPMonsterBoss::OnBossAttackedPlayer에 바인딩됨(SpawnBoss) - 보스 공격이 플레이어에게 명중할 때마다
 	 *  CoinPusher의 활성 코인을 몬스터 코인으로 전환시킴 */
 	UFUNCTION()
