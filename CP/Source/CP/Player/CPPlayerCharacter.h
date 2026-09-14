@@ -98,9 +98,10 @@ class CP_API ACPPlayerCharacter : public ACharacter, public ICPStatInterface, pu
 	UCPDebugCollisionShapeComponent* DebugHitboxShape;
 
 	/** 뱀서류 몬스터 웨이브/라운드/보스 스폰을 전담하는 컴포넌트. 매 인스턴스에 자동으로 붙어있고,
-	 *  MonsterClassByType/SpawnWaveEntryTable/RoundInfoTable 기본값은 이 컴포넌트의 생성자
-	 *  (ConstructorHelpers)에서 자동으로 채워짐 - Details 패널에서 개별적으로 덮어쓸 수 있음.
-	 *  See Monster/Spawner/CPMonsterSpawnManagerComponent */
+	 *  MonsterClassByType/WaveInfoTable/RoundInfoTable은 전부 UPROPERTY(EditAnywhere)라 이 컴포넌트를
+	 *  들고 있는 BP(또는 여기서 파생된 BP)의 Class Defaults 패널에서 직접 값을 채워야 함 - 런타임에
+	 *  하드코딩 경로로 자동 채워지지 않음(과거엔 그랬는데, 그 경로는 쿠커가 못 봐서 패키지 빌드에서
+	 *  전부 빠졌었음). See Monster/Spawner/CPMonsterSpawnManagerComponent */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCPMonsterSpawnManagerComponent> MonsterSpawnManager;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))

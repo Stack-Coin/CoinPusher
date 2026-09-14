@@ -28,7 +28,6 @@ void UCPMonsterSpawnManagerComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	LoadAsset();
 	ApplyRoundInfo(CurrentRound);
 
 	// CoinPusher가 DropZone에 몬스터 코인을 떨어뜨릴 때(HandleDropZoneItemDropped) 이걸로 보상 몬스터를
@@ -63,42 +62,6 @@ void UCPMonsterSpawnManagerComponent::EndPlay(EEndPlayReason::Type EndPlayReason
 
 		World->GetTimerManager().ClearTimer(WaveWaitTimer);
 		World->GetTimerManager().ClearTimer(RoundWaitTimer);
-	}
-}
-
-void UCPMonsterSpawnManagerComponent::LoadAsset()
-{
-	auto LoadMonsterClassIfMissing = [this](ECPMonsterType Type, const TCHAR* ClassPath)
-		{
-			if (MonsterClassByType.Contains(Type))
-			{
-				return;
-			}
-
-			// LoadClass는 ConstructorHelpers::FClassFinder와 달리 "_C" 접미사가 붙은 완전한 제너레이티드 클래스 경로가 필요
-			if (UClass* LoadedClass = LoadClass<ACPMonsterBase>(nullptr, ClassPath))
-			{
-				MonsterClassByType.Add(Type, LoadedClass);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] MonsterClassByType 기본 경로를 찾지 못했습니다: %s"), ClassPath);
-			}
-		};
-
-	LoadMonsterClassIfMissing(ECPMonsterType::Normal, TEXT("/Game/Monster/Blueprints/BP_Normal.BP_Normal_C"));
-	LoadMonsterClassIfMissing(ECPMonsterType::Tanker, TEXT("/Game/Monster/Blueprints/BP_Tanker.BP_Tanker_C"));
-	LoadMonsterClassIfMissing(ECPMonsterType::Ranged, TEXT("/Game/Monster/Blueprints/BP_Ranged.BP_Ranged_C"));
-	LoadMonsterClassIfMissing(ECPMonsterType::Boss, TEXT("/Game/Monster/Blueprints/BP_BossMonster.BP_BossMonster_C"));
-	LoadMonsterClassIfMissing(ECPMonsterType::Bomb, TEXT("/Game/Monster/Blueprints/BP_Bomb.BP_Bomb_C"));
-
-	if (!WaveInfoTable)
-	{
-		WaveInfoTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Monster/Data/DT_WaveInfo.DT_WaveInfo"));
-	}
-	if (!RoundInfoTable)
-	{
-		RoundInfoTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Monster/Data/DT_RoundInfo.DT_RoundInfo"));
 	}
 }
 
@@ -425,7 +388,7 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 	TSubclassOf<ACPMonsterBase> BossClass = MonsterClassByType.FindRef(RoundInfo->BossMonsterType);
 	if (!IsValid(BossClass))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - BossMonsterType(%d)에 해당하는 몬스터 클래스를 LoadAsset()에서 찾지 못했습니다."), (int32)RoundInfo->BossMonsterType);
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - BossMonsterType(%d)에 해당하는 몬스터 클래스가 MonsterClassByType에 연결되어 있지 않습니다."), (int32)RoundInfo->BossMonsterType);
 		StopRoundMobSpawning();
 		CurrentPhase = ECPWavePhase::Finished;
 		return;

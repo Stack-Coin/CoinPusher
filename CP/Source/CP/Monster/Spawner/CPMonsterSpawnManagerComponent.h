@@ -56,7 +56,7 @@ struct FCPActiveSpawnJob
 용어: "마지막 웨이브" = WaveInfo에서 Wave 번호가 가장 큰 행 = 보스와 기본 몬스터가 동시에 등장하는 웨이브.
       "마지막 웨이브 직전 웨이브" = 그 바로 앞 웨이브 = 이 웨이브가 전멸해야 보스 페이즈로 넘어감.
 
-BeginPlay() → LoadAsset() → ApplyRoundInfo(CurrentRound) → StartWave(0)
+BeginPlay() → ApplyRoundInfo(CurrentRound) → StartWave(0)
 
 StartWave(N)                 웨이브 스폰 시작
  ├─ 이 웨이브가 마지막 웨이브 직전 웨이브(bIsWaveBeforeLastWave)면, 전멸(WaveAliveMonsterCount==0) 시 BeginRoundWait()
@@ -86,7 +86,6 @@ public:
 	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;
 
 protected:
-	void LoadAsset();
 
 	void ApplyRoundInfo(int32 InRound);
 	void CreateSpawnerRing(int32 InSpawnerCount, float InSpawnerRadius);
@@ -238,6 +237,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (ClampMin = 1))
 	int32 MaxMonstersPerJobTick = 30;
 
+	/** 몬스터 타입별 스폰 클래스. BP_Normal/BP_Tanker/BP_Ranged/BP_BossMonster/BP_Bomb를 여기 직접 연결
+	 *  해야 함 - 예전엔 런타임에 하드코딩 경로로 LoadClass 했었는데, 그 경로는 쿠커가 정적으로 못 보는
+	 *  참조라 패키지 빌드에서 SkipPackage 되어 전부 빠졌었음(에디터/PIE에서만 됨) */
+	UPROPERTY(EditAnywhere, Category = "Data")
 	TMap<ECPMonsterType, TSubclassOf<ACPMonsterBase>> MonsterClassByType;
 
 	UPROPERTY(EditAnywhere, Category = "Round")

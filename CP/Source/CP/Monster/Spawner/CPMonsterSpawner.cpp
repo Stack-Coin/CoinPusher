@@ -79,10 +79,13 @@ bool ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLocatio
 		}
 	}
 
-	// 마지막 수단: 겹침/플레이어 근접/고립 섬 여부와 무관하게 원래 위치라도 NavMesh에 투영되면 사용(겹침은
-	// SpawnActor의 AdjustIfPossibleButAlwaysSpawn이 물리적으로 밀어내 줌). 이것마저 실패하면(NavMesh 자체가
-	// 없거나 투영 범위 밖) 더 이상 보정할 방법이 없으므로 이 자리는 스폰 불가로 판단해서 호출부에 알림
-	return ProjectToNavMesh(InDesiredLocation, InNavAgentProps, OutLocation);
+	// 마지막 수단: 겹침/플레이어 근접 여부와 무관하게 원래 위치라도 NavMesh에 투영되면 사용(겹침은
+	// SpawnActor의 AdjustIfPossibleButAlwaysSpawn이 물리적으로 밀어내 줌). 단, 고립 섬 여부는 여기서도
+	// 반드시 걸러야 함 - 이 체크가 없으면 일반 몬스터도 원형 재탐색을 다 돌고도 결국 여기서 고립된 자리를
+	// "찾음"으로 잘못 반환해 SpawnMonsterRow의 continue(스킵)를 못 타고 그 자리에 갇혀버림(끼임).
+	// 이것마저 실패하면(NavMesh 자체가 없거나 투영 범위 밖, 또는 고립 섬) 더 이상 보정할 방법이 없으므로
+	// 이 자리는 스폰 불가로 판단해서 호출부에 알림
+	return ProjectToNavMesh(InDesiredLocation, InNavAgentProps, OutLocation) && IsLocationReachableFromArenaCenter(OutLocation, InNavAgentProps);
 }
 
 bool ACPMonsterSpawner::IsLocationReachableFromArenaCenter(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps) const
