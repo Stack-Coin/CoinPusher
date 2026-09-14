@@ -11,7 +11,6 @@ class ACPPlayerCharacter;
 class UCPHorizonGuageBarWidget;
 class UCPTicketCountWidget;
 class UCPCoinCountWidget;
-class UCPRadialGaugeComponent;
 class UCPInventoryWidget;
 class UCPInGameWidget;
 
@@ -63,12 +62,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPInventoryWidget> InventoryWidgetClass;
 
-	/** Class (inheriting UCPRadialGaugeComponent) dynamically attached to every player pawn in BeginPlay
-	 *  to show revive progress. Give it a BP subclass with GaugeWidgetClass (a UCPRadialGaugeWidget WBP)
-	 *  and a relative location already set in its Class Defaults - left unset, no gauge is attached */
-	UPROPERTY(EditAnywhere, Category="Local Multiplayer|UI")
-	TSubclassOf<UCPRadialGaugeComponent> ReviveGaugeComponentClass;
-
 public:
 
 	/** Constructor */
@@ -94,11 +87,6 @@ protected:
 	/** Creates an inventory widget using InventoryWidgetClass, adds it to PlayerCharacter's owning player's
 	 *  screen. Called once per local player from BeginPlay */
 	void SetupPlayerInventoryWidget(ACPPlayerCharacter* PlayerCharacter);
-
-	/** Creates a ReviveGaugeComponentClass instance, attaches it to PlayerCharacter (disabled until a
-	 *  revive attempt starts), and hands it to the character via SetReviveGaugeComponent. No-ops if
-	 *  ReviveGaugeComponentClass is unset or PlayerCharacter already has one */
-	void AttachReviveGaugeToPlayer(ACPPlayerCharacter* PlayerCharacter);
 
 	/** Binds PlayerCharacter's OnHealthChanged/OnExpChanged/OnLevelChanged/OnTicketChanged directly to
 	 *  its possessing ACPTopDownPlayerController's InGameUI (GetInGameWidget()), and pushes each

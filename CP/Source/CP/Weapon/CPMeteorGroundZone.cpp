@@ -15,14 +15,24 @@ ACPMeteorGroundZone::ACPMeteorGroundZone()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
+	ZoneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("ZoneRoot"));
+	SetRootComponent(ZoneRoot);
+
 	ZoneEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("ZoneEffect"));
-	SetRootComponent(ZoneEffect);
+	ZoneEffect->SetupAttachment(ZoneRoot);
 	ZoneEffect->SetAutoActivate(true);
 }
 
 void ACPMeteorGroundZone::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (ZoneEffect)
+	{
+		ZoneEffect->SetRelativeLocation(ZoneEffectLocationOffset);
+		ZoneEffect->SetRelativeRotation(ZoneEffectRotationOffset);
+		ZoneEffect->SetRelativeScale3D(ZoneEffectScale);
+	}
 
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
 	{
@@ -31,13 +41,19 @@ void ACPMeteorGroundZone::BeginPlay()
 	}
 }
 
-void ACPMeteorGroundZone::InitializeZone(float InZoneRadius, float InDamagePerTick, float InTickInterval, float InDuration, AController* InInstigatorController, AActor* InDamageCauser)
+void ACPMeteorGroundZone::InitializeZone(float InZoneRadius, float InDamagePerTick, float InTickInterval, float InDuration, float InEffectScaleMultiplier, AController* InInstigatorController, AActor* InDamageCauser)
 {
 	ZoneRadius = InZoneRadius;
 	DamagePerTick = InDamagePerTick;
 	TickInterval = FMath::Max(InTickInterval, 0.01f);
+	EffectScaleMultiplier = InEffectScaleMultiplier;
 	InstigatorController = InInstigatorController;
 	DamageCauserActor = InDamageCauser;
+
+	if (ZoneEffect)
+	{
+		ZoneEffect->SetRelativeScale3D(ZoneEffectScale * EffectScaleMultiplier);
+	}
 
 	SetDebugDrawEnabled(bDrawDebugZoneRadius);
 

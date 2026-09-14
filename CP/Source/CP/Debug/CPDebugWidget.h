@@ -53,10 +53,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* MonsterDetectRangeCheckBox;
 
-	/** Toggles ECPDebugCollisionCategory::PlayerRevive - the player's revive detection range */
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
-	UCheckBox* PlayerReviveCheckBox;
-
 	/** Toggles ECPDebugCollisionCategory::CoinNexus - the Coin Nexus's collision sphere */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* CoinNexusCheckBox;
@@ -153,9 +149,6 @@ protected:
 
 	UFUNCTION()
 	void HandleMonsterDetectRangeCheckChanged(bool bIsChecked);
-
-	UFUNCTION()
-	void HandlePlayerReviveCheckChanged(bool bIsChecked);
 
 	UFUNCTION()
 	void HandleCoinNexusCheckChanged(bool bIsChecked);

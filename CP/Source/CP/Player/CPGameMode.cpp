@@ -11,7 +11,6 @@
 #include "UI/CPHorizonGuageBarWidget.h"
 #include "UI/CPTicketCountWidget.h"
 #include "UI/CPCoinCountWidget.h"
-#include "UI/CPRadialGaugeComponent.h"
 #include "UI/CPInventoryWidget.h"
 #include "UI/CPInGameWidget.h"
 #include "Player/CPTopDownPlayerController.h"
@@ -30,7 +29,6 @@ void ACPGameMode::BeginPlay()
 	{
 		if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(PC->GetPawn()))
 		{
-			AttachReviveGaugeToPlayer(PlayerCharacter);
 			SetupPlayerHealthBarWidget(PlayerCharacter, PlayerHealthBarWidgetClass);
 			SetupPlayerWalletWidgets(PlayerCharacter);
 			SetupPlayerInventoryWidget(PlayerCharacter);
@@ -172,27 +170,6 @@ void ACPGameMode::HandlePlayerDowned()
 			TopDownPC->ShowEndingResult(false);
 		}
 	}
-}
-
-void ACPGameMode::AttachReviveGaugeToPlayer(ACPPlayerCharacter* PlayerCharacter)
-{
-	if (!PlayerCharacter || !ReviveGaugeComponentClass || PlayerCharacter->GetReviveGaugeComponent())
-	{
-		return;
-	}
-
-	UCPRadialGaugeComponent* Gauge = NewObject<UCPRadialGaugeComponent>(PlayerCharacter, ReviveGaugeComponentClass);
-	if (!Gauge)
-	{
-		return;
-	}
-
-	
-	Gauge->SetupAttachment(PlayerCharacter->GetRootComponent());
-	Gauge->RegisterComponent();
-	Gauge->SetGaugeEnabled(false);
-
-	PlayerCharacter->SetReviveGaugeComponent(Gauge);
 }
 
 float ACPGameMode::GetRequiredTeamExperience() const

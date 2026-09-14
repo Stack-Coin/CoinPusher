@@ -38,7 +38,8 @@ void ACPRangedWeapon::ExecuteAttack(int32 ComboIndex)
 		}
 	}
 
-	PlayAttackEffect(MuzzleLocation);
+	PlayAttackEffect(MuzzleLocation, BaseDirection.Rotation());
+	PlayAttackSound(MuzzleLocation, BaseDirection.Rotation());
 }
 
 FVector ACPRangedWeapon::GetMuzzleLocation() const
@@ -153,5 +154,5 @@ void ACPRangedWeapon::SpawnProjectile(const FVector& Location, const FVector& Di
 		return;
 	}
 
-	Projectile->InitializeProjectile(GetFinalAttackPower(), OwnerCharacter ? OwnerCharacter->GetController() : nullptr, DamageCauser);
+	Projectile->InitializeProjectile(GetFinalAttackPower(), OwnerCharacter ? OwnerCharacter->GetController() : nullptr, DamageCauser, GetFinalAttackRangeMultiplier());
 }
