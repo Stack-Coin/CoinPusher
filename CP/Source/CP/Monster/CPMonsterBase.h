@@ -158,6 +158,10 @@ protected:
 	 *  상호 회피(0.5 vs 0.5)는 그대로 유지되고, 보스와 마주칠 때만 보스가 덜 양보하게 됨 */
 	virtual float GetAIAvoidanceWeight() const { return 0.5f; }
 
+	/** RVO 회피 자체를 쓸지 여부 - 기본은 전부 true. Boss는 이걸 오버라이드해서 기획 검토용으로
+	 *  BP 체크박스 하나로 켜고 끌 수 있게 함(BeginPlay 초기화와 ApplyKnockback 복구 둘 다 이 값을 따름) */
+	virtual bool ShouldUseRVOAvoidance() const { return true; }
+
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
 

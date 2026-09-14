@@ -9,6 +9,8 @@
 #include "Engine/OverlapResult.h"
 #include "DrawDebugHelpers.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 ACPMonsterBoss::ACPMonsterBoss()
 {
@@ -44,6 +46,33 @@ void ACPMonsterBoss::ApplyBossWaveStat(float InRoarHealthPercentThreshold, float
 		StatComp->AttackPower += InAddAttackPower;
 		StatComp->DefaultStat.AttackRange += InAddAttackRange;
 	}
+}
+
+void ACPMonsterBoss::SetDebugUseRVOAvoidance(bool bEnabled)
+{
+	bUseRVOAvoidance = bEnabled;
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->bUseRVOAvoidance = bEnabled;
+	}
+
+	// 기획 비교용 커플링 - 켜면(RVO 있음) 몬스터 채널도 같이 Block으로 되돌려서 "기존처럼 부딪히며
+	// 멈칫"하는 걸 재현하고, 끄면(RVO 없음) Ignore로 콜라이더/메시를 실제로 뚫게 함. 생성자에서 건
+	// 기본값(항상 Ignore)은 이 함수가 처음 호출되기 전까지는 그대로 유지됨 - 디버그로 만졌을 때만 커플링됨
+	const ECollisionResponse Response = bEnabled ? ECR_Block : ECR_Ignore;
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCollisionResponseToChannel(ECC_GameTraceChannel8, Response);
+	}
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel8, Response);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("ACPMonsterBoss::SetDebugUseRVOAvoidance(%s) - %s : RVO=%s, Monster채널=%s"),
+		bEnabled ? TEXT("true") : TEXT("false"), *GetName(),
+		GetCharacterMovement() && GetCharacterMovement()->bUseRVOAvoidance ? TEXT("On") : TEXT("Off"),
+		bEnabled ? TEXT("Block") : TEXT("Ignore"));
 }
 
 void ACPMonsterBoss::Tick(float DeltaSeconds)

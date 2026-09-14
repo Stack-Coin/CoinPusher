@@ -13,6 +13,7 @@
 #include "Player/CPPlayerCharacter.h"
 #include "Player/Inventory/CPInventoryComponent.h"
 #include "CoinPusher/CPCoinPusher.h"
+#include "Monster/Boss/CPMonsterBoss.h"
 
 void UCPDebugWidget::NativeConstruct()
 {
@@ -65,6 +66,10 @@ void UCPDebugWidget::NativeConstruct()
 	if (PlayerInvincibleCheckBox)
 	{
 		PlayerInvincibleCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayerInvincibleCheckChanged);
+	}
+	if (BossRVOAvoidanceCheckBox)
+	{
+		BossRVOAvoidanceCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandleBossRVOAvoidanceCheckChanged);
 	}
 	if (ApplyDamageButton)
 	{
@@ -253,6 +258,28 @@ void UCPDebugWidget::SetPlayerDebugInvincible(bool bEnabled)
 	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
 	{
 		PlayerCharacter->SetDebugInvincible(bEnabled);
+	}
+}
+
+void UCPDebugWidget::HandleBossRVOAvoidanceCheckChanged(bool bIsChecked)
+{
+	SetBossDebugRVOAvoidance(bIsChecked);
+}
+
+void UCPDebugWidget::SetBossDebugRVOAvoidance(bool bEnabled)
+{
+	TArray<AActor*> Bosses;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBoss::StaticClass(), Bosses);
+
+	UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::SetBossDebugRVOAvoidance(%s) - Boss %d마리 찾음"),
+		bEnabled ? TEXT("true") : TEXT("false"), Bosses.Num());
+
+	for (AActor* Actor : Bosses)
+	{
+		if (ACPMonsterBoss* Boss = Cast<ACPMonsterBoss>(Actor))
+		{
+			Boss->SetDebugUseRVOAvoidance(bEnabled);
+		}
 	}
 }
 

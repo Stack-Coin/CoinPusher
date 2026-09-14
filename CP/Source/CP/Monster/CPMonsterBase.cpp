@@ -55,7 +55,7 @@ void ACPMonsterBase::BeginPlay()
 		// 오버라이드로 값을 올릴 수 있게 함 (0~1 사이 값이어야 함)
 		constexpr float RVOAvoidanceRadiusMultiplier = 3.f;
 
-		MoveComp->bUseRVOAvoidance = true;
+		MoveComp->bUseRVOAvoidance = ShouldUseRVOAvoidance();
 		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * RVOAvoidanceRadiusMultiplier;
 		MoveComp->AvoidanceWeight = GetAIAvoidanceWeight();
 
@@ -69,12 +69,19 @@ void ACPMonsterBase::BeginPlay()
 		MoveComp->NavAgentProps.AgentHeight = GetAICollisionHalfHeight() * 2.f;
 	}
 
-	// 물리 캡슐 블록용 오브젝트 채널을 Pawn(플레이어와 공용)에서 전용 채널로 분리 - Boss가 이 채널에
+	// 물리 블록용 오브젝트 채널을 Pawn(플레이어와 공용)에서 전용 채널로 분리 - Boss가 이 채널에
 	// 대한 자기 응답만 Ignore로 바꾸면(CPMonsterBoss 생성자) 몬스터끼리는 그대로 서로 블록하면서
-	// 보스만 몬스터를 물리적으로 뚫고 플레이어까지 도달할 수 있음
+	// 보스만 몬스터를 물리적으로 뚫고 플레이어까지 도달할 수 있음. 캡슐뿐 아니라 스켈레탈 메시도
+	// 같이 바꿔야 함 - 메시는 CharacterMesh 프로파일이라 ObjectType이 여전히 Pawn으로 남아있으면,
+	// CollisionEnabled=QueryOnly라도 무브먼트 스윕에는 걸려서 Boss가 메시한테 막힘(Pawn 채널
+	// 응답은 Player를 막아야 해서 그대로 둬야 하기 때문에 캡슐 쪽 Ignore와 안 맞물림)
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
 		Capsule->SetCollisionObjectType(ECC_GameTraceChannel8);
+	}
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetCollisionObjectType(ECC_GameTraceChannel8);
 	}
 
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
@@ -537,7 +544,7 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 		{
 			if (UCharacterMovementComponent* InnerMoveComp = StrongThis->GetCharacterMovement())
 			{
-				InnerMoveComp->bUseRVOAvoidance = true;
+				InnerMoveComp->bUseRVOAvoidance = StrongThis->ShouldUseRVOAvoidance();
 				if (bWasFlying)
 				{
 					InnerMoveComp->SetMovementMode(MOVE_Flying);
@@ -624,7 +631,7 @@ void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
 		ACPMonsterBase* Other = Cast<ACPMonsterBase>(Overlap.GetActor());
-		if (!Other || Other == this || Other->bIsDead)
+		if (!Other || Other == this || Other->bIsDead || Other->GetMonsterType() == ECPMonsterType::Boss)
 		{
 			continue;
 		}

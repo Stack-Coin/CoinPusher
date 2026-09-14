@@ -34,6 +34,11 @@ public:
 
 	FORCEINLINE FName GetBossName() const { return BossName; }
 
+	/** F1(이 프로젝트에선 '/') 디버그 위젯의 BossRVOAvoidance 체크박스가 호출 - RVO 회피를 즉시 켜고 끔
+	 *  (BeginPlay/ApplyKnockback이 그 뒤로도 참조하는 bUseRVOAvoidance 멤버 자체를 바꿔서, 다음 넉백
+	 *  복구 시점에도 이 값이 유지됨) */
+	void SetDebugUseRVOAvoidance(bool bEnabled);
+
 	/** 스포너가 SpawnBoss()에서 RoundInfoTable(FCPMonsterRoundInfoRow)의 해당 Round 행을 찾은 직후 호출:
 	 *  그 행의 RoarHealthPercentThreshold/SlamCooldown/SlamRadius/RoarDuration 값으로 덮어쓰고, AddBossMaxHealth/
 	 *  AddBossMoveSpeed/AddBossAttackPower/AddBossAttackRange를 (스폰 시 이미 적용된) 기본 스탯 위에 추가로
@@ -57,6 +62,14 @@ protected:
 	/** 스폰 위치 계산(GetSpawnHeightOffset)이 다른 시스템(공격 판정/RVO 등)과 항상 같은 캡슐
 	 *  크기를 보도록 GetAICollisionHalfHeight()로 통일 - 실제 값은 캡슐 컴포넌트(BP 디폴트) 그대로 씀 */
 	virtual float GetSpawnHeightOffset() const override { return GetAICollisionHalfHeight(); }
+
+	/** 기획 검토용 - 플레이어를 몬스터가 둘러쌌을 때 보스가 RVO로 "덜 밀고 들어가며 멈칫"할지,
+	 *  아예 안 밀리고 몬스터를 뚫고 그대로 갈지 BP 체크박스로 비교해볼 수 있게 노출함. 캡슐 콜리전
+	 *  Ignore(생성자)는 이 값과 무관하게 항상 적용됨 - 이건 RVO 스티어링만 켜고 끔 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss|Movement")
+	bool bUseRVOAvoidance = true;
+
+	virtual bool ShouldUseRVOAvoidance() const override { return bUseRVOAvoidance; }
 
 	/** 한 번도 포효하지 않은 채로(bArmedForRoar가 true인 채로) 죽는 경우(예: 큰 데미지를 한 번에
 	 *  맞아 50% 임계치 구간을 그냥 건너뛰고 죽는 경우), 죽기 직전에 포효를 강제로 한 번 재생하고

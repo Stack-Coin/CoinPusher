@@ -81,6 +81,11 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* PlayerInvincibleCheckBox;
 
+	/** Toggles RVO avoidance on every ACPMonsterBoss currently in the level (see ACPMonsterBoss::SetDebugUseRVOAvoidance) -
+	 *  기획 검토용: 체크 해제하면 보스가 몬스터 무리 앞에서 멈칫하지 않고 그대로 뚫고 감 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UCheckBox* BossRVOAvoidanceCheckBox;
+
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* DamageInputText;
 
@@ -170,6 +175,13 @@ protected:
 	/** Casts UGameplayStatics::GetPlayerPawn(GetWorld(), 0) to ACPPlayerCharacter and calls
 	 *  SetDebugInvincible(bEnabled) on it, if valid */
 	void SetPlayerDebugInvincible(bool bEnabled);
+
+	UFUNCTION()
+	void HandleBossRVOAvoidanceCheckChanged(bool bIsChecked);
+
+	/** Finds every ACPMonsterBoss in the level (GetAllActorsOfClass) and applies bEnabled via
+	 *  SetDebugUseRVOAvoidance - a boss spawned after this is toggled keeps its own BP default */
+	void SetBossDebugRVOAvoidance(bool bEnabled);
 
 	UFUNCTION()
 	void HandleApplyDamageClicked();
