@@ -200,7 +200,17 @@ void ACPMeleeWeapon::ExecuteMeleeHit()
 		}
 	}
 
-	TriggerAttackEffect(Origin, Direction.Rotation());
+	// Direction/Origin above are locked to CapturedAttackDirection (resolved back in StartAttack) so a moving
+	// cursor during AttackTiming/ComboAttackInterval can't change where this already-started swing's hit
+	// lands - the effect isn't part of that fairness lock, though, and re-aiming mid-swing then having the
+	// effect flash at the stale start-of-attack direction reads as a visual bug. So the effect alone resolves
+	// a fresh direction right here, at the moment the swing's hit judgment actually happens, giving it
+	// whatever direction the player was last aiming (mouse cursor/gamepad stick, or movement direction if
+	// neither - see ACPPlayerCharacter::GetAttackDirection) instead of the swing's locked hit direction
+	const FVector EffectDirection = ResolveAimDirection();
+	const FVector EffectBaseLocation = OwnerCharacter ? OwnerCharacter->GetActorLocation() : GetActorLocation();
+	const FVector EffectOrigin = EffectBaseLocation + EffectDirection * (StepData.RangeOffset * GetFinalAttackRangeMultiplier());
+	TriggerAttackEffect(EffectOrigin, EffectDirection.Rotation());
 
 	if (!StepData.PostHitModules.IsEmpty())
 	{

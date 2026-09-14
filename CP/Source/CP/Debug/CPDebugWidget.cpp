@@ -67,6 +67,10 @@ void UCPDebugWidget::NativeConstruct()
 	{
 		PlayerInvincibleCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayerInvincibleCheckChanged);
 	}
+	if (AutoAttackCheckBox)
+	{
+		AutoAttackCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandleAutoAttackCheckChanged);
+	}
 	if (ApplyDamageButton)
 	{
 		ApplyDamageButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleApplyDamageClicked);
@@ -265,6 +269,19 @@ void UCPDebugWidget::SetPlayerDebugInvincible(bool bEnabled)
 	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
 	{
 		PlayerCharacter->SetDebugInvincible(bEnabled);
+	}
+}
+
+void UCPDebugWidget::HandleAutoAttackCheckChanged(bool bIsChecked)
+{
+	SetPlayerAutoAttackEnabled(bIsChecked);
+}
+
+void UCPDebugWidget::SetPlayerAutoAttackEnabled(bool bEnabled)
+{
+	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
+	{
+		PlayerCharacter->SetAutoAttackEnabled(bEnabled);
 	}
 }
 

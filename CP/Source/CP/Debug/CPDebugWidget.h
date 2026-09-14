@@ -81,6 +81,10 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* PlayerInvincibleCheckBox;
 
+	/** Toggles auto-attack for the local player (see ACPPlayerCharacter::SetAutoAttackEnabled) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UCheckBox* AutoAttackCheckBox;
+
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* DamageInputText;
 
@@ -183,6 +187,13 @@ protected:
 	/** Casts UGameplayStatics::GetPlayerPawn(GetWorld(), 0) to ACPPlayerCharacter and calls
 	 *  SetDebugInvincible(bEnabled) on it, if valid */
 	void SetPlayerDebugInvincible(bool bEnabled);
+
+	UFUNCTION()
+	void HandleAutoAttackCheckChanged(bool bIsChecked);
+
+	/** Casts UGameplayStatics::GetPlayerPawn(GetWorld(), 0) to ACPPlayerCharacter and calls
+	 *  SetAutoAttackEnabled(bEnabled) on it, if valid */
+	void SetPlayerAutoAttackEnabled(bool bEnabled);
 
 	UFUNCTION()
 	void HandleApplyDamageClicked();

@@ -38,7 +38,12 @@ void ACPRangedWeapon::ExecuteAttack(int32 ComboIndex)
 		}
 	}
 
-	TriggerAttackEffect(MuzzleLocation, BaseDirection.Rotation());
+	// BaseDirection is locked to CapturedAttackDirection (resolved back in StartAttack) so a moving cursor
+	// during ComboAttackInterval can't change where this already-started volley fires - the effect isn't part
+	// of that fairness lock, though, so it resolves a fresh direction right here, at the moment this swing's
+	// shots are actually fired, giving it whatever direction the player was last aiming instead of the
+	// volley's locked fire direction (see the matching comment in ACPMeleeWeapon::ExecuteMeleeHit)
+	TriggerAttackEffect(MuzzleLocation, ResolveAimDirection().Rotation());
 }
 
 FVector ACPRangedWeapon::GetMuzzleLocation() const
