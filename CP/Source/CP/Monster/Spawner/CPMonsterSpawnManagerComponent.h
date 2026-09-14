@@ -268,10 +268,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 1))
 	int32 MonsterCoinSpawnCountOnBombExplode = 1;
 
+	// TODO. RoundInfo 넣기
 	/** 보상 몬스터(SpawnRandomRewardMonster) 동시 생존 상한 - MaxAliveMonsterCount와는 별개로 관리됨.
 	 *  0이면 무제한(GetMaxAliveMonsterCount()와 같은 컨벤션) */
 	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 0))
-	int32 MaxRewardMonsterCount = 5;
+	int32 MaxRewardMonsterCount = 99;
 
 private:
 	UPROPERTY()

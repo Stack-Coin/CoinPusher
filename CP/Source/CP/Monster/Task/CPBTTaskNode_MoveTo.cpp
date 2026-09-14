@@ -21,8 +21,37 @@ EBTNodeResult::Type UCPBTTaskNode_MoveTo::ExecuteTask(UBehaviorTreeComponent& Ow
 				AcceptableRadius = StatAcceptableRadius;
 			}
 
+			AIPawn->SetAIState(ECPMonsterAIState::Move);
 		}
 	}
 
 	return Super::ExecuteTask(OwnerComp, NodeMemory);
+}
+
+EBTNodeResult::Type UCPBTTaskNode_MoveTo::AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+{
+	const EBTNodeResult::Type Result = Super::AbortTask(OwnerComp, NodeMemory);
+
+	if (AAIController* AIController = OwnerComp.GetAIOwner())
+	{
+		if (ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(AIController->GetPawn()))
+		{
+			AIPawn->SetAIState(ECPMonsterAIState::Idle);
+		}
+	}
+
+	return Result;
+}
+
+void UCPBTTaskNode_MoveTo::OnTaskFinished(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTNodeResult::Type TaskResult)
+{
+	Super::OnTaskFinished(OwnerComp, NodeMemory, TaskResult);
+
+	if (AAIController* AIController = OwnerComp.GetAIOwner())
+	{
+		if (ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(AIController->GetPawn()))
+		{
+			AIPawn->SetAIState(ECPMonsterAIState::Idle);
+		}
+	}
 }

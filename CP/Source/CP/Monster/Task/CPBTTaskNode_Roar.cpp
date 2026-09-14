@@ -21,13 +21,21 @@ EBTNodeResult::Type UCPBTTaskNode_Roar::ExecuteTask(UBehaviorTreeComponent& Owne
 
 	FAICharacterAttackFinished OnRoarFinished;
 	OnRoarFinished.BindLambda(
-		[&]()
+		[this, &OwnerComp]()
 		{
+			if (AAIController* FinishedController = OwnerComp.GetAIOwner())
+			{
+				if (ACPMonsterBoss* FinishedBoss = Cast<ACPMonsterBoss>(FinishedController->GetPawn()))
+				{
+					FinishedBoss->SetAIState(ECPMonsterAIState::Idle);
+				}
+			}
 			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 		}
 	);
 
 	Boss->SetRoarDelegate(OnRoarFinished);
+	Boss->SetAIState(ECPMonsterAIState::Roar);
 	Boss->RoarByAI();
 
 	return EBTNodeResult::InProgress;
@@ -39,6 +47,7 @@ EBTNodeResult::Type UCPBTTaskNode_Roar::AbortTask(UBehaviorTreeComponent& OwnerC
 	if (ACPMonsterBoss* Boss = AIController ? Cast<ACPMonsterBoss>(AIController->GetPawn()) : nullptr)
 	{
 		Boss->CancelRoar();
+		Boss->SetAIState(ECPMonsterAIState::Idle);
 	}
 
 	return EBTNodeResult::Aborted;

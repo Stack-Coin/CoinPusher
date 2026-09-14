@@ -6,7 +6,7 @@
 
 ACPMonsterRanged::ACPMonsterRanged()
 {
-	FlightSpawnHeight = 150.f;
+	FlightSpawnHeight = 120.f;
 }
 
 void ACPMonsterRanged::BeginPlay()

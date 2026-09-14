@@ -88,6 +88,13 @@ public:
 	/** 특정 CC 상태(들)가 하나라도 걸려있는지 */
 	bool HasCCState(ECPMonsterCCState State) const { return EnumHasAnyFlags(CurrentCCState, State); }
 
+	/** BT Task(MoveTo/Attack/Roar)가 시작/종료 시점에 직접 호출해서 세팅 - Speed 등으로 추론하지 않음 */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	virtual void SetAIState(ECPMonsterAIState NewState) override { CurrentAIState = NewState; }
+	/** Dead만 bIsDead로 자동 override, 나머지는 BT Task가 세팅한 값을 그대로 반환 - ABP에서 호출 */
+	UFUNCTION(BlueprintPure, Category = "AI")
+	virtual ECPMonsterAIState GetAIState() const override { return bIsDead ? ECPMonsterAIState::Dead : CurrentAIState; }
+
 protected:
 	/** CC 상태 비트를 추가. 매 틱이 아니라 상태가 실제로 바뀌는 시점(부여/해제)에만 호출됨 */
 	void AddCCState(ECPMonsterCCState State) { EnumAddFlags(CurrentCCState, State); }
@@ -240,6 +247,9 @@ protected:
 	bool bPendingDeath = false;
 
 	ECPMonsterCCState CurrentCCState = ECPMonsterCCState::None;
+
+	/** GetAIState()/SetAIState() 참고 - BT Task가 직접 세팅 */
+	ECPMonsterAIState CurrentAIState = ECPMonsterAIState::Idle;
 
 	/** ApplyKnockback이 RVO/AI 이동을 복구할 때 쓰는 타이머 핸들. 멤버로 둬서, KnockbackDuration 안에
 	 *  넉백이 연속으로 걸려도 이전 복구 타이머를 취소하고 새로 걸 수 있게 함(안 그러면 먼저 걸린 타이머가
