@@ -923,6 +923,12 @@ int32 UCPMonsterSpawnManagerComponent::GetMaxAliveMonsterCount() const
 	return RoundInfo ? RoundInfo->MaxAliveMonsterCount : 0;
 }
 
+int32 UCPMonsterSpawnManagerComponent::GetMaxRewardMonsterCount() const
+{
+	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
+	return RoundInfo ? RoundInfo->MaxRewardMonsterCount : DefaultMaxRewardMonsterCount;
+}
+
 FVector UCPMonsterSpawnManagerComponent::GetPlayerLocation() const
 {
 	const AActor* Owner = GetOwner();
@@ -990,6 +996,7 @@ void UCPMonsterSpawnManagerComponent::HandleDropZoneItemDropped(FName ItemID)
 
 void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 {
+	const int32 MaxRewardMonsterCount = GetMaxRewardMonsterCount();
 	if (MaxRewardMonsterCount > 0 && ActiveRewardMonsterCount >= MaxRewardMonsterCount)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 스킵 - MaxRewardMonsterCount(%d) 도달."), MaxRewardMonsterCount);

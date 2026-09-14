@@ -92,6 +92,12 @@ struct FCPMonsterRoundInfoRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round", meta = (ClampMin = 0))
 	int32 MaxAliveMonsterCount = 0;
 
+	/** 이 라운드에서 DropZone 몬스터 코인 보상(SpawnRandomRewardMonster)으로 동시에 살아있을 수 있는
+	 *  보상 몬스터 최대 마릿수. MaxAliveMonsterCount와는 별개로 관리됨. 0이면 무제한 - 라운드가
+	 *  진행될수록 값을 늘려서 보상 스폰 빈도를 조절하는 용도 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Round", meta = (ClampMin = 0))
+	int32 MaxRewardMonsterCount = 5;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss")
 	ECPMonsterType BossMonsterType = ECPMonsterType::Boss;
 
