@@ -52,7 +52,12 @@ bool ACPMonsterSpawner::ResolveFreeSpawnLocation(const FVector& InDesiredLocatio
 			return false;
 		}
 
-		if (World->OverlapAnyTestByChannel(Candidate, FQuat::Identity, ECC_Pawn, ProbeShape, QueryParams))
+		// Player(ECC_Pawn) + 몬스터(ECC_GameTraceChannel8, CPMonsterBase 전용 채널) 둘 다 확인 -
+		// 몬스터 캡슐 오브젝트 타입이 Pawn 공용에서 전용 채널로 분리된 뒤로는 Pawn 하나만으로 못 잡음
+		FCollisionObjectQueryParams ObjectQueryParams;
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel8);
+		if (World->OverlapAnyTestByObjectType(Candidate, FQuat::Identity, ObjectQueryParams, ProbeShape, QueryParams))
 		{
 			return false;
 		}

@@ -58,20 +58,11 @@ protected:
 	 *  크기를 보도록 GetAICollisionHalfHeight()로 통일 - 실제 값은 캡슐 컴포넌트(BP 디폴트) 그대로 씀 */
 	virtual float GetSpawnHeightOffset() const override { return GetAICollisionHalfHeight(); }
 
-	/** 일반 몹들이 플레이어를 둘러싸서 보스가 못 들어가는 상황 완화용 - 일반 몹끼리는 기존처럼
-	 *  0.5로 동등하게 서로 비켜주되(그대로 유지), 보스만 훨씬 높여서 보스와 마주쳤을 때는
-	 *  몹 쪽이 더 양보하게 함 */
-	virtual float GetAIAvoidanceWeight() const override { return 0.9f; }
-
 	/** 한 번도 포효하지 않은 채로(bArmedForRoar가 true인 채로) 죽는 경우(예: 큰 데미지를 한 번에
 	 *  맞아 50% 임계치 구간을 그냥 건너뛰고 죽는 경우), 죽기 직전에 포효를 강제로 한 번 재생하고
 	 *  그게 끝난 뒤에야 실제 사망 처리(Super::Dead())를 하도록 오버라이드함.
 	 *  이미 한 번이라도 포효했다면(bArmedForRoar==false) 평소처럼 바로 죽음 */
 	virtual void Dead() override;
-
-	/** 일반 몹들이 플레이어를 둘러싸서 보스가 근접 사거리 안에 못 들어가는 상황 대비 - 일정 시간
-	 *  이상 계속 사거리 밖이면 플레이어 주변에서 보스와 제일 가까운 일반 몹 하나를 밀어내 자리를 만듦 */
-	void MakeRoomNearPlayer();
 
 public:
 	/** BT의 ShouldRoar 데코레이터가 매 틱 확인: 무장 상태(bArmedForRoar)이고, 체력비율이 임계치 밑이면 true */
@@ -125,12 +116,6 @@ private:
 	FAICharacterAttackFinished OnRoarFinished;
 	bool bArmedForRoar = true;
 	float LastSlamTime = -1000.f;
-
-	/** 근접 사거리 밖에서 계속 못 들어가고 있는 시간 누적 - MakeRoomNearPlayer() 트리거용 */
-	float TimeBlockedFromTarget = 0.f;
-
-	/** TimeBlockedFromTarget이 이 값을 넘으면 MakeRoomNearPlayer() 한 번 호출하고 다시 0부터 셈 */
-	static constexpr float BlockedMakeRoomThreshold = 2.f;
 
 	/** AttackByAI()가 이번에 고른 몽타주가 슬램인지 기억해뒀다가, 그 뒤에 노티파이로 불리는
 	 *  AttackHitCheck()에서 판정 모양(원형 AOE vs 정면 스윕)을 분기하는 데 씀 */

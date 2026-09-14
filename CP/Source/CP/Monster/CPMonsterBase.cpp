@@ -69,6 +69,14 @@ void ACPMonsterBase::BeginPlay()
 		MoveComp->NavAgentProps.AgentHeight = GetAICollisionHalfHeight() * 2.f;
 	}
 
+	// 물리 캡슐 블록용 오브젝트 채널을 Pawn(플레이어와 공용)에서 전용 채널로 분리 - Boss가 이 채널에
+	// 대한 자기 응답만 Ignore로 바꾸면(CPMonsterBoss 생성자) 몬스터끼리는 그대로 서로 블록하면서
+	// 보스만 몬스터를 물리적으로 뚫고 플레이어까지 도달할 수 있음
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCollisionObjectType(ECC_GameTraceChannel8);
+	}
+
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
 	{
 		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPMonsterBase::HandleDebugCollisionVisibilityChanged);
@@ -605,7 +613,7 @@ void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 		Overlaps,
 		GetActorLocation(),
 		FQuat::Identity,
-		FCollisionObjectQueryParams(ECC_Pawn),
+		FCollisionObjectQueryParams(ECC_GameTraceChannel8),
 		FCollisionShape::MakeSphere(SearchRadius),
 		Params
 	);
