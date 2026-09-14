@@ -123,7 +123,7 @@ void ACPCoinPusherItemSpawnTestPawn::HandleRollRouletteInput()
 		return;
 	}
 
-	const bool bStarted = TargetRoulette->Roll();
+	const bool bStarted = TargetRoulette->Roll(PlayerLevel);
 	UE_LOG(LogRoulette, Warning, TEXT("Roll Roulette (started: %s)"), bStarted ? TEXT("true") : TEXT("false"));
 }
 

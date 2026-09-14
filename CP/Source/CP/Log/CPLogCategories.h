@@ -16,3 +16,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogRoulette, Log, All);
 
 /** 플레이어(ACPPlayerCharacter, 인벤토리, 컨트롤러 등)와 관련된 로그 */
 DECLARE_LOG_CATEGORY_EXTERN(LogPlayer, Log, All);
+
+/** UI(UCPCoinPointUI 등 HUD 위젯)와 관련된 로그 */
+DECLARE_LOG_CATEGORY_EXTERN(LogUI, Log, All);

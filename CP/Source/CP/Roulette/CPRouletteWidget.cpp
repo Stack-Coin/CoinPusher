@@ -2,28 +2,33 @@
 
 #include "CPRouletteWidget.h"
 #include "Components/Image.h"
-#include "TimerManager.h"
 
 void UCPRouletteWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
 	SetVisibility(ESlateVisibility::Collapsed);
+
+	if (PickUpImage)
+	{
+		PickUpImage->SetVisibility(ESlateVisibility::Collapsed);
+	}
 }
 
-void UCPRouletteWidget::PlaySpin(int32 ResultIndex, int32 NumSlots)
+void UCPRouletteWidget::PlaySpin(int32 ResultIndex, int32 NumSlots, UTexture2D* PickUpTexture)
 {
 	if (NumSlots <= 0)
 	{
 		return;
 	}
 
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(HideTimerHandle);
-	}
-
 	PendingResultIndex = ResultIndex;
+	PendingPickUpTexture = PickUpTexture;
+
+	if (PickUpImage)
+	{
+		PickUpImage->SetVisibility(ESlateVisibility::Collapsed);
+	}
 
 	// 등장 연출은 항상 EnterStartOffsetY에서 다시 시작
 	SetRenderTranslation(FVector2D(0.0f, EnterStartOffsetY));
@@ -93,23 +98,51 @@ void UCPRouletteWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTim
 
 		if (Alpha >= 1.0f)
 		{
-			State = ERouletteState::None;
+			StateElapsedTime = 0.0f;
+			ShowPickUp();
+		}
+
+		return;
+	}
+
+	if (State == ERouletteState::ShowingPickUp)
+	{
+		if (StateElapsedTime >= PickUpDisplayDuration)
+		{
 			FinishSpin();
 		}
 	}
 }
 
-void UCPRouletteWidget::FinishSpin()
+void UCPRouletteWidget::ShowPickUp()
 {
-	OnResultDetermined.Broadcast(PendingResultIndex);
-
-	if (UWorld* World = GetWorld())
+	if (!PickUpImage)
 	{
-		World->GetTimerManager().SetTimer(HideTimerHandle, this, &UCPRouletteWidget::HideRoulette, PostResultHideDelay, false);
+		// PickUp 연출용 이미지가 없으면 보여줄 것이 없으므로 대기 없이 바로 결과를 처리한다
+		FinishSpin();
+		return;
 	}
+
+	if (PendingPickUpTexture)
+	{
+		PickUpImage->SetBrushFromTexture(PendingPickUpTexture, false);
+	}
+
+	PickUpImage->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	State = ERouletteState::ShowingPickUp;
 }
 
-void UCPRouletteWidget::HideRoulette()
+void UCPRouletteWidget::FinishSpin()
 {
+	State = ERouletteState::None;
+
+	if (PickUpImage)
+	{
+		PickUpImage->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	OnResultDetermined.Broadcast(PendingResultIndex);
+
+	// PickUpImage가 사라지는 시점에 룰렛 UI 전체도 함께 비활성화한다
 	SetVisibility(ESlateVisibility::Collapsed);
 }

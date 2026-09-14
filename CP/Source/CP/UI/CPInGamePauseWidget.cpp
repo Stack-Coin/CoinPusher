@@ -39,6 +39,16 @@ void UCPInGamePauseWidget::RefreshForDisplay()
 {
 	RefreshBackgroundForControllerType();
 
+	if (DarkBackground)
+	{
+		DarkBackground->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
+
+	if (CoinInfo)
+	{
+		CoinInfo->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
+
 	SelectedButtonIndex = 0;
 	UpdateSelectionVisuals();
 }

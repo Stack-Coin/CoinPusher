@@ -21,6 +21,11 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
     - `MonsterCoinConvertAreaComponent` (`UChildActorComponent`) : **컴포넌트를 통한 Has-a** — 위와 별개의 `ACPPassiveCoinConvertArea` 인스턴스를 소유, 영역 안 Normal 코인을 Monster로 전환하는 전용 트리거. `GetMonsterCoinConvertArea()`로 실제 스폰된 인스턴스 접근
     - `CoinThrowAreaComponents` (`UChildActorComponent`, 5개) : **컴포넌트를 통한 Has-a** — 코인을 날려보내는 `ACPCoinThrowArea` 5개를 소유. `GetCoinThrowArea(Index)`로 실제 스폰된 인스턴스 접근, `ActiveWaveThrow()`가 이 5개를 순차적으로 활성화
     - `CoinTowerSpawnerComponent` (`UChildActorComponent`) : **컴포넌트를 통한 Has-a** — 원형 코인 타워를 스폰/상승시키는 `ACPCoinTowerSpawner`를 소유. `GetCoinTowerSpawner()`로 실제 스폰된 인스턴스 접근. `PostInitializeComponents()`가 같은 CoinPusher의 `GetPusher()`(=`PusherComponent`가 스폰한 `ACPPusher`)를 `SetTargetPusher()`로 자동 연결해줌
+    - `CoinGridSpawnerComponent` (`UChildActorComponent`) : **컴포넌트를 통한 Has-a** — 자신의
+      `SpawnVolume`(Box) 영역 안에 Grid+Jitter 방식으로 코인 N개를 생성하는 `ACPCoinGridSpawner`를 소유.
+      `GetCoinGridSpawner()`로 실제 스폰된 인스턴스 접근. 스스로는 스폰하지 않으므로
+      `ACPCoinPusher::BeginPlay()`가 이 인스턴스의 `SpawnCoins()`를 직접 호출해 게임 시작 시 초기
+      코인을 깔아줌 (아래 "ACPCoinGridSpawner" 참고)
     - 체력(Health) 보유, 적(Enemy 태그)과 접촉 시 피해를 입음
 - `ACPPusher` : 앞뒤로 왕복 운동하며 코인을 밀어내는 Actor
 - `ACPDispenser` : 설정된 `ICPCoinPusherItem` 오브젝트(코인, 아이템 등)를 생성해 앞으로 던지는 Actor. **Has-a** `ACPInput`
@@ -30,6 +35,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - `ACPPassiveCoinConvertArea` : 겹친 Normal 코인 중 Num개를 랜덤하게 골라 Passive/HP/Monster로 전환시키는 트리거 볼륨 (아래 "ACPPassiveCoinConvertArea" 참고)
 - `ACPCoinThrowArea` : 겹쳐 있는 모든 타입의 코인을 월드 X(앞)/Z(위) 방향으로 날려보내는 트리거 볼륨 (아래 "ACPCoinThrowArea" 참고)
 - `ACPCoinTowerSpawner` : `SpawnTower(N)`으로 원형 코인 타워를 스폰하고 목표 지점까지 상승시키는 연출용 Actor (아래 "ACPCoinTowerSpawner" 참고)
+- `ACPCoinGridSpawner` : 자신의 `SpawnVolume`(Box) 영역 안에 코인 N개를 Grid+Jitter 방식으로 생성하는 Actor. `SpawnCoins()` 호출은 `ACPCoinPusher::BeginPlay()`가 담당함 (아래 "ACPCoinGridSpawner" 참고)
 - `ACPItem` : 물리 시뮬레이션을 받는 프라이즈/아이템 Actor. `ICPCoinPusherItem` 구현 — DropZone에 떨어지면 `ItemCode` 기록
 - `ICPCoinPusherItem` : Dispenser가 생성하고 DropZone이 수거할 수 있는 오브젝트를 위한 인터페이스 (`OnDroppedInZone(ACPDropZone*)`)
 - `ICPDroppedItemReceiver` : `ACPDropZone`에 떨어진 아이템(코인 포함) 정보를 GameMode로 전달하기 위한 인터페이스 (`ReceiveDroppedItem(ItemID, Count, CoinType)`)
@@ -98,18 +104,55 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   - `bIsRising`이면 `RiseElapsedTime`을 누적해 `UpTime` 동안 `TowerRoot`의 상대 위치를 0 → `CoinTowerPosition`으로 보간. 도달하면 `CompleteRise()` 호출
 - `CompleteRise()` : 스폰된 모든 코인에 `SetTowerLocked(false)` + `DetachFromActor(FDetachmentTransformRules::KeepWorldTransform)`(독립 액터화) 호출 → `TargetPusher`가 있으면(후퇴 애니메이션이 아직 안 끝났다면 `BackPosition`으로 즉시 완료시킨 뒤) `PusherReturnTime` 동안 원래 위치까지 되돌아오는 복귀 애니메이션을 시작(`bIsReturningPusher = true`) — 왕복 운동 재개와 `bIsTowerActive` 해제는 그 복귀가 다 끝났을 때 `Tick`에서 처리 (즉, 코인 Detach + Pusher가 원래 위치로 복귀해 왕복 운동을 재개하기 전까지는 `SpawnTower()` 재호출이 막힘). `TargetPusher`가 없으면 기다릴 대상이 없으므로 이 단계에서 바로 `bIsTowerActive = false`
 
+### ACPCoinGridSpawner
+- `SpawnVolume`(`UBoxComponent`, RootComponent) : Grid+Jitter 스폰 범위를 정의하는 Box 영역. "해당
+  컴포넌트가 소유하는 Box 컴포넌트"가 바로 이것이며, 콜리전은 꺼져 있고(`NoCollision`) 순수하게
+  영역 크기(Extent) 정의용으로만 쓰인다
+- `CoinClass`(`TSubclassOf<ACPCoin>`, EditAnywhere) : 스폰할 코인 클래스. 비어있으면 아무것도
+  스폰하지 않는다
+- `CoinCount`(`int32`, EditAnywhere, 기본 20) : 스폰할 코인 개수(N)
+- `JitterRatio`(`float`, EditAnywhere, 0~1, 기본 0.5) : 격자 셀 크기 대비 X/Y 무작위 흔들림 비율.
+  0이면 정확히 격자 위치에 놓이고, 1이면 셀 절반 크기까지 흔들린다
+- `bJitterHeight`(`bool`, EditAnywhere, 기본 true) : true면 Z도 `SpawnVolume`의 Z 범위 안에서
+  무작위로 흔든다 - 코인들이 완전히 같은 높이에서 겹쳐 스폰되어 물리 시뮬레이션이 튀는 것을 방지
+- `SpawnCoins()` : `CoinCount`를 담을 수 있는 가능한 한 정사각형에 가까운 격자
+  (`Columns = ceil(sqrt(CoinCount))`, `Rows = ceil(CoinCount / Columns)`)를 계산한 뒤, 각 셀
+  중심 위치에 `CalculateGridJitterLocalLocation()`으로 Jitter를 더한 로컬 좌표를 구해 액터
+  트랜스폼으로 월드 좌표로 변환하고, `GetWorld()->SpawnActor<ACPCoin>(CoinClass, ...)`로 하나씩
+  생성한다. `ACPDispenser::SpawnItemClass()`와 달리 발사 속도는 부여하지 않음 - 제자리에 놓인 뒤
+  `ACPCoin` 기본값인 `SimulatePhysics`로 자연스럽게 바닥에 떨어져 자리 잡는다. **스스로는 `BeginPlay`
+  에서 호출하지 않는다** - `ACPCoinPusher::BeginPlay()`가 `GetCoinGridSpawner()`로 이 인스턴스를 찾아
+  `SpawnCoins()`를 직접 호출해줘야 실제로 코인이 생긴다
+
 ### ACPItem
 - `CollisionSphere`(USphereComponent, RootComponent, 물리 시뮬레이션) — 구 형태라 자연스럽게 굴러감. `ACPCoin`과 동일하게 Dispenser가 `UPrimitiveComponent` 루트로 인식해 발사 가능
-- `Mesh`(StaticMeshComponent, `CollisionSphere`에 부착, 콜리전 없음) — 구 메시를 assign하는 순수 비주얼 파츠
-- `ItemCode`(FName, EditAnywhere)로 어떤 아이템인지 식별
+- `Mesh`(StaticMeshComponent, `CollisionSphere`에 부착, 콜리전 없음) — 3D 메시로 표시할 때 쓰는 비주얼 파츠. `ApplyItemData()`가 `FItemData::ItemMesh`/`ItemMaterial`/`ItemMaterial2`로 StaticMesh/슬롯 0/슬롯 1 머티리얼을 갱신(각각 비어있으면 해당 슬롯은 그대로 둠)
+- `ImageMesh`(StaticMeshComponent, `Mesh`의 `"ImagePoint"` 소켓에 부착, 콜리전 없음) — `Mesh` 대신 평면(Billboard)으로 표시할 때 쓰는 서브 메시(보통 BP에서 사각 플레인을 StaticMesh로 지정). 그 사각 플레인의 중심이 `Mesh`에 지정된 StaticMesh 에셋의 `ImagePoint` 소켓 위치가 되도록 부착되어 있어, 메시마다 소켓 위치를 다르게 잡아두면 `ImageMesh`가 자동으로 그 자리에 놓임. 기본적으로 숨겨져 있으며, `FItemData::ItemImage`가 있을 때만 보임
+- `ItemId`(FName, EditAnywhere)로 어떤 아이템인지 식별 (`ItemDataTable`에서 이 값으로 `FItemData` 행을 조회). BP Class Defaults에서 지정한 값은 레벨에 직접 배치된 인스턴스나 `ItemClass`로 스폰되는
+  경로(`DispenseItem()`)에서만 그대로 쓰이는 고정값 — `DispenseItemByID()`/`DispenseCoinByID()`로
+  스폰되는 경로는 아래 `SetItemId()`가 스폰 직후 실제 ItemID로 덮어씀
+- `ItemDataTable`(`TObjectPtr<UDataTable>`, EditAnywhere) : `ItemId`로 `FItemData` 행을 조회할 때 쓰는 데이터 테이블 - `ACPDispenser::ItemDataTable`과 같은 에셋을 공유해서 지정하면 됨
+- `BillboardMaterial`(`TObjectPtr<UMaterialInterface>`, EditAnywhere) + `ItemTextureParameterName`(FName, 기본 `"ItemTexture"`) : `ImageMesh`에 적용할 베이스 머티리얼과, 그 머티리얼의 텍스처 파라미터 이름 - `ApplyItemData()`가 이 머티리얼로부터 Dynamic Material Instance를 만들어(최초 1회 캐싱, `UCPRadialGaugeWidget`/`UCPBuffIconWidget`과 동일한 방식) 그 파라미터를 `FItemData::ItemImage`로 갱신함
+- `BeginPlay()` → `ApplyItemData()` : `ItemDataTable`에서 `ItemId`로 행을 찾아 `Mesh`의 StaticMesh/머티리얼과 `ImageMesh`의 텍스처(또는 숨김 여부)를 한 번에 적용. `ItemDataTable`이 없거나 해당 행이 없으면 아무 동작도 하지 않음(기존 BP 기본값 유지). `ImageMesh`를 보이게 켤 때 `SetActorTickEnabled(true)`도 같이 호출하고, 숨길 때는 `false`로 꺼서 - 빌보드가 필요 없는 3D 메시 아이템은 매 틱 카메라 방향 계산을 하지 않도록 함
+- `Tick(DeltaTime)` : `ImageMesh`가 보이는 동안만(그렇지 않으면 즉시 반환) `GetCaptureComponent()`(`ACPCoinPusher::GetViewCaptureComponent()` - Screen Capture 카메라, Main Camera 아님)의 월드 위치를 향하도록 `ImageMesh->SetWorldRotation()`을 매 틱 갱신 - `ImageMesh`가 항상 Screen Capture 카메라를 바라보는 빌보드로 동작하게 함. `BillboardRotationOffset`(FRotator, EditAnywhere, 기본 0)을 LookAt 회전에 더해 적용 - 사각 플레인 메시 에셋의 정면(텍스처가 그려지는 면)이 로컬 +X가 아닌 다른 축을 향하고 있다면 이 값(보통 Yaw 180)으로 보정
+- `GetCoinPusher()`/`GetCaptureComponent()`(protected) : `UCPCoinPointUI`와 동일한 패턴(최초 1회 탐색 후 `TWeakObjectPtr`로 캐싱)으로 레벨의 `ACPCoinPusher`와 그 Screen Capture 카메라를 찾아 반환. 매 틱 호출되므로 로그는 남기지 않음(못 찾으면 `Tick()`이 조용히 아무 동작도 하지 않음)
+- `SetItemId(NewItemId)` : `ItemId`를 바꾸고 `ApplyItemData()`를 다시 호출해 Mesh/Material/Image를
+  그 값에 맞게 갱신. `ACPDispenser::SpawnFromItemData()`가 스폰 직후 실제로 스폰을 요청한 ItemID로
+  호출해준다 — `DispenseItemByID(ItemID, ...)`로 여러 종류의 아이템을 같은 `CoinPusherSpawnBPClass`
+  (같은 BP)로 스폰하는 경우, `BeginPlay()` 시점에는 그 BP의 Class Defaults에 고정된 `ItemId`로만
+  `ApplyItemData()`가 적용되므로 실제로 뽑힌 ItemID의 비주얼이 아니라 BP 기본값 그대로(또는 그
+  ItemID에 시각 정보가 없으면 안 보임) 나오는 문제가 있었음 — `SpawnFromItemData()`가 스폰된 액터를
+  `ACPItem`으로 캐스팅해 이 함수를 호출해줌으로써 해결
 - `ICPCoinPusherItem` 구현
-- `OnDroppedInZone(DropZone)` : `DropZone->RecordCollectedItem(ItemCode)` 호출 후 `BP_OnCollected` 이벤트 + Destroy
+- `OnDroppedInZone(DropZone)` : `Collect()` 호출(DropZone이 오버랩 시점에 이미 `RecordCollectedItem()`을 직접 호출했으므로 별도 보고 없음) 후 `BP_OnCollected` 이벤트 + Destroy
 
 ### FItemData
 - `Source/CP/Datatables/CPItemData.h`에 정의. `FItemData`는 `FTableRowBase`를 상속하는 DataTable
-  Row Struct로, `ID`/`Category`/`Type`/`Name`/`CoinType`/`CoinPusherSpawnBPClass`/`bRoulette`/
-  `RouletteProbability`/`RouletteSpawnCount` 필드를 가짐 — 예전에 `ACPDispenser`가 참조하던
-  `UCPItemRegistry`(`UDataAsset`)를 대체
+  Row Struct로, `ID`/`Category`/`Type`/`Name`/`CoinType`/`CoinPusherSpawnBPClass`/`WorldSpawnBPClass`/
+  `bRoulette`/`RouletteProbability`/`RouletteSpawnCount`/`bRouletteToCoinPusher`/`ExperienceAmount`/
+  `ScoreAmount`/`CoinPointText`/`InventoryIcon`/`ItemMesh`/`ItemMaterial`/`ItemMaterial2`/`ItemImage` 필드를 가짐 —
+  예전에 `ACPDispenser`가 참조하던 `UCPItemRegistry`(`UDataAsset`)를 대체. `ItemMesh`/`ItemMaterial`/
+  `ItemImage`는 `ACPItem::ApplyItemData()`가 사용(위 "ACPItem" 참고)
 - 자세한 필드 설명은 `Datatables/README.md` 참고
 
 ### ICPDroppedItemReceiver
@@ -121,14 +164,23 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   구현체 예시 — 받은 정보를 `UE_LOG(LogDropZone, Warning, ...)`로 표시해 DropZone이 실제로 보냈는지 확인 가능
 
 ### ACPDropZone
-- `CollectionVolume`(UBoxComponent)에 `ICPCoinPusherItem`을 구현하는 오브젝트가 겹치면(OnComponentBeginOverlap) 감지해 `Item->OnDroppedInZone(this)` 호출 — Coin/Item 등 구체 타입은 전혀 모름
-- `AddCollectedCoins(int32 Amount = 1, FName ItemID = NAME_None, ECPCoinType CoinType = Normal)` :
-  `CollectedCoinCount` 증가 + `OnCoinCollected` 브로드캐스트 (`ACPCoin`이 자신의 `ItemID`/`CoinType`을
-  실어서 호출). `ExperiencePerCoin * Amount`만큼 팀 경험치를 지급하고, `CollectedCoinCount`가
-  `CoinsPerTicket`(기본 10)의 배수가 될 때마다 팀 티켓을 1개 지급. `ItemID`가 비어있지 않으면
-  `OnDropped`를 브로드캐스트하고, `GetAuthGameMode()`를 `ICPDroppedItemReceiver`로 캐스팅해
-  `ReceiveDroppedItem(ItemID, Amount, CoinType)`도 호출
-- `RecordCollectedItem(FName ItemCode)` : `CollectedItemCodes` 배열에 추가 + `OnItemCollected`/`OnDropped` 브로드캐스트 (`ACPItem`이 호출). `ItemRespawnDispenser`가 설정되어 있으면 `DispenseItemByID(ItemCode, 1)`을 호출해 같은 아이템을 다시 생성 요청하고, `GetAuthGameMode()`가 `ICPDroppedItemReceiver`를 구현하면 `ReceiveDroppedItem(ItemCode, 1)`도 호출(코인이 아니므로 `CoinType`은 기본값 Normal)
+- `CollectionVolume`(UBoxComponent)에서 `OnComponentBeginOverlap`(`OnVolumeBeginOverlap`)이 겹친
+  액터를 직접 `ACPCoin`/`ACPItem`으로 캐스팅해서 처리한다 — `ICPCoinPusherItem::OnDroppedInZone()`을
+  거치지 않고 DropZone이 직접 `Collect()`를 호출한 뒤 `AddCollectedCoins()`/`RecordCollectedItem()`을
+  부른다(`ACPCoin::OnDroppedInZone()`은 이 경로에서 호출되지 않는 구식 코드, `ACPItem::OnDroppedInZone()`은
+  DropZone이 이미 다 처리했다는 전제로 자기 자신을 `Collect()`만 해주는 얇은 구현)
+- `AddCollectedCoins(int32 Amount = 1, FName ItemID = NAME_None, ECPCoinType CoinType = Normal, FVector WorldLocation = FVector::ZeroVector)` :
+  `CollectedCoinCount` 증가 + `OnCoinCollected` 브로드캐스트, `OnCoinDropped`(`ItemID`, `WorldLocation`)
+  브로드캐스트(`OnVolumeBeginOverlap`이 코인의 `GetActorLocation()`을 실어서 호출). `ExperiencePerCoin * Amount`만큼
+  팀 경험치를 지급하고, `CollectedCoinCount`가 `CoinsPerTicket`(기본 10)의 배수가 될 때마다 팀 티켓을
+  1개 지급. `ItemID`가 비어있지 않으면 `OnDropped`를 브로드캐스트하고, `GetAuthGameMode()`를
+  `ICPDroppedItemReceiver`로 캐스팅해 `ReceiveDroppedItem(ItemID, Amount, CoinType)`도 호출
+- `RecordCollectedItem(FName ItemCode, FVector WorldLocation = FVector::ZeroVector)` : `CollectedItemCodes`
+  배열에 추가 + `OnItemCollected`/`OnDropped` 브로드캐스트, `OnCoinDropped`(`ItemCode`, `WorldLocation`)도
+  함께 브로드캐스트(`OnVolumeBeginOverlap`이 아이템의 `GetActorLocation()`을 실어서 호출). `ItemRespawnDispenser`가
+  설정되어 있으면 `DispenseItemByID(ItemCode, 1)`을 호출해 같은 아이템을 다시 생성 요청하고,
+  `GetAuthGameMode()`가 `ICPDroppedItemReceiver`를 구현하면 `ReceiveDroppedItem(ItemCode, 1)`도
+  호출(코인이 아니므로 `CoinType`은 기본값 Normal)
 - `OnDropped`(`FOnCPDropZoneDropped`, `ItemID` 하나만 매개변수) : 코인이든 아이템이든 무언가 떨어질
   때마다(=`AddCollectedCoins`/`RecordCollectedItem`이 호출될 때마다, `ItemID`가 있을 때) 종류 구분
   없이 Broadcast하는 범용 알림용 델리게이트 — `OnCoinCollected`(코인 누적 개수만 전달)/`OnItemCollected`
@@ -136,6 +188,33 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   로 DropZone을 직접 거치지 않고도 참조할 수 있음
 - `ItemRespawnDispenser`(`TObjectPtr<ACPDispenser>`, VisibleInstanceOnly) : 위 재생성을 맡을 Dispenser. **DropZone은 `ACPCoinPusher`의 ChildActorComponent로 스폰되는 인스턴스라 레벨에서 직접 편집할 수 없으므로**, 에디터에서 직접 설정하지 않고 `SetItemRespawnDispenser()`를 통해서만 설정됨 (소유자인 `ACPCoinPusher`가 `PostInitializeComponents`에서 호출)
 - `ItemRespawnDispenser`(`TObjectPtr<ACPDispenser>`, VisibleInstanceOnly) : 위 재생성을 맡을 Dispenser. **DropZone은 `ACPCoinPusher`의 ChildActorComponent로 스폰되는 인스턴스라 레벨에서 직접 편집할 수 없으므로**, 에디터에서 직접 설정하지 않고 `SetItemRespawnDispenser()`를 통해서만 설정됨 (소유자인 `ACPCoinPusher`가 `PostInitializeComponents`에서 호출)
+
+#### 코인 콤보 시스템
+
+`AddCollectedCoins`/`RecordCollectedItem`이 호출될 때마다(코인/아이템이 하나 떨어질 때마다)
+`RegisterComboHit()`이 함께 호출되어 콤보를 관리한다:
+
+- `ComboCount`(`int32`, VisibleInstanceOnly) : 현재 콤보 수. 매 히트마다 1 증가. 처음 떨어지는
+  코인/아이템은 무조건 1콤보(0에서 시작해 +1)이고, 이후 콤보를 이어가려면 `ComboWindowSeconds`
+  (기본 1.5초) 안에 다음 코인/아이템이 떨어져야 한다 - 넘기면 `HandleComboWindowExpired()`가
+  `ComboCount`를 0으로 리셋하고, 다음 드랍부터 다시 1콤보로 시작한다
+- `ComboWindowSeconds`(`float`, EditAnywhere, 기본 1.5) : 콤보가 유지되는 제한 시간. `RegisterComboHit()`이
+  매 히트마다 `ComboWindowTimerHandle`을 이 값으로 새로 시작하므로, 그 안에 다음 히트가 들어오면
+  자연스럽게 "시간이 초기화"된다
+- `OnComboCountChanged`(`FOnCPComboCountChanged`, `NewComboCount`) : 콤보 수가 바뀔 때마다(증가
+  또는 0으로 리셋) Broadcast - `UI/CPInGameWidget.h`의 `UCPInGameWidget::SetComboCount(int32)`와
+  시그니처가 같음
+- `OnComboGaugeChanged`(`FOnCPComboGaugeChanged`, `CurrentValue`, `MaxValue`) : 콤보 게이지 값이
+  바뀔 때마다 Broadcast. `CurrentValue`는 콤보가 끊기기까지 남은 시간(초), `MaxValue`는
+  `ComboWindowSeconds`. `RegisterComboHit()`이 콤보가 시작될 때 `SetActorTickEnabled(true)`로
+  `Tick()`을 켜고, 그 뒤로는 **매 틱마다** `UpdateComboGaugeDisplay()`가 이 델리게이트를 갱신해
+  게이지가 눈에 보이게 부드럽게 줄어든다 - 콤보가 끊기면 `HandleComboWindowExpired()`가
+  `CurrentValue` 0으로 마지막 한 번 더 Broadcast한 뒤 `SetActorTickEnabled(false)`로 다시 끈다
+  (콤보가 없을 때는 불필요한 매 프레임 연산이 없음). `UI/CPInGameWidget.h`의
+  `UCPInGameWidget::UpdateComboGauge(float, float)`와 시그니처가 같음
+- **`ACPCoinPusher::BindDropZoneEventsToInGameUI()`가 이 두 델리게이트를 로컬 스플릿 스크린의 각
+  플레이어 InGameUI에 C++에서 자동으로 바인딩해준다** (WBP에서 별도 Bind Event 불필요 - `OnCoinDropped`를
+  `CoinPointUI`에 바인딩하는 것과 같은 함수가 함께 처리함, `UI/README.md`의 `UCPCoinComboWidget` 참고)
 
 ### ACPPusher
 - `PushPlate`(StaticMeshComponent)를 물리 시뮬레이션 없이(Kinematic) `Movable`로 두고 `Tick`에서 위치만 이동
@@ -167,15 +246,23 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   `CoinPusherSpawnBPClass`가 `ICPCoinPusherItem`을 구현하는지 확인한 뒤 `SpawnCount`개 생성.
   `bLaunch=false`면 발사 속도를 부여하지 않고 그 자리에 둠 — Roulette/DropZone처럼 특정 ItemID를
   지정해서 만들어야 하는 경우에 사용 (`DispenseItem()`/`DispenseItems()`는 여전히 단일 `ItemClass`를
-  쓰는 기존 경로)
+  쓰는 기존 경로). 행을 못 찾거나(`ItemDataTable`에 해당 ItemID Row Name이 없음)/`CoinPusherSpawnBPClass`가
+  비어있거나/`ICPCoinPusherItem`을 구현하지 않아 무시되는 경우, 그리고 개별 스폰 성공/실패 모두
+  `LogCoinPusher`(Warning)로 이 Dispenser의 `GetName()`/`ItemDataTable` 이름과 함께 로그를 남김 —
+  "룰렛에서 뽑힌 아이템이 스폰되지 않는" 문제를 진단할 때 이 로그로 어느 Dispenser에서 왜
+  막혔는지 확인 가능
 - `DispenseCoinByID(ItemID, bLaunch = true)` : `DispenseItemByID`와 같은 방식으로 행의
   `CoinPusherSpawnBPClass` 1개를 스폰하지만, 스폰된 액터를 `ACPCoin*`으로 캐스팅해 반환(실패 시
   nullptr)한다는 점이 다름 — 스폰 직후 스폰된 코인에 접근해야 하는 호출부(예:
   `ACPCoinPusher::SpawnBigCoin()`가 `SetCoinType(Big)`을 호출하기 위해 사용)를 위한 함수
-- `SpawnFromItemData(Row, ClassToSpawn, bLaunch)`(protected) : `SpawnItemClass()`로 스폰한 뒤, `Row.Category`가
-  `"Coin"`이면 스폰된 액터가 실제로 `ACPCoin`일 때만 `SetCoinType(Row.CoinType)`을 호출 —
+- `SpawnFromItemData(ItemID, Row, ClassToSpawn, bLaunch)`(protected) : `SpawnItemClass()`로 스폰한 뒤, `Row.Category`가
+  `"Coin"`이면 스폰된 액터가 실제로 `ACPCoin`일 때만 `SetCoinType(Row.CoinType)`을 호출하고, 스폰된
+  액터가 실제로 `ACPItem`이면 `SetItemId(ItemID)`를 호출해 BP Class Defaults에 고정된 `ItemId`가
+  아니라 지금 스폰을 요청한 실제 `ItemID`로 Mesh/Material/Image가 갱신되도록 함(안 그러면 룰렛 등에서
+  같은 `CoinPusherSpawnBPClass`를 공유하는 서로 다른 ItemID의 아이템이 스폰돼도 화면에는 항상 BP
+  기본값의 모습으로만 보이거나, 그 ItemID에 시각 정보가 없으면 안 보이게 됨) —
   `DispenseItemByID()`/`DispenseCoinByID()`가 공유하는 "FItemData 행 기준 스폰" 로직
-- `SpawnItemClass(ClassToSpawn, bLaunch)`(protected) : 실제 스폰 + (옵션) 발사를 수행하고 스폰된 액터(실패 시 nullptr)를 반환하는 공용 헬퍼. `DispenseItem()`/`SpawnFromItemData()`가 함께 사용
+- `SpawnItemClass(ClassToSpawn, bLaunch)`(protected) : 실제 스폰 + (옵션) 발사를 수행하고 스폰된 액터(실패 시 nullptr)를 반환하는 공용 헬퍼. `DispenseItem()`/`SpawnFromItemData()`가 함께 사용. `ClassToSpawn`/`World`가 없거나 `SpawnActor`가 실패하면 `LogCoinPusher`(Warning)로 원인 로그를 남김
 
 ### ACPCoinPusher
 - `Floor`(`UBoxComponent`, RootComponent) : 액터의 루트. `BlockAllDynamic` 프로파일로 실제 충돌 기준이 됨. `BoxExtent`로 직접 크기 지정 (예: `150,150,10`)
@@ -188,7 +275,9 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   레벨에서 직접 연결해야 하며(`InputA`/`InputB`와 동일한 방식의 수동 연결), `BeginPlay()`에서 자동으로
   `LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::HandleRoulettePickedUp)`으로 구독해 룰렛에서
   아이템이 뽑힐 때마다(`bRouletteToCoinPusher`인 경우에만) 이 CoinPusher의 천장 Dispenser에서 그 아이템이
-  나오게 한다 (자세한 내용은 `Roulette/README.md`의 "CoinPusher 연동" 참고)
+  나오게 한다 (자세한 내용은 `Roulette/README.md`의 "CoinPusher 연동" 참고). `LinkedRoulette`가
+  비어있으면 `BeginPlay()`에서 구독 자체가 이뤄지지 않으므로 `LogCoinPusher`(Warning)로 경고를 남김
+  — 룰렛에서 뽑힌 아이템이 전혀 CoinPusher로 전달되지 않는 가장 흔한 원인
 - `ItemDataTable`(`TObjectPtr<UDataTable>`, EditAnywhere) : ItemID(RowName) → `FItemData` 행 조회에 쓰는
   데이터 테이블 참조. `HandleRoulettePickedUp()`의 `bRouletteToCoinPusher` 조회와 `ValidateItemCoinType()`의
   `CoinType` 검증에 쓰이며, 천장 Dispenser들의 `ItemDataTable`과 같은 에셋을 공유해서 지정하면 됨
@@ -213,9 +302,10 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - `HandleRoulettePickedUp(ItemID, SpawnCount)` : `LinkedRoulette->OnPickedUp`에 자동으로 등록되는
   핸들러. `ItemDataTable`에서 `ItemID`로 찾은 행의 `bRouletteToCoinPusher`가 `true`인 경우에만
   `ItemSpawn(ItemID, SpawnCount)`을 호출 — 룰렛에서 당첨된 아이템이라도 실제로 CoinPusher에 스폰돼야
-  하는지는 데이터 테이블 설정에 따름
+  하는지는 데이터 테이블 설정에 따름. 수신 시점/`ItemDataTable` 미지정/행을 못 찾음/
+  `bRouletteToCoinPusher`가 `false`라 무시함 각 경우를 모두 `LogCoinPusher`(Warning)로 로그를 남김
 - `ItemSpawn(ItemID, SpawnCount)` / `SpawnBigCoin(ItemID, Count = 1)` / `SpawnMonsterCoin(ItemID, Num = 1)` : 셋 다 `PickRandomValidCeilingDispenser()`(private)로 `CeilingDispenserComponents` 5개 중 실제로 스폰된 `ACPDispenser`를 랜덤하게 하나 고른다는 공통 로직을 공유
-  - `ItemSpawn(ItemID, SpawnCount)` : 고른 Dispenser의 `DispenseItemByID(ItemID, SpawnCount)`를 호출. 코인 여부/`CoinType` 적용은 Dispenser가 자신의 `ItemDataTable`에서 `FItemData::Category`/`CoinType`을 조회해 내부적으로 처리하므로 `ItemSpawn` 자체는 코인 타입을 전혀 몰라도 됨 — `HandleRoulettePickedUp`이 검증을 마친 뒤 그대로 호출할 만큼 단순한 진입점 (`FName ItemID, int32 Count` 시그니처가 `FOnCPRoulettePickedUp`과 정확히 일치)
+  - `ItemSpawn(ItemID, SpawnCount)` : 고른 Dispenser의 `DispenseItemByID(ItemID, SpawnCount)`를 호출. 코인 여부/`CoinType` 적용은 Dispenser가 자신의 `ItemDataTable`에서 `FItemData::Category`/`CoinType`을 조회해 내부적으로 처리하므로 `ItemSpawn` 자체는 코인 타입을 전혀 몰라도 됨 — `HandleRoulettePickedUp`이 검증을 마친 뒤 그대로 호출할 만큼 단순한 진입점 (`FName ItemID, int32 Count` 시그니처가 `FOnCPRoulettePickedUp`과 정확히 일치). 시작/각 반복에서 `PickRandomValidCeilingDispenser()`가 `nullptr`을 반환하면(유효한 천장 Dispenser가 하나도 없음) `LogCoinPusher`(Warning)로 로그를 남기고 그 반복만 건너뜀
   - `SpawnBigCoin(ItemID, Count)` : `ValidateItemCoinType(ItemID, Big)`을 통과해야 진행. Count번 반복해서(매번 Dispenser를 새로 고름) 고른 Dispenser의 `DispenseCoinByID(ItemID)`로 코인 1개씩을 스폰하고, 성공하면 `SetOwningCoinPusher(this)`로 이 CoinPusher를 알려준 뒤 `SetCoinType(Big)`을 호출
   - `SpawnMonsterCoin(ItemID, Num)` : `ValidateItemCoinType(ItemID, Monster)`을 통과해야 진행. `SpawnBigCoin`과 동일한 방식으로 Num번 반복해서 `DispenseCoinByID(ItemID)`로 코인을 스폰하고 `SetCoinType(Monster)`를 호출 — Big과 달리 `SetOwningCoinPusher()`는 호출하지 않음(Monster는 WaveThrow 트리거와 무관)
 - `ConvertActive(ItemID, SpawnCount)` / `HPConvertActive(ItemID, SpawnCount)` / `MonsterConvertActive(ItemID, SpawnCount)` / `SpawnTower(ItemID, SpawnCount)` : 각각 `ValidateItemCoinType(ItemID, Passive/HP/Monster/CoinTower)`를 통과해야 `GetPassiveCoinConvertArea()->ConvertActive()`/`HPConvertActive()`, `GetMonsterCoinConvertArea()->MonsterConvertActive()`, `GetCoinTowerSpawner()->SpawnTower()`에 각각 위임하는 랩퍼 — `ACPPassiveCoinConvertArea`/`ACPCoinTowerSpawner`를 직접 호출하는 대신 이 랩퍼들을 거치면 CoinType 검증이 자동으로 이루어짐
@@ -235,7 +325,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 - **PIP 캡처 테스트**: `ACPCoinPusherCaptureTestActor`(비주얼 메시 + `ViewCaptureBoom`/`ViewCaptureComponent`를 직접 가진 독립 액터, 실제 `ACPCoinPusher` 전체 설정 없이 캡처 기능만 테스트) / `ACPCoinPusherCaptureTestPawn`(`ADefaultPawn` 상속, 자유비행 카메라) / `ACPCoinPusherCaptureTestGameMode`(위 Pawn을 DefaultPawnClass로) / `ACPCoinPusherCaptureTestPlayerController`(레벨의 `ACPCoinPusherCaptureTestActor` 또는 `ACPCoinPusher`를 찾아 `UCPCoinPusherCaptureWidget`을 만들고 RenderTarget을 연결)
 - **ItemSpawn / PassiveCoinConvertArea / CoinThrowArea / Roulette / DropZone / InGamePause·Ending UI 테스트**: `ACPCoinPusherItemSpawnTestPawn`(`ADefaultPawn` 상속, `TargetCoinPusher`/`TargetRoulette`를 직접 할당하거나 레벨에서 자동으로 찾음 — ConvertArea/ThrowArea 모두 CoinPusher가 ChildActorComponent로 소유하므로 이 Pawn은 CoinPusher/Roulette 둘만 참조).
   - Space바: `TargetCoinPusher->ItemSpawn(CoinItemID, 1)` 호출
-  - R키: `TargetRoulette->Roll()` 호출
+  - R키: `TargetRoulette->Roll(PlayerLevel)` 호출 (`PlayerLevel`은 `ACPGameMode::GetTeamLevel()`에서 조회, `ACPGameMode`가 아니면 1로 대체)
   - P키: `TargetCoinPusher->ConvertActive(PassiveConvertItemID, PassiveConvertCount)` 호출
   - O키: `TargetCoinPusher->HPConvertActive(HPConvertItemID, HPConvertCount)` 호출 (기본 5개, Normal 코인만 대상)
   - M키: `TargetCoinPusher->MonsterConvertActive(MonsterConvertItemID, MonsterConvertCount)` 호출 (기본 5개, Normal 코인만 대상)
@@ -261,7 +351,7 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
   - Numpad4: `HPConvertActive(HPConvertItemID, HPConvertCount)` - HP로 변환(기본 5개)
   - Numpad5: `MonsterConvertActive(MonsterConvertItemID, MonsterConvertCount)` - Monster로 변환(기본 5개)
   - Numpad6: `SpawnMonsterCoin(MonsterCoinItemID, MonsterCoinSpawnCount)` - Monster 코인 스폰(기본 5개)
-  - Numpad7: `TargetRoulette->Roll()`
+  - Numpad7: `TargetRoulette->Roll(PlayerLevel)` (`PlayerLevel`은 `ACPGameMode::GetTeamLevel()`에서 조회, `ACPGameMode`가 아니면 1로 대체)
   - Numpad8: `SpawnTower(CoinTowerItemID, CoinTowerFloorCount)` - 코인 타워 소환(기본 25층)
   - 각 ItemID 프로퍼티는 `ACPCoinPusherItemSpawnTestPawn`과 마찬가지로 `TargetCoinPusher->ItemDataTable`에
     해당 CoinType(Big/Passive/HP/Monster/CoinTower)으로 등록된 행을 가리켜야 랩퍼의 검증을 통과해 실제로 동작함
@@ -287,20 +377,22 @@ CoinPusher 기계를 구성하는 Actor들의 C++ 구현. 모든 클래스는 `U
 C++ 클래스들은 모두 abstract이므로 실제 배치를 위해서는 각 클래스를 상속하는 Blueprint를 만들어야 함:
 
 1. `BP_CPCoin`, `BP_CPItem`, `BP_CPPusher`, `BP_CPInput`, `BP_CPDispenser`, `BP_CPDropZone`, `BP_CPCoinPusher` 생성 후 메시/충돌 크기 등 콘텐츠 설정 (`BP_CPItem`은 `Mesh`에 구 모양 스태틱 메시를 assign하고, `CollisionSphere`의 반지름을 그 메시 크기에 맞게 조정, `ItemCode`도 지정)
-2. `BP_CPCoinPusher`에서 `PusherComponent`의 `Child Actor Class`를 `BP_CPPusher`로, `DispenserComponentA`/`DispenserComponentB`/`CeilingDispenserComponents`(5개 전부)의 `Child Actor Class`를 `BP_CPDispenser`로, `DropZoneComponent`의 `Child Actor Class`를 `BP_CPDropZone`으로 지정 (모두 CoinPusher가 소유하므로 레벨에 별도 배치 불필요)
+2. `BP_CPCoinPusher`에서 `PusherComponent`의 `Child Actor Class`를 `BP_CPPusher`로, `DispenserComponentA`/`DispenserComponentB`/`CeilingDispenserComponents`(5개 전부)의 `Child Actor Class`를 `BP_CPDispenser`로, `DropZoneComponent`의 `Child Actor Class`를 `BP_CPDropZone`으로 지정 (모두 CoinPusher가 소유하므로 레벨에 별도 배치 불필요). 게임 시작 시 초기 코인을 깔아두고 싶으면 `BP_CPCoinGridSpawner`(`ACPCoinGridSpawner` 상속)도 만들어 `CoinGridSpawnerComponent`의 `Child Actor Class`로 지정하고, `CoinClass`(예: `BP_CPCoin`)/`CoinCount`/`SpawnVolume`(Box 크기·위치)를 설정
 3. `BP_CPCoinPusher` 인스턴스를 레벨에 배치하면 Pusher/Dispenser 7개(앞 2 + 천장 5)/DropZone이 자식 액터로 함께 스폰됨. 필요하면 각 컴포넌트의 상대 위치를 조정해 배치 (천장 5개는 천장 근처로, 서로 겹치지 않게)
 4. 각 Dispenser 자식 액터를 선택해 `ItemClass`를 지정: 앞의 2개(`DispenserComponentA`/`B`)와 천장 5개 전부 기본은 `BP_CPCoin`, 아이템을 뿌리고 싶은 Dispenser만 `BP_CPItem`으로 변경
 5. `ACPInput`(`BP_CPInput`) 2개를 레벨에 배치하고, `BP_CPCoinPusher` 인스턴스의 `InputA` / `InputB`에 각각 연결 (Dispenser의 `LinkedInput`은 여기서 직접 건드리지 않아도 `PostInitializeComponents`가 자동으로 설정)
 6. 적(또는 데미지를 주는 무엇이든)이 `UGameplayStatics::ApplyDamage(CoinPusher, Damage, Instigator, Causer, DamageType)` 등을 호출하면 `ACPCoinPusher::TakeDamage`를 통해 자동으로 체력이 깎임 (별도의 태그/오버랩 설정 불필요)
 7. `ACPCharacter`를 상속하는 캐릭터 BP에 `InteractAction` Input Action 에셋을 연결
 8. Row Struct가 `FItemData`인 DataTable 에셋을 하나 만들고(예: `DT_ItemData`), 행마다 `ID`(=RowName과
-   일치시키는 것을 권장)/`Category`/`Type`/`Name`/`CoinType`/`CoinPusherSpawnBPClass`를 등록 (룰렛에서
-   뽑히길 원하는 행이면 `bRoulette`/`RouletteProbability`/`RouletteSpawnCount`도 설정)
+   일치시키는 것을 권장)/`Category`/`Type`/`Name`/`CoinType`/`CoinPusherSpawnBPClass`를 등록 (룰렛
+   추첨 후보/확률은 이 테이블이 아니라 `ACPRoulette`의 `RouletteDataTable`/`RouletteProbabilityDataTable`로
+   별도 관리함 — `Roulette/README.md` 참고)
 9. ItemID로 스폰해야 하는 모든 Dispenser(천장 Dispenser 등)의 `ItemDataTable`에 위에서 만든 DataTable을 연결.
    `BP_CPCoinPusher` 인스턴스 자신의 `ItemDataTable`에도 같은(또는 호환되는) DataTable을 연결해야
    `HandleRoulettePickedUp()`의 `bRouletteToCoinPusher` 조회와 `ConvertActive()`/`HPConvertActive()`/
    `MonsterConvertActive()`/`SpawnBigCoin()`/`SpawnMonsterCoin()`/`SpawnTower()` 랩퍼의 CoinType 검증이 동작함
 10. `BP_CPCoinPusher` 인스턴스의 `ItemRespawnDispenser`에 (보통 천장 Dispenser 자식 액터 중 하나를 피커로 선택해) 연결 — DropZone에 아이템이 떨어졌을 때 이 Dispenser가 재생성을 담당
-11. 룰렛을 연동하려면 `BP_CPRoulette`(`ACPRoulette` 상속) 인스턴스를 레벨에 배치하고, 그 `ItemDataTable`에
-    위와 동일한(또는 다른) `FItemData` DataTable을 연결한 뒤, `BP_CPCoinPusher` 인스턴스의
-    `LinkedRoulette`에 그 `BP_CPRoulette`를 연결 (자세한 내용은 `Roulette/README.md` 참고)
+11. 룰렛을 연동하려면 `BP_CPRoulette`(`ACPRoulette` 상속) 인스턴스를 레벨에 배치하고, `ItemDataTable`
+    (위와 동일한/또는 다른 `FItemData` DataTable)과 `RouletteDataTable`/`RouletteProbabilityDataTable`을
+    연결한 뒤, `BP_CPCoinPusher` 인스턴스의 `LinkedRoulette`에 그 `BP_CPRoulette`를 연결 (자세한 내용은
+    `Roulette/README.md` 참고)

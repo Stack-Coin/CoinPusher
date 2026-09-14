@@ -18,6 +18,7 @@
 #include "Weapon/CPWeaponBase.h"
 #include "Roulette/CPRoulette.h"
 #include "CoinPusher/CPCoinPusher.h"
+#include "Player/CPGameMode.h"
 #include "Datatables/CPItemData.h"
 #include "Engine/DataTable.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
@@ -253,8 +254,10 @@ void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 
 	UE_LOG(LogPlayer, Warning, TEXT("Rollin"));
 
+	int32 PlayerLevel = GetPlayerLevel();
+
 	// Roll()이 실패하면(이미 회전 중 등) 소모한 티켓을 돌려준다
-	if (!Roulette->Roll())
+	if (!Roulette->Roll(PlayerLevel))
 	{
 		AddTicket(1);
 	}

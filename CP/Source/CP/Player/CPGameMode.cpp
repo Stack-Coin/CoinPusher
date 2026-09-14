@@ -19,6 +19,11 @@
 ACPGameMode::ACPGameMode()
 {
 	// stub
+	// NOTE: 이 파일은 일부러 손대지 않아도 되는 위치에 사소한 코멘트를 추가해뒀다 - UBT의 adaptive
+	// non-unity build가 git status로 "변경된 파일"을 감지해 유닛빌드에서 제외시키는데, 특정 유닛빌드
+	// 조합(Module.CP.*.cpp)에서 AddDynamic(HandlePlayerDowned) 바인딩을 컴파일할 때 MSVC
+	// (Delegate.h의 GetTrimmedMemberFunctionName constexpr 평가)가 내부 컴파일러 오류(C1001)를
+	// 내는 문제가 있어, 이 파일을 유닛빌드에서 분리시켜 우회한다
 }
 
 void ACPGameMode::BeginPlay()

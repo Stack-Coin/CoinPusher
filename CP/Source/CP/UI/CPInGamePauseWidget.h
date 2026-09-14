@@ -19,6 +19,11 @@ class UWidget;
  *  즉시 실행되며, 게임패드는 ACPTopDownPlayerController가 L-Stick 입력을 MoveSelection()으로,
  *  A버튼 입력을 ConfirmSelection()으로 전달해 조작한다. 선택된 버튼은 그에 대응하는 Outline 위젯을
  *  보이게 해서 윤곽선으로 표시된다.
+ *
+ *  DarkBackground(화면을 덮는 어두운 배경)와 CoinInfo(보유 코인 정보 이미지)는 RefreshForDisplay()
+ *  에서 보이도록 갱신된다 - Pause UI가 열릴 때마다(ACPTopDownPlayerController::SetPauseMenuVisible이
+ *  Visible로 바꾸기 직전 RefreshForDisplay()를 호출) 함께 보이게 되고, 닫힐 때는 이 위젯 자체가
+ *  Collapsed되므로 별도 처리 없이 자식인 두 이미지도 같이 가려진다.
  */
 UCLASS(abstract)
 class CP_API UCPInGamePauseWidget : public UUserWidget
@@ -34,6 +39,14 @@ protected:
 	/** 게임패드 사용 중일 때 보이는 반투명 배경 이미지 */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	TObjectPtr<UImage> GamePadBackgroundImage;
+
+	/** Pause UI가 열려 있는 동안 화면 전체를 덮는 어두운 배경 이미지 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	TObjectPtr<UImage> DarkBackground;
+
+	/** Pause UI가 열려 있는 동안 보여주는 보유 코인 정보 이미지 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	TObjectPtr<UImage> CoinInfo;
 
 	/** 게임을 종료하는 버튼 */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))

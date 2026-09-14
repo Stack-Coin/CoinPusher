@@ -17,9 +17,12 @@ class ACPDispenser;
 class ACPPassiveCoinConvertArea;
 class ACPCoinThrowArea;
 class ACPCoinTowerSpawner;
+class ACPCoinGridSpawner;
 class ACPPusher;
 class ACPNexus;
 class ACPRoulette;
+class ACPTopDownPlayerController;
+class UCPCoinPointUI;
 class UDataTable;
 
 /**Broadcast whenever this CoinPusher's health changes as a result of damage */
@@ -96,6 +99,12 @@ class CP_API ACPCoinPusher : public AActor
 	//CoinTowerSpawner ActorComponent (컴포넌트를 통한 Has-a) - SpawnTower()로 원형 코인 타워를 스폰/상승시키는 액터
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* CoinTowerSpawnerComponent;
+
+	//CoinGridSpawner ActorComponent (컴포넌트를 통한 Has-a) - 자신의 SpawnVolume(Box) 안에 Grid+Jitter
+	//방식으로 코인 N개를 생성하는 액터. 스스로는 스폰하지 않으므로 BeginPlay()가 GetCoinGridSpawner()로
+	//찾아 SpawnCoins()를 직접 호출해줘야 게임 시작 시 코인이 생김
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UChildActorComponent* CoinGridSpawnerComponent;
 
 	//ViewCaptureComponent를 붙여서 위치/각도를 잡아주는 SpringArm. ArmLength/각도를 BP나 디테일
 	//패널에서 바로 조정할 수 있고, bDoCollisionTest를 켜면 벽 등에 캡처 카메라가 파묻히는 것도 방지 가능
@@ -190,7 +199,8 @@ public:
 	//DropZone에 ItemRespawnDispenser를 전달하고, CoinTowerSpawner에 Pusher를 전달
 	virtual void PostInitializeComponents() override;
 
-	//천장 Dispenser들이 게임 시작 시 코인을 드롭
+	//천장 Dispenser들이 게임 시작 시 코인을 드롭 + CoinGridSpawner에게 SpawnCoins()를 직접 호출해
+	//초기 코인을 깔아줌
 	virtual void BeginPlay() override;
 
 	//UGameplayStatics::ApplyDamage(및 ApplyPointDamage/ApplyRadialDamage)로 들어오는 데미지 처리
@@ -232,6 +242,7 @@ public:
 	FORCEINLINE UStaticMeshComponent* GetExtraBoxMesh() const { return ExtraBoxMesh; }
 	FORCEINLINE UChildActorComponent* GetPusherComponent() const { return PusherComponent; }
 	FORCEINLINE UChildActorComponent* GetCoinTowerSpawnerComponent() const { return CoinTowerSpawnerComponent; }
+	FORCEINLINE UChildActorComponent* GetCoinGridSpawnerComponent() const { return CoinGridSpawnerComponent; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentA() const { return DispenserComponentA; }
 	FORCEINLINE UChildActorComponent* GetDispenserComponentB() const { return DispenserComponentB; }
 	FORCEINLINE UChildActorComponent* GetDropZoneComponent() const { return DropZoneComponent; }
@@ -281,6 +292,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="CoinPusher")
 	ACPCoinTowerSpawner* GetCoinTowerSpawner() const;
 
+	//CoinGridSpawnerComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	ACPCoinGridSpawner* GetCoinGridSpawner() const;
+
 	//Roulette 등 외부에서 특정 ItemID를 SpawnCount만큼 생성하고 싶을 때 호출. 천장 Dispenser
 	//(CeilingDispenserComponents) 중 하나를 랜덤하게 골라 그 Dispenser의 DispenseItemByID()로
 	//위임한다 - 코인 여부/CoinType 적용은 Dispenser가 ItemDataTable을 조회해 알아서 처리하므로
@@ -293,6 +308,15 @@ public:
 	//룰렛에서 당첨된 아이템이라도 실제로 CoinPusher에 스폰되어야 하는지는 데이터 테이블 설정에 따른다
 	UFUNCTION()
 	void HandleRoulettePickedUp(FName ItemID, int32 SpawnCount);
+
+	//BeginPlay에서 한 틱 뒤에 호출됨 - 로컬 스플릿 스크린의 각 PlayerController(ACPTopDownPlayerController)
+	//마다 InGameUI를 찾아 GetDropZone()의 이벤트들을 그 하위 위젯에 바인딩한다(AddUniqueDynamic이라
+	//중복 호출해도 안전): OnCoinDropped -> GetCoinPointUI()->ShowCoinPointText, OnComboCountChanged ->
+	//SetComboCount, OnComboGaugeChanged -> UpdateComboGauge. InGameUI는 컨트롤러 자신의 BeginPlay에서
+	//생성되므로, 액터 간 BeginPlay 순서가 보장되지 않아 한 틱 미룸(SetupPlayerInGameWidgetBindings와
+	//동일한 이유) - 이렇게 해두면 WBP에서 별도로 Bind Event를 걸지 않아도 코인/아이템을 먹을 때마다
+	//그 위치에 안내 문구가 뜨고, 콤보 수/게이지도 InGameUI에 자동으로 반영된다
+	void BindDropZoneEventsToInGameUI();
 
 	//ItemID로 조회한 CoinType이 Big이 아니면 아무것도 하지 않는다(ValidateItemCoinType()). 통과하면
 	//천장 Dispenser 중 하나를 랜덤하게 골라(매번 다시 고름) ItemID로 지정된 코인을 Count개 스폰하고

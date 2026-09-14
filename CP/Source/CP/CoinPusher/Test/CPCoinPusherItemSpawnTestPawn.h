@@ -26,7 +26,8 @@ class UTexture2D;
  *  I drops one Big-type coin via TargetCoinPusher->SpawnBigCoin(BigCoinItemID);
  *  U drops MonsterCoinSpawnCount Monster-type coins via TargetCoinPusher->SpawnMonsterCoin(MonsterCoinItemID, ...);
  *  1/2/3/4/5/6 trigger TargetCoinPusher->SpawnTower(CoinTowerItemID, N) with N = 5/10/15/20/25/30 floors;
- *  R triggers TargetRoulette->Roll() - the winning item is broadcast via ACPRoulette::OnPickedUp, which
+ *  R triggers TargetRoulette->Roll(PlayerLevel), using the Details-panel-editable PlayerLevel field
+ *  below (In Game UI Test category) - the winning item is broadcast via ACPRoulette::OnPickedUp, which
  *  whichever ACPCoinPusher has this Roulette assigned as its LinkedRoulette is subscribed to, so the
  *  result reaches that CoinPusher's HandleRoulettePickedUp()/ItemSpawn() automatically (see
  *  ACPCoinPusher::LinkedRoulette);
@@ -186,6 +187,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="In Game UI Test")
 	FText PlayerName = FText::FromString(TEXT("Player"));
 
+	/** InGameUI 표시용 레벨 테스트 값으로도 쓰이고, R키(HandleRollRouletteInput)가 TargetRoulette->Roll()에
+	 *  넘기는 PlayerLevel로도 그대로 재사용된다 - Detail 패널에서 직접 값을 바꿔가며 MustPickLevel/
+	 *  RouletteProbabilityDataTable 동작을 테스트할 수 있음 */
 	UPROPERTY(EditAnywhere, Category="In Game UI Test")
 	int32 PlayerLevel = 1;
 
@@ -236,7 +240,8 @@ protected:
 	/** Bound to Space - spawns one coin via TargetCoinPusher->ItemSpawn() */
 	void HandleSpawnCoinInput();
 
-	/** Bound to R - triggers TargetRoulette->Roll() */
+	/** Bound to R - triggers TargetRoulette->Roll(PlayerLevel), using the Details-panel-editable
+	 *  PlayerLevel field (In Game UI Test category) as-is */
 	void HandleRollRouletteInput();
 
 	/** Bound to P - converts PassiveConvertCount coins via

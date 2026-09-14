@@ -7,15 +7,18 @@
 #include "CPCharacterInfoWidget.generated.h"
 
 class UCPHorizonGuageBarWidget;
+class UCPBuffIconWidget;
+class UHorizontalBox;
 class UImage;
 class UTextBlock;
 class UTexture2D;
 
 /**
  *  캐릭터(플레이어, 보스 등) 정보를 한 화면에 모아 보여주는 UI. 체력/경험치 게이지
- *  (둘 다 UCPHorizonGuageBarWidget), 이름(NameText), 레벨(LevelText), 초상화(PortraitImage)로
- *  구성된다. 다섯 컴포넌트 전부 BindWidgetOptional이라, WBP에 배치하지 않은 항목은 해당 값을
- *  갱신해도 아무 동작도 하지 않는다(에러 없이 조용히 무시 - 표시할 것이 없으면 표시하지 않는다).
+ *  (둘 다 UCPHorizonGuageBarWidget), 이름(NameText), 레벨(LevelText), 초상화(PortraitImage),
+ *  버프 아이콘 목록(BuffHorizontalBox)으로 구성된다. 여섯 컴포넌트 전부 BindWidgetOptional이라,
+ *  WBP에 배치하지 않은 항목은 해당 값을 갱신해도 아무 동작도 하지 않는다(에러 없이 조용히 무시 -
+ *  표시할 것이 없으면 표시하지 않는다).
  */
 UCLASS(abstract)
 class CP_API UCPCharacterInfoWidget : public UUserWidget
@@ -49,6 +52,16 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	TObjectPtr<UImage> PortraitImage;
 
+	/** 버프 아이콘들이 가로로 나열될 박스 (선택 사항) - BuffCreate()가 만든 UCPBuffIconWidget
+	 *  인스턴스를 여기에 추가한다 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	TObjectPtr<UHorizontalBox> BuffHorizontalBox;
+
+	/** BuffCreate()가 생성할 버프 아이콘 위젯 클래스 (없으면 BuffCreate()는 아무 동작도 하지
+	 *  않고 nullptr을 반환한다) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Character Info")
+	TSubclassOf<UCPBuffIconWidget> BuffIconWidgetClass;
+
 public:
 
 	/** 체력 변경 델리게이트에 바인딩해서 쓰는 진입점 - HealthGaugeWidget이 없으면 아무 동작도 하지 않는다 */
@@ -78,4 +91,11 @@ public:
 	/** 캐릭터 초상화를 설정 - PortraitImage가 없으면 아무 동작도 하지 않는다 */
 	UFUNCTION(BlueprintCallable, Category="Character Info")
 	void SetPortrait(UTexture2D* Portrait);
+
+	/** BuffIconWidgetClass의 인스턴스를 하나 생성해 BuffHorizontalBox에 추가하고 그 참조를
+	 *  반환한다 - 반환된 인스턴스의 UpdateBuff(CurrentTime, MaxTime)는 호출부가 직접 관리해야
+	 *  한다(예: 버프 지속시간을 관리하는 타이머). BuffHorizontalBox/BuffIconWidgetClass가 없으면
+	 *  아무 동작도 하지 않고 nullptr을 반환한다 */
+	UFUNCTION(BlueprintCallable, Category="Character Info")
+	UCPBuffIconWidget* BuffCreate(FName BuffCode);
 };

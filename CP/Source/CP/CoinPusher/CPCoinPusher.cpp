@@ -7,6 +7,7 @@
 #include "CPPassiveCoinConvertArea.h"
 #include "CPCoinThrowArea.h"
 #include "CPCoinTowerSpawner.h"
+#include "CPCoinGridSpawner.h"
 #include "CPPusher.h"
 #include "CPCoin.h"
 //#include "CPInput.h"
@@ -14,6 +15,10 @@
 #include "CPCoinPusherViewCaptureComponent.h"
 #include "../Roulette/CPRoulette.h"
 #include "Datatables/CPItemData.h"
+#include "Player/CPTopDownPlayerController.h"
+#include "UI/CPInGameWidget.h"
+#include "UI/CPCoinPointUI.h"
+#include "Engine/World.h"
 #include "Log/CPLogCategories.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
@@ -104,6 +109,11 @@ ACPCoinPusher::ACPCoinPusher()
 	CoinTowerSpawnerComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("CoinTowerSpawnerComponent"));
 	CoinTowerSpawnerComponent->SetupAttachment(Floor);
 
+	// 게임 시작 시 자신의 SpawnVolume(Box) 안에 Grid+Jitter 방식으로 코인 N개를 생성하는 CoinGridSpawner
+	// (컴포넌트를 통한 Has-a) - 스폰은 ACPCoinGridSpawner 자신의 BeginPlay가 자동으로 수행함
+	CoinGridSpawnerComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("CoinGridSpawnerComponent"));
+	CoinGridSpawnerComponent->SetupAttachment(Floor);
+
 	// ViewCaptureComponent를 SpringArm 소켓에 붙여서 동작. 기본값은 위에서 내려다보는 구도이고,
 	// ArmLength/각도는 ViewCaptureBoom을 통해 BP에서 조정.
 	// ACPPartyCamera의 CameraBoom과 달리 이 Boom은 CoinPusher 자신(Floor)의 회전을 그대로 따라가야
@@ -158,18 +168,10 @@ void ACPCoinPusher::BeginPlay()
 
 	CurrentHealth = MaxHealth;
 
-	// 게임 시작 시 천장 Dispenser들이 각각 InitialCoinDropCount개씩 코인을 드롭
-	for (const TObjectPtr<UChildActorComponent>& CeilingComponent : CeilingDispenserComponents)
+	//게임 시작 시 초기 코인 생성 (ACPCoinGridSpawner는 스스로 스폰하지 않고 이렇게 호출해줘야 동작함)
+	if (ACPCoinGridSpawner* GridCoinSpawner = GetCoinGridSpawner())
 	{
-		if (!CeilingComponent)
-		{
-			continue;
-		}
-
-		if (ACPDispenser* CeilingDispenser = Cast<ACPDispenser>(CeilingComponent->GetChildActor()))
-		{
-			CeilingDispenser->DispenseItems(InitialCoinDropCount);
-		}
+		GridCoinSpawner->SpawnCoins();
 	}
 
 	// 게임 시작 FrontWallRemovalDelay초 후 FrontWall을 비활성화해 코인이 앞으로 빠질 수 있도록 함
@@ -181,6 +183,14 @@ void ACPCoinPusher::BeginPlay()
 	{
 		LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::HandleRoulettePickedUp);
 	}
+	else
+	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] BeginPlay - LinkedRoulette가 지정되지 않아 OnPickedUp을 구독하지 못했습니다. 룰렛에서 뽑힌 아이템이 CoinPusher로 전달되지 않습니다."));
+	}
+
+	// InGameUI는 각 로컬 PlayerController 자신의 BeginPlay에서 생성되는데, 액터 간 BeginPlay 순서는
+	// 보장되지 않으므로 한 틱 미뤄서 항상 준비된 뒤에 DropZone의 이벤트들을 바인딩한다
+	GetWorldTimerManager().SetTimerForNextTick(this, &ACPCoinPusher::BindDropZoneEventsToInGameUI);
 }
 
 float ACPCoinPusher::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -274,6 +284,11 @@ ACPCoinTowerSpawner* ACPCoinPusher::GetCoinTowerSpawner() const
 	return CoinTowerSpawnerComponent ? Cast<ACPCoinTowerSpawner>(CoinTowerSpawnerComponent->GetChildActor()) : nullptr;
 }
 
+ACPCoinGridSpawner* ACPCoinPusher::GetCoinGridSpawner() const
+{
+	return CoinGridSpawnerComponent ? Cast<ACPCoinGridSpawner>(CoinGridSpawnerComponent->GetChildActor()) : nullptr;
+}
+
 ACPCoinThrowArea* ACPCoinPusher::GetCoinThrowArea(int32 Index) const
 {
 	if (!CoinThrowAreaComponents.IsValidIndex(Index) || !CoinThrowAreaComponents[Index])
@@ -298,26 +313,100 @@ void ACPCoinPusher::ItemSpawn(FName ItemID, int32 SpawnCount)
 	// 코인 여부 판별/CoinType 적용은 Dispenser::DispenseItemByID()가 ItemDataTable을 조회해 알아서
 	// 처리하므로, 여기서는 Dispenser 하나를 골라 그대로 위임하기만 하면 된다
 
+	UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] ItemSpawn 시작 - ItemID: %s, SpawnCount: %d"),
+		*ItemID.ToString(), SpawnCount);
+
 	for (int i = 0; i < SpawnCount; ++i)
 	{
-		if (ACPDispenser* Dispenser = PickRandomValidCeilingDispenser())
+		ACPDispenser* Dispenser = PickRandomValidCeilingDispenser();
+		if (!Dispenser)
 		{
-			Dispenser->DispenseItemByID(ItemID, 1);
+			UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] ItemSpawn 무시됨(%d/%d) - 유효한 천장 Dispenser(ChildActor가 ACPDispenser인 CeilingDispenserComponents 항목)를 찾지 못했습니다. ItemID: %s"),
+				i + 1, SpawnCount, *ItemID.ToString());
+			continue;
 		}
+
+		Dispenser->DispenseItemByID(ItemID, 1);
 	}
 }
 
 void ACPCoinPusher::HandleRoulettePickedUp(FName ItemID, int32 SpawnCount)
 {
+	UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] HandleRoulettePickedUp 수신 - ItemID: %s, SpawnCount: %d"),
+		*ItemID.ToString(), SpawnCount);
+
 	if (!ItemDataTable)
 	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] HandleRoulettePickedUp 무시됨 - ItemDataTable이 지정되지 않았습니다."));
 		return;
 	}
 
 	const FItemData* Row = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPCoinPusher::HandleRoulettePickedUp"));
-	if (Row && Row->bRouletteToCoinPusher)
+	if (!Row)
 	{
-		ItemSpawn(ItemID, SpawnCount);
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] HandleRoulettePickedUp 무시됨 - ItemDataTable에서 ItemID '%s' 행을 찾지 못했습니다(Row Name 불일치 여부 확인)."),
+			*ItemID.ToString());
+		return;
+	}
+
+	if (!Row->bRouletteToCoinPusher)
+	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] HandleRoulettePickedUp 무시됨 - ItemID '%s' 행의 bRouletteToCoinPusher가 false라 CoinPusher로 스폰하지 않습니다."),
+			*ItemID.ToString());
+		return;
+	}
+
+	ItemSpawn(ItemID, SpawnCount);
+}
+
+void ACPCoinPusher::BindDropZoneEventsToInGameUI()
+{
+	ACPDropZone* DropZone = GetDropZone();
+	UWorld* World = GetWorld();
+	if (!DropZone || !World)
+	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] BindDropZoneEventsToInGameUI - DropZone(%s) 또는 World(%s)를 찾지 못해 아무것도 바인딩하지 않습니다. DropZoneComponent의 Child Actor Class가 지정돼 있는지 확인하세요."),
+			DropZone ? TEXT("OK") : TEXT("null"), World ? TEXT("OK") : TEXT("null"));
+		return;
+	}
+
+	bool bBoundAnyController = false;
+
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(It->Get());
+		if (!PC || !PC->IsLocalController())
+		{
+			continue;
+		}
+
+		UCPInGameWidget* InGameWidget = PC->GetInGameWidget();
+		if (!InGameWidget)
+		{
+			UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] BindDropZoneEventsToInGameUI - %s의 InGameUI를 찾지 못했습니다 (InGameWidgetClass 미지정 등). CoinPointUI/콤보 바인딩을 건너뜁니다."),
+				*GetNameSafe(PC));
+			continue;
+		}
+
+		bBoundAnyController = true;
+
+		if (UCPCoinPointUI* CoinPointUI = InGameWidget->GetCoinPointUI())
+		{
+			DropZone->OnCoinDropped.AddUniqueDynamic(CoinPointUI, &UCPCoinPointUI::ShowCoinPointText);
+		}
+		else
+		{
+			UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] BindDropZoneEventsToInGameUI - %s의 InGameUI(WBP)에 CoinPointUI 위젯이 배치돼 있지 않아 OnCoinDropped를 바인딩하지 못했습니다."),
+				*GetNameSafe(PC));
+		}
+
+		DropZone->OnComboCountChanged.AddUniqueDynamic(InGameWidget, &UCPInGameWidget::SetComboCount);
+		DropZone->OnComboGaugeChanged.AddUniqueDynamic(InGameWidget, &UCPInGameWidget::UpdateComboGauge);
+	}
+
+	if (!bBoundAnyController)
+	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPCoinPusher] BindDropZoneEventsToInGameUI - 로컬 PlayerController를 하나도 찾지 못해(ACPTopDownPlayerController 타입인지 확인) 아무것도 바인딩하지 못했습니다."));
 	}
 }
 

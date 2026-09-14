@@ -26,7 +26,8 @@ class ACPRoulette;
  *  Numpad 4: TargetCoinPusher->HPConvertActive(HPConvertItemID, 5) - HP로 5개 변환
  *  Numpad 5: TargetCoinPusher->MonsterConvertActive(MonsterConvertItemID, 5) - Monster로 5개 변환
  *  Numpad 6: TargetCoinPusher->SpawnMonsterCoin(MonsterCoinItemID, 5) - Monster 코인 5개 스폰
- *  Numpad 7: TargetRoulette->Roll() - 룰렛 동작
+ *  Numpad 7: TargetRoulette->Roll(PlayerLevel) - 룰렛 동작 (PlayerLevel은 월드에서 찾은
+ *  ACPPlayerCharacter::GetPlayerLevel()로 조회, 찾지 못하면 1로 대체)
  *  Numpad 8: TargetCoinPusher->SpawnTower(CoinTowerItemID, 25) - 25층 코인 타워 소환
  *
  *  각 랩퍼 함수(ConvertActive/HPConvertActive/MonsterConvertActive/SpawnBigCoin/SpawnMonsterCoin/

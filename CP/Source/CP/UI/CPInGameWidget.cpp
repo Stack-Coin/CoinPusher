@@ -24,6 +24,10 @@ void UCPInGameWidget::NativeConstruct()
 
 	// 아직 보스 관련 시스템이 없어 당장 보여줄 값이 없으므로 기본적으로 꺼둔다
 	SetBossInfoVisible(false);
+
+	// 콤보가 시작되기 전에는 보여줄 값이 없으므로 기본적으로 꺼두고, SetComboCount(Count > 0)에서
+	// 자동으로 켠다 - 콤보가 끊겨 0으로 리셋되면 SetComboCount(0)에서 다시 꺼짐
+	SetCoinComboVisible(false);
 }
 
 void UCPInGameWidget::UpdatePlayerHealth(float CurrentHealth, float MaxHealth)
@@ -80,6 +84,11 @@ void UCPInGameWidget::SetPlayerPortrait(UTexture2D* Portrait)
 	{
 		PlayerInfoWidget->SetPortrait(Portrait);
 	}
+}
+
+UCPBuffIconWidget* UCPInGameWidget::BuffCreate(FName BuffCode)
+{
+	return PlayerInfoWidget ? PlayerInfoWidget->BuffCreate(BuffCode) : nullptr;
 }
 
 void UCPInGameWidget::UpdateBossHealth(float CurrentHealth, float MaxHealth)
@@ -152,6 +161,9 @@ void UCPInGameWidget::SetComboCount(int32 Count)
 	{
 		CoinComboWidget->SetComboCount(Count);
 	}
+
+	// 콤보가 시작되면(Count > 0) 켜고, 콤보가 끊겨 0으로 리셋되면(게이지도 함께 0이 됨) 다시 끈다
+	SetCoinComboVisible(Count > 0);
 }
 
 void UCPInGameWidget::UpdateComboGauge(float CurrentValue, float MaxValue)

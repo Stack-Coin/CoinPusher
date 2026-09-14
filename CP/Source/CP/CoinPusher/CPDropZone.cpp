@@ -11,10 +11,15 @@
 #include "Kismet/GameplayStatics.h"
 #include "Player/CPGameMode.h"
 #include "Player/CPPlayerCharacter.h"
+#include "TimerManager.h"
+#include "CP/Log/CPLogCategories.h"
 
 ACPDropZone::ACPDropZone()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	// 콤보 게이지가 매 틱 눈에 보이게 줄어들도록 Tick()을 쓰지만, 콤보가 진행 중이 아닐 때는
+	// 불필요하므로 RegisterComboHit()/HandleComboWindowExpired()가 SetActorTickEnabled로 켜고 끈다
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 
 	RootComponent = CollectionVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("CollectionVolume"));
@@ -39,7 +44,8 @@ void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType Coin
 	CollectedCoinCount += Amount;
 
 	OnCoinCollected.Broadcast(CollectedCoinCount);
-	OnCoinDropped.Broadcast(WorldLocation);
+	OnCoinDropped.Broadcast(ItemID, WorldLocation);
+	RegisterComboHit();
 
 	//떨어진 아이템의 정보(ItemID/개수, 코인이면 CoinType까지)를 GameMode로 전달.
 	//GetAuthGameMode()가 ICPDroppedItemReceiver를 구현하는 경우에만 전달되므로, 실제 게임의 GameMode든
@@ -55,7 +61,7 @@ void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType Coin
 	}
 }
 
-void ACPDropZone::RecordCollectedItem(FName ItemCode)
+void ACPDropZone::RecordCollectedItem(FName ItemCode, FVector WorldLocation)
 {
 	if (ItemCode.IsNone())
 	{
@@ -66,6 +72,8 @@ void ACPDropZone::RecordCollectedItem(FName ItemCode)
 
 	OnItemCollected.Broadcast(ItemCode);
 	OnDropped.Broadcast(ItemCode);
+	OnCoinDropped.Broadcast(ItemCode, WorldLocation);
+	RegisterComboHit();
 
 	//CoinPusher가 지정해둔 재생성 담당 Dispenser에게 같은 ItemID로 재생성 요청
 	if (ItemRespawnDispenser)
@@ -97,7 +105,7 @@ void ACPDropZone::OnVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 
 		if (Coin->Collect())
 		{
-			AddCollectedCoins(1, ItemID, CoinType);
+			AddCollectedCoins(1, ItemID, CoinType, Coin->GetActorLocation());
 		}
 	}
 	else if (ACPItem* Item = Cast<ACPItem>(OtherActor))
@@ -106,7 +114,56 @@ void ACPDropZone::OnVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 
 		if (Item->Collect())
 		{
-			RecordCollectedItem(ItemCode);
+			RecordCollectedItem(ItemCode, Item->GetActorLocation());
 		}
 	}
+}
+
+void ACPDropZone::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	UpdateComboGaugeDisplay();
+}
+
+void ACPDropZone::RegisterComboHit()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	ComboCount += 1;
+	OnComboCountChanged.Broadcast(ComboCount);
+
+	// 매 히트마다 새로 시작 - ComboWindowSeconds 안에 다음 히트가 들어오면 여기서 다시 새로 시작되므로
+	// 자연스럽게 "시간 초기화"가 되고, 안 들어오면 HandleComboWindowExpired가 콤보를 끊는다
+	World->GetTimerManager().SetTimer(ComboWindowTimerHandle, this, &ACPDropZone::HandleComboWindowExpired, ComboWindowSeconds, false);
+
+	ComboWindowStartTime = World->GetTimeSeconds();
+	SetActorTickEnabled(true);
+	UpdateComboGaugeDisplay();
+}
+
+void ACPDropZone::HandleComboWindowExpired()
+{
+	ComboCount = 0;
+	OnComboCountChanged.Broadcast(ComboCount);
+
+	SetActorTickEnabled(false);
+	OnComboGaugeChanged.Broadcast(0.0f, ComboWindowSeconds);
+}
+
+void ACPDropZone::UpdateComboGaugeDisplay()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const float Elapsed = World->GetTimeSeconds() - ComboWindowStartTime;
+	const float Remaining = FMath::Max(ComboWindowSeconds - Elapsed, 0.0f);
+	OnComboGaugeChanged.Broadcast(Remaining, ComboWindowSeconds);
 }
