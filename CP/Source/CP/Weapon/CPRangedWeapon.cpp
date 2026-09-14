@@ -38,8 +38,7 @@ void ACPRangedWeapon::ExecuteAttack(int32 ComboIndex)
 		}
 	}
 
-	PlayAttackEffect(MuzzleLocation, BaseDirection.Rotation());
-	PlayAttackSound(MuzzleLocation, BaseDirection.Rotation());
+	TriggerAttackEffect(MuzzleLocation, BaseDirection.Rotation());
 }
 
 FVector ACPRangedWeapon::GetMuzzleLocation() const

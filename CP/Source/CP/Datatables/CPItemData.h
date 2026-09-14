@@ -9,6 +9,7 @@
 
 class AActor;
 class UTexture2D;
+class ACPWeaponBase;
 
 /** 아이템 마스터 데이터 한 행. UCPItemDataTableGameInstance::ItemDataTable의 Row Struct로 쓰인다 */
 USTRUCT(BlueprintType)
@@ -72,4 +73,8 @@ struct FItemData : public FTableRowBase
 	/** 인벤토리 슬롯에 표시할 아이콘 이미지 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
 	TObjectPtr<UTexture2D> InventoryIcon = nullptr;
+
+	/** 이 아이템이 무기일 때 장착할 무기 액터 클래스. 무기 아이템이 아니면 비워둔다 (nullptr) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
+	TSubclassOf<ACPWeaponBase> WeaponClass;
 };

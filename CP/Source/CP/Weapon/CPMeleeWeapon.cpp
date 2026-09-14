@@ -200,8 +200,7 @@ void ACPMeleeWeapon::ExecuteMeleeHit()
 		}
 	}
 
-	PlayAttackEffect(Origin, Direction.Rotation());
-	PlayAttackSound(Origin, Direction.Rotation());
+	TriggerAttackEffect(Origin, Direction.Rotation());
 
 	if (!StepData.PostHitModules.IsEmpty())
 	{
