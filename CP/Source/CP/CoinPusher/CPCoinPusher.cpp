@@ -7,6 +7,7 @@
 #include "CPPassiveCoinConvertArea.h"
 #include "CPCoinThrowArea.h"
 #include "CPCoinTowerSpawner.h"
+#include "CPCoinGridSpawner.h"
 #include "CPPusher.h"
 #include "CPCoin.h"
 //#include "CPInput.h"
@@ -14,6 +15,10 @@
 #include "CPCoinPusherViewCaptureComponent.h"
 #include "../Roulette/CPRoulette.h"
 #include "Datatables/CPItemData.h"
+#include "Player/CPTopDownPlayerController.h"
+#include "UI/CPInGameWidget.h"
+#include "UI/CPCoinPointUI.h"
+#include "Engine/World.h"
 #include "Log/CPLogCategories.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
@@ -104,6 +109,11 @@ ACPCoinPusher::ACPCoinPusher()
 	CoinTowerSpawnerComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("CoinTowerSpawnerComponent"));
 	CoinTowerSpawnerComponent->SetupAttachment(Floor);
 
+	// 게임 시작 시 자신의 SpawnVolume(Box) 안에 Grid+Jitter 방식으로 코인 N개를 생성하는 CoinGridSpawner
+	// (컴포넌트를 통한 Has-a) - 스폰은 ACPCoinGridSpawner 자신의 BeginPlay가 자동으로 수행함
+	CoinGridSpawnerComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("CoinGridSpawnerComponent"));
+	CoinGridSpawnerComponent->SetupAttachment(Floor);
+
 	// ViewCaptureComponent를 SpringArm 소켓에 붙여서 동작. 기본값은 위에서 내려다보는 구도이고,
 	// ArmLength/각도는 ViewCaptureBoom을 통해 BP에서 조정.
 	// ACPPartyCamera의 CameraBoom과 달리 이 Boom은 CoinPusher 자신(Floor)의 회전을 그대로 따라가야
@@ -158,19 +168,9 @@ void ACPCoinPusher::BeginPlay()
 
 	CurrentHealth = MaxHealth;
 
-	// 게임 시작 시 천장 Dispenser들이 각각 InitialCoinDropCount개씩 코인을 드롭
-	for (const TObjectPtr<UChildActorComponent>& CeilingComponent : CeilingDispenserComponents)
-	{
-		if (!CeilingComponent)
-		{
-			continue;
-		}
-
-		if (ACPDispenser* CeilingDispenser = Cast<ACPDispenser>(CeilingComponent->GetChildActor()))
-		{
-			CeilingDispenser->DispenseItems(InitialCoinDropCount);
-		}
-	}
+	//게임 시작 시  초기 코인 생성
+	ACPCoinGridSpawner* GridCoinSpawner = Cast<ACPCoinGridSpawner>(CoinGridSpawnerComponent->GetChildActor());
+	GridCoinSpawner->SpawnCoins();
 
 	// 게임 시작 FrontWallRemovalDelay초 후 FrontWall을 비활성화해 코인이 앞으로 빠질 수 있도록 함
 	GetWorldTimerManager().SetTimer(FrontWallRemovalTimerHandle, this, &ACPCoinPusher::RemoveFrontWall, FrontWallRemovalDelay, false);
@@ -181,6 +181,10 @@ void ACPCoinPusher::BeginPlay()
 	{
 		LinkedRoulette->OnPickedUp.AddDynamic(this, &ACPCoinPusher::HandleRoulettePickedUp);
 	}
+
+	// InGameUI는 각 로컬 PlayerController 자신의 BeginPlay에서 생성되는데, 액터 간 BeginPlay 순서는
+	// 보장되지 않으므로 한 틱 미뤄서 항상 준비된 뒤에 DropZone의 이벤트들을 바인딩한다
+	GetWorldTimerManager().SetTimerForNextTick(this, &ACPCoinPusher::BindDropZoneEventsToInGameUI);
 }
 
 float ACPCoinPusher::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -274,6 +278,11 @@ ACPCoinTowerSpawner* ACPCoinPusher::GetCoinTowerSpawner() const
 	return CoinTowerSpawnerComponent ? Cast<ACPCoinTowerSpawner>(CoinTowerSpawnerComponent->GetChildActor()) : nullptr;
 }
 
+ACPCoinGridSpawner* ACPCoinPusher::GetCoinGridSpawner() const
+{
+	return CoinGridSpawnerComponent ? Cast<ACPCoinGridSpawner>(CoinGridSpawnerComponent->GetChildActor()) : nullptr;
+}
+
 ACPCoinThrowArea* ACPCoinPusher::GetCoinThrowArea(int32 Index) const
 {
 	if (!CoinThrowAreaComponents.IsValidIndex(Index) || !CoinThrowAreaComponents[Index])
@@ -318,6 +327,39 @@ void ACPCoinPusher::HandleRoulettePickedUp(FName ItemID, int32 SpawnCount)
 	if (Row && Row->bRouletteToCoinPusher)
 	{
 		ItemSpawn(ItemID, SpawnCount);
+	}
+}
+
+void ACPCoinPusher::BindDropZoneEventsToInGameUI()
+{
+	ACPDropZone* DropZone = GetDropZone();
+	UWorld* World = GetWorld();
+	if (!DropZone || !World)
+	{
+		return;
+	}
+
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(It->Get());
+		if (!PC || !PC->IsLocalController())
+		{
+			continue;
+		}
+
+		UCPInGameWidget* InGameWidget = PC->GetInGameWidget();
+		if (!InGameWidget)
+		{
+			continue;
+		}
+
+		if (UCPCoinPointUI* CoinPointUI = InGameWidget->GetCoinPointUI())
+		{
+			DropZone->OnCoinDropped.AddUniqueDynamic(CoinPointUI, &UCPCoinPointUI::ShowCoinPointText);
+		}
+
+		DropZone->OnComboCountChanged.AddUniqueDynamic(InGameWidget, &UCPInGameWidget::SetComboCount);
+		DropZone->OnComboGaugeChanged.AddUniqueDynamic(InGameWidget, &UCPInGameWidget::UpdateComboGauge);
 	}
 }
 

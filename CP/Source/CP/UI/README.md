@@ -58,7 +58,17 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   동일한 `DisplayFormat` 패턴)와 콤보 상태를 나타내는 게이지(`ComboGaugeWidget`,
   `UCPHorizonGuageBarWidget`)를 함께 보여주는 UI. `SetComboCount(Count)`/
   `UpdateComboGauge(Current, Max)`로 각각 갱신하며, 둘 다 `BindWidgetOptional`이라 배치하지 않은
-  쪽은 조용히 무시된다
+  쪽은 조용히 무시된다. 실제 콤보 게임플레이 로직은 `ACPDropZone`(`CoinPusher/CPDropZone.h`)의
+  콤보 시스템에 있다 - 코인/아이템이 하나 떨어질 때마다 `ComboCount`가 1 증가하고(처음은 무조건
+  1콤보), `ComboWindowSeconds`(기본 1.5초) 안에 다음 드랍이 없으면 0으로 리셋된다.
+  `ACPCoinPusher::BindDropZoneEventsToInGameUI()`가 `ACPDropZone::OnComboCountChanged`/
+  `OnComboGaugeChanged`를 로컬 스플릿 스크린의 각 플레이어 `InGameUI`의
+  `SetComboCount`/`UpdateComboGauge`에 C++에서 자동으로 바인딩해주므로(WBP에서 별도 Bind Event
+  불필요), `CoinComboWidget`을 `WBP_InGameWidget`에 배치해두기만 하면 콤보 수/게이지가 자동으로
+  갱신된다. **`UCPInGameWidget::SetComboCount(Count)`가 `Count > 0`이면 `CoinComboWidget`을 자동으로
+  켜고(콤보 시작), `Count`가 0으로 리셋되면(=콤보가 끊겨 게이지도 함께 0이 되는 순간) 자동으로
+  끈다** - `NativeConstruct`에서 기본적으로 꺼진 상태로 시작하므로 콤보가 없을 때는 화면에 아예
+  보이지 않는다. 자세한 내용은 `CoinPusher/README.md`의 "코인 콤보 시스템" 참고
 - `UCPInGameWidget`("InGameUI") : 인게임 화면의 여러 WBP 구성요소를 한데 모아놓은 최상위 HUD
   위젯. 일시정지 메뉴("InGamePauseUI", `UCPInGamePauseWidget`)와 CoinPusher Picture-in-Picture
   (`UCPCoinPusherCaptureWidget`)는 각각 `ACPTopDownPlayerController`가 별도 인스턴스로 직접
@@ -98,25 +108,26 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   사라질지는 스스로 정하지 않고 `UCPCoinPointUI`가 타이머로 관리하며, `SetPointText` 직후
   `PlayAppearEffect`(`BlueprintImplementableEvent`)가 호출되므로 페이드 인/위로 떠오르는 연출이
   필요하면 WBP에서 오버라이드해 UMG Animation을 재생하면 된다
-- `UCPCoinPointUI`("CoinPointUI") : `PointTextCanvas`(`UCanvasPanel`, `BindWidgetOptional`) 위에
-  `ShowPointText(Text, WorldLocation)`가 호출될 때마다 `PointTextWidgetClass`
-  (`UCPCoinPointTextWidget` 상속 WBP) 인스턴스를 하나 생성해서 계산된 화면 좌표에 배치하고,
-  `DisplayDuration`(기본 1초) 후 제거한다 - 동시에 여러 코인이 떨어져도 각자 독립된 인스턴스로
-  겹쳐 표시된다. 화면 좌표 계산은 레벨의 `ACPCoinPusher`를 찾아(`GetCaptureComponent()`, 최초
-  1회 캐싱) 그 `GetViewCaptureComponent()`의 위치/회전과 `FOVAngle`(Perspective) 또는
-  `OrthoWidth`(Orthographic)를 이용해 `WorldLocation`을 캡처 카메라 기준으로 투영한 뒤,
-  `CaptureWidthRatio`(기본 0.3, **`UCPCoinPusherCaptureWidget`/`UCPCoinPusherViewportClient`의
-  값과 반드시 일치시켜야 함**)로 정해지는 화면 왼쪽 PIP 영역의 픽셀 좌표로 변환한다. 월드 위치가
-  PIP 프러스텀 밖이거나 캡처 카메라 뒤쪽이라 정상적으로 투영되지 않으면, PIP 영역 가장자리에서
-  `OffscreenMargin`(기본 32px)만큼 안쪽으로 들여온 위치로 클램프해서 항상 PIP 화면 안에 보이게
-  한다. `ShowCoinPointText(WorldLocation)`은 `CoinPointDisplayText`(기본 "+1")를 문구로 써서
-  `ShowPointText`를 호출하는 얇은 래퍼로, `ACPDropZone::OnCoinDropped(FVector)` 델리게이트와
-  시그니처가 동일해 그대로 Bind Event할 수 있다. 레벨에 `ACPCoinPusher`가 없으면(테스트 레벨 등)
-  캡처 컴포넌트를 찾지 못해 아무것도 표시하지 않는다
-- `ACPDropZone::OnCoinDropped`(`FVector, WorldLocation`) : 코인이 이 DropZone에 떨어져
-  `AddCollectedCoins`가 호출될 때마다(코인 액터가 스스로 넘긴 `GetActorLocation()`) 그 월드
-  위치와 함께 Broadcast. `UCPCoinPointUI::ShowCoinPointText`와 시그니처가 같으므로 BP에서
-  Bind Event 한 번으로 "코인 먹을 때마다 그 자리에 +1 표시"가 끝난다
+- `UCPCoinPointUI`("CoinPointUI") : `PointTextCanvas`(`UCanvasPanel`, `BindWidgetOptional`, "정해진
+  영역") 위에 `ShowPointText(Text, WorldLocation)`가 호출될 때마다 `PointTextWidgetClass`
+  (`UCPCoinPointTextWidget` 상속 WBP) 인스턴스를 하나 생성해서 계산된 좌표에 배치하고,
+  `DisplayDuration`(기본 1초) 후 제거한다 - 동시에 여러 코인/아이템이 떨어져도 각자 독립된
+  인스턴스로 겹쳐 표시된다. 좌표 계산은 카메라 투영을 쓰지 않는 단순 선형 매핑이다: 레벨의
+  `ACPCoinPusher`를 찾아(`GetDropZone()`, 최초 1회 캐싱) 그 `GetCollectionVolume()`
+  (`UBoxComponent`)의 Box Extent를 기준으로, `WorldLocation`의 DropZone 로컬 오프셋 중 **Z값을
+  `PointTextCanvas`의 가로(X) 위치로, X값을 세로(Y) 위치로** 정규화해 매핑한다(-1~1 범위로 클램프).
+  Box 범위를 벗어나면 `PointTextCanvas` 가장자리에서 `OffscreenMargin`(기본 32px)만큼 안쪽으로
+  들여온 위치로 클램프해서 항상 캔버스 안에 보이게 한다. `ShowCoinPointText(WorldLocation)`은
+  `CoinPointDisplayText`(기본 "+1")를 문구로 써서 `ShowPointText`를 호출하는 얇은 래퍼다. 레벨에
+  `ACPCoinPusher`가 없거나 그 `DropZone`을 찾지 못하면(테스트 레벨 등) 아무것도 표시하지 않는다
+- `ACPDropZone::OnCoinDropped`(`FVector, WorldLocation`) : 코인/아이템이 이 DropZone에 떨어져
+  `AddCollectedCoins`/`RecordCollectedItem`이 호출될 때마다(코인/아이템 액터가 스스로 넘긴
+  `GetActorLocation()`) 그 월드 위치와 함께 Broadcast (이름은 `OnCoinDropped`이지만 아이템도
+  함께 씀). **`ACPCoinPusher::BeginPlay()`가 한 틱 뒤(`BindDropZoneEventsToInGameUI()`) 로컬
+  스플릿 스크린의 각 `ACPTopDownPlayerController`마다 `GetInGameWidget()->GetCoinPointUI()`를
+  찾아 이 델리게이트를 `ShowCoinPointText`에 C++에서 자동으로 `AddUniqueDynamic` 바인딩해준다**
+  - WBP에서 별도로 Bind Event를 걸 필요가 없으며, "코인/아이템을 먹을 때마다 그 자리에 +1 표시"가
+  그냥 동작한다
 
 ### 원형 게이지
 

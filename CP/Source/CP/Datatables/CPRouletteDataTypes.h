@@ -31,7 +31,7 @@ struct FCPRouletteDataRow : public FTableRowBase
 
 	/** 이 ItemID가 당첨 후보로 뽑히기 위해 팀이 최소로 도달해 있어야 하는 레벨 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
-	int32 MustPickLevel = 1;
+	int32 MustPickLevel = 0;
 };
 
 /**
@@ -45,39 +45,37 @@ struct FCPRouletteProbabilityRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	/** 팀 레벨 1에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level1 = 0.0f;
+	//Level
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roulette")
+	int32 Level;
 
-	/** 팀 레벨 2에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level2 = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index0 = 0.0f;
 
-	/** 팀 레벨 3에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level3 = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index1 = 0.0f;
 
-	/** 팀 레벨 4에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level4 = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index2 = 0.0f;
 
-	/** 팀 레벨 5에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level5 = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index3 = 0.0f;
 
-	/** 팀 레벨 6에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level6 = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index4 = 0.0f;
 
-	/** 팀 레벨 7에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level7 = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index5 = 0.0f;
 
-	/** 팀 레벨 8에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level8 = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index6 = 0.0f;
 
-	/** 팀 레벨 9에 적용할 확률 가중치 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float RouletteProbability_Level9 = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index7 = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	float Roulette_index8 = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roulette")
+	float Roulette_index9 = 0.0f;
 };

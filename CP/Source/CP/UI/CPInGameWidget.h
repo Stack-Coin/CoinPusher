@@ -31,16 +31,17 @@ class UTexture2D;
  *  - RouletteWidget : UCPRouletteWidget
  *  - CoinPointUI : UCPCoinPointUI (코인이 떨어진 위치에 안내 문구를 잠깐 띄우는 UI)
  *
- *  RouletteWidget/CoinPointUI는 이미 각자 풍부한 API(스핀 연출, 월드 위치 → 화면 좌표 계산 등)를
+ *  RouletteWidget/CoinPointUI는 이미 각자 풍부한 API(스핀 연출, 월드 위치 → 좌표 계산 등)를
  *  갖고 있으므로 값 하나를 그대로 전달하는 방식 대신 Getter로 인스턴스 자체를 돌려준다 - 호출부
- *  (PlayerController, ACPDropZone::OnCoinDropped의 Bind Event 대상 등)가 필요한 함수를 직접
- *  호출하면 된다. 나머지(캐릭터 정보/티켓/콤보)는 값을 그대로 전달받아 해당 하위 위젯에
+ *  (PlayerController, ACPCoinPusher::BindDropZoneEventsToInGameUI()의 ACPDropZone::OnCoinDropped
+ *  바인딩 대상 등)가 필요한 함수를 직접 호출하면 된다. 나머지(캐릭터 정보/티켓/콤보)는 값을 그대로 전달받아 해당 하위 위젯에
  *  전달해주는 진입점 함수를 제공한다.
  *
  *  위 8개 컴포넌트는 전부 Set*Visible(bool)로 개별 On/Off가 가능하다(해당 컴포넌트가 WBP에
- *  없으면 조용히 무시). NativeConstruct에서 BossInfoWidget만 기본적으로 꺼진 상태(Collapsed)로
- *  시작한다 - 아직 보스 관련 시스템이 없어 당장은 보여줄 값이 없기 때문. SetBossInfoVisible(true)
- *  를 호출하면 다시 켤 수 있다.
+ *  없으면 조용히 무시). NativeConstruct에서 BossInfoWidget/CoinComboWidget은 기본적으로 꺼진
+ *  상태(Collapsed)로 시작한다 - 둘 다 아직 보여줄 값이 없기 때문(보스 관련 시스템 없음 / 콤보
+ *  시작 전). BossInfoWidget은 SetBossInfoVisible(true)를 호출하면 다시 켤 수 있고, CoinComboWidget은
+ *  SetComboCount(Count)가 Count > 0/0 여부에 따라 자동으로 켜고 끄므로 별도 호출이 필요 없다.
  */
 UCLASS(abstract)
 class CP_API UCPInGameWidget : public UUserWidget
@@ -147,7 +148,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	void UpdateTicketCount(int32 Count);
 
-	/** CoinComboWidget의 콤보 수 갱신 - 없으면 조용히 무시 */
+	/** CoinComboWidget의 콤보 수 갱신 - 없으면 조용히 무시. Count > 0이면 CoinComboWidget을 자동으로
+	 *  켜고(콤보 시작), 0이면 자동으로 끈다(콤보가 끊겨 리셋됨 - SetCoinComboVisible을 별도로 호출할
+	 *  필요 없음) */
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	void SetComboCount(int32 Count);
 
@@ -164,8 +167,9 @@ public:
 	UCPRouletteWidget* GetRouletteWidget() const { return RouletteWidget; }
 
 	/** 코인 포인트 안내 UI 인스턴스 - ShowPointText/ShowCoinPointText는 호출부가 직접 제어.
-	 *  ACPDropZone::OnCoinDropped(FVector)를 GetCoinPointUI()->ShowCoinPointText에 Bind Event하면
-	 *  코인이 떨어질 때마다 그 위치에 안내 문구가 자동으로 뜬다 */
+	 *  ACPCoinPusher::BeginPlay()가 한 틱 뒤 BindDropZoneEventsToInGameUI()에서 ACPDropZone::OnCoinDropped
+	 *  (FVector)를 이 인스턴스의 ShowCoinPointText에 자동으로 바인딩해주므로, 코인/아이템이 떨어질
+	 *  때마다 그 위치에 안내 문구가 자동으로 뜬다 (WBP에서 별도 Bind Event 불필요) */
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	UCPCoinPointUI* GetCoinPointUI() const { return CoinPointUI; }
 
@@ -189,7 +193,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="In Game|Visibility")
 	void SetInventoryVisible(bool bVisible);
 
-	/** CoinComboWidget을 켜고 끈다 - 없으면 조용히 무시 */
+	/** CoinComboWidget을 켜고 끈다 - 없으면 조용히 무시. 평소엔 SetComboCount(Count)가 Count > 0/0
+	 *  여부에 따라 자동으로 호출해주므로 직접 부를 필요는 없고(NativeConstruct에서 기본적으로 꺼진
+	 *  상태로 시작), 그 자동 동작과 무관하게 강제로 켜거나 끄고 싶을 때만 사용 */
 	UFUNCTION(BlueprintCallable, Category="In Game|Visibility")
 	void SetCoinComboVisible(bool bVisible);
 

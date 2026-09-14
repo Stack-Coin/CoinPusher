@@ -3,6 +3,7 @@
 #include "CPCoinPusherFunctionTestActor.h"
 #include "CoinPusher/CPCoinPusher.h"
 #include "Roulette/CPRoulette.h"
+#include "Player/CPPlayerCharacter.h"
 #include "Log/CPLogCategories.h"
 #include "Components/InputComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -125,7 +126,10 @@ void ACPCoinPusherFunctionTestActor::HandleRollRoulette()
 		return;
 	}
 
-	const bool bStarted = TargetRoulette->Roll();
+	const ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetActorOfClass(this, ACPPlayerCharacter::StaticClass()));
+	const int32 PlayerLevel = PlayerCharacter ? PlayerCharacter->GetPlayerLevel() : 1;
+
+	const bool bStarted = TargetRoulette->Roll(PlayerLevel);
 	UE_LOG(LogRoulette, Warning, TEXT("[Numpad7] Roll Roulette (started: %s)"), bStarted ? TEXT("true") : TEXT("false"));
 }
 
