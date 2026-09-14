@@ -3,8 +3,10 @@
 
 #include "UI/CPCharacterInfoWidget.h"
 #include "UI/CPHorizonGuageBarWidget.h"
+#include "UI/CPBuffIconWidget.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
+#include "Components/HorizontalBox.h"
 
 void UCPCharacterInfoWidget::UpdateHealth(float CurrentHealth, float MaxHealth)
 {
@@ -60,4 +62,23 @@ void UCPCharacterInfoWidget::SetPortrait(UTexture2D* Portrait)
 	{
 		PortraitImage->SetBrushFromTexture(Portrait, false);
 	}
+}
+
+UCPBuffIconWidget* UCPCharacterInfoWidget::BuffCreate(FName BuffCode)
+{
+	if (!BuffHorizontalBox || !BuffIconWidgetClass)
+	{
+		return nullptr;
+	}
+
+	UCPBuffIconWidget* BuffIcon = CreateWidget<UCPBuffIconWidget>(this, BuffIconWidgetClass);
+	if (!BuffIcon)
+	{
+		return nullptr;
+	}
+
+	BuffIcon->SetBuffCode(BuffCode);
+	BuffHorizontalBox->AddChildToHorizontalBox(BuffIcon);
+
+	return BuffIcon;
 }

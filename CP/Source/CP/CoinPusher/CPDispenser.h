@@ -94,9 +94,11 @@ protected:
 	const FItemData* FindItemData(FName ItemID) const;
 
 	//ClassToSpawn을 SpawnPoint에서 생성하고, Row.Category가 "Coin"이면 스폰된 액터가 실제로 ACPCoin일
-	//때만 SetCoinType(Row.CoinType)을 호출한다. DispenseItemByID()/DispenseCoinByID()가 공유하는
-	//"FItemData 행 기준 스폰" 로직 - 스폰된 액터(실패 시 nullptr)를 반환
-	AActor* SpawnFromItemData(const FItemData& Row, TSubclassOf<AActor> ClassToSpawn, bool bLaunch);
+	//때만 SetCoinType(Row.CoinType)을 호출하며, 실제로 ACPItem이면 SetItemId(ItemID)를 호출해 그
+	//액터가 표시할 Mesh/Material/Image가 BP Class Defaults의 고정값이 아니라 실제로 스폰을 요청한
+	//ItemID를 기준으로 갱신되도록 한다. DispenseItemByID()/DispenseCoinByID()가 공유하는 "FItemData
+	//행 기준 스폰" 로직 - 스폰된 액터(실패 시 nullptr)를 반환
+	AActor* SpawnFromItemData(FName ItemID, const FItemData& Row, TSubclassOf<AActor> ClassToSpawn, bool bLaunch);
 
 	//연결된 Input이 상호작용 하는 멤버 함수
 	UFUNCTION()

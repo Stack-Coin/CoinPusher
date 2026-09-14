@@ -50,10 +50,14 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
 - `UCPCharacterInfoWidget`("CharacterInfoUI") : 캐릭터(플레이어, 보스 등) 정보를 한 번에 보여주는
   UI. `HealthGaugeWidget`/`ExpGaugeWidget`(둘 다 `UCPHorizonGuageBarWidget`, `BindWidgetOptional`),
   `NameText`(`UTextBlock`), `LevelText`(`UTextBlock` - `SetLevel(Level)`이 `LevelDisplayFormat`
-  기본 `"Lv.{0}"`으로 포맷해서 채워줌), `PortraitImage`(`UImage`)로 구성. `UpdateHealth`/
-  `UpdateExp`/`SetCharacterName`/`SetLevel`/`SetPortrait`로 각각 독립적으로 갱신하며, 대응하는
-  컴포넌트가 WBP에 배치되지 않았으면(바인딩되지 않았으면) 해당 함수는 조용히 아무 동작도 하지
-  않는다(=표시하지 않음)
+  기본 `"Lv.{0}"`으로 포맷해서 채워줌), `PortraitImage`(`UImage`), `BuffHorizontalBox`
+  (`UHorizontalBox`)로 구성. `UpdateHealth`/`UpdateExp`/`SetCharacterName`/`SetLevel`/`SetPortrait`로
+  각각 독립적으로 갱신하며, 대응하는 컴포넌트가 WBP에 배치되지 않았으면(바인딩되지 않았으면)
+  해당 함수는 조용히 아무 동작도 하지 않는다(=표시하지 않음). `BuffCreate(BuffCode)`는
+  `BuffIconWidgetClass`(`TSubclassOf<UCPBuffIconWidget>`, EditAnywhere)의 인스턴스를 하나 생성해
+  `BuffHorizontalBox`에 추가하고 그 참조를 반환한다 - 반환된 인스턴스의 `UpdateBuff(CurrentTime,
+  MaxTime)`은 호출부(버프 지속시간을 관리하는 게임플레이 코드)가 직접 불러줘야 한다(아래 "버프
+  아이콘" 참고). `BuffHorizontalBox`/`BuffIconWidgetClass`가 없으면 `nullptr` 반환
 - `UCPCoinComboWidget`("CoinComboUI") : 코인 콤보 수(`ComboCountText`, `UCPTicketCountWidget`과
   동일한 `DisplayFormat` 패턴)와 콤보 상태를 나타내는 게이지(`ComboGaugeWidget`,
   `UCPHorizonGuageBarWidget`)를 함께 보여주는 UI. `SetComboCount(Count)`/
@@ -84,12 +88,16 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   (보스는 `Boss` 접두사로 동일)/`UpdateTicketCount`/`SetComboCount`/`UpdateComboGauge` 같은
   패스스루 함수로 감싸 노출하고, `RouletteWidget`/`CoinPointUI`처럼 이미 자체적으로 풍부한
   API(스핀 연출, 위치 계산 등)를 가진 위젯은 `GetRouletteWidget()`/`GetCoinPointUI()`로 인스턴스
-  자체를 돌려줘서 호출부가 필요한 함수를 직접 호출하게 한다. 8개 컴포넌트 전부
+  자체를 돌려줘서 호출부가 필요한 함수를 직접 호출하게 한다. `BuffCreate(BuffCode)`는
+  `PlayerInfoWidget`이 있으면 그 `BuffCreate(BuffCode)`(위 "캐릭터 정보" 절 참고)로 그대로
+  위임하는 패스스루 함수다. 8개 컴포넌트 전부
   `SetPlayerInfoVisible`/`SetBossInfoVisible`/`SetBackgroundVisible`/`SetTicketCountVisible`/
   `SetInventoryVisible`/`SetCoinComboVisible`/`SetRouletteVisible`/`SetCoinPointUIVisible`
   (전부 `bool` 하나만 받음, 컴포넌트가 없으면 조용히 무시)로 개별 On/Off가 가능하며,
-  `NativeConstruct`에서 `BossInfoWidget`만 기본적으로 꺼진 상태(Collapsed)로 시작한다 - 아직
-  보스 시스템이 없어 당장 보여줄 값이 없기 때문(`SetBossInfoVisible(true)`로 다시 켤 수 있음)
+  `NativeConstruct`에서 `BossInfoWidget`/`CoinComboWidget`은 기본적으로 꺼진 상태(Collapsed)로
+  시작한다 - 둘 다 아직 보여줄 값이 없기 때문(보스 시스템 없음 / 콤보 시작 전).
+  `BossInfoWidget`은 `SetBossInfoVisible(true)`로 다시 켤 수 있고, `CoinComboWidget`은
+  `SetComboCount(Count)`가 자동으로 켜고 끄므로 별도 호출이 필요 없다
 
 ### 코인 포인트 UI
 
@@ -112,22 +120,30 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   영역") 위에 `ShowPointText(Text, WorldLocation)`가 호출될 때마다 `PointTextWidgetClass`
   (`UCPCoinPointTextWidget` 상속 WBP) 인스턴스를 하나 생성해서 계산된 좌표에 배치하고,
   `DisplayDuration`(기본 1초) 후 제거한다 - 동시에 여러 코인/아이템이 떨어져도 각자 독립된
-  인스턴스로 겹쳐 표시된다. 좌표 계산은 카메라 투영을 쓰지 않는 단순 선형 매핑이다: 레벨의
-  `ACPCoinPusher`를 찾아(`GetDropZone()`, 최초 1회 캐싱) 그 `GetCollectionVolume()`
-  (`UBoxComponent`)의 Box Extent를 기준으로, `WorldLocation`의 DropZone 로컬 오프셋 중 **Z값을
-  `PointTextCanvas`의 가로(X) 위치로, X값을 세로(Y) 위치로** 정규화해 매핑한다(-1~1 범위로 클램프).
-  Box 범위를 벗어나면 `PointTextCanvas` 가장자리에서 `OffscreenMargin`(기본 32px)만큼 안쪽으로
-  들여온 위치로 클램프해서 항상 캔버스 안에 보이게 한다. `ShowCoinPointText(WorldLocation)`은
-  `CoinPointDisplayText`(기본 "+1")를 문구로 써서 `ShowPointText`를 호출하는 얇은 래퍼다. 레벨에
-  `ACPCoinPusher`가 없거나 그 `DropZone`을 찾지 못하면(테스트 레벨 등) 아무것도 표시하지 않는다
-- `ACPDropZone::OnCoinDropped`(`FVector, WorldLocation`) : 코인/아이템이 이 DropZone에 떨어져
-  `AddCollectedCoins`/`RecordCollectedItem`이 호출될 때마다(코인/아이템 액터가 스스로 넘긴
-  `GetActorLocation()`) 그 월드 위치와 함께 Broadcast (이름은 `OnCoinDropped`이지만 아이템도
+  인스턴스로 겹쳐 표시된다. **가로(X) 위치는 실제 Screen Capture 카메라(`ACPCoinPusher::GetViewCaptureComponent()`,
+  `GetCaptureComponent()`로 최초 1회 캐싱 - 플레이어를 따라다니는 Main Camera와는 별개) 투영으로
+  계산한다**: `WorldLocation`을 그 카메라 로컬 공간으로 변환해 `FOVAngle`(Perspective) 또는
+  `OrthoWidth`(Orthographic) 기준 좌우 NDC 값을 구하고, `PointTextCanvas`의 가로 픽셀 폭에
+  매핑한다 - DropZone의 Box Extent로 단순 선형 정규화하던 이전 방식은 Box 크기가 실제 카메라
+  시야와 안 맞으면(Box가 훨씬 크면 한쪽으로 쏠려 클램프되는 등) 화면에 보이는 좌우 위치와
+  어긋나는 문제가 있어 실제 카메라 투영 방식으로 교체함. **세로(Y) 위치는 드랍 위치와 무관하게
+  항상 `FixedVerticalRatio`(기본 0=위쪽 끝) 비율의 고정 자리에 즉시 뜬다** - 드랍 깊이에 따라
+  위아래로 흩어지지 않는다. 카메라 시야 밖이거나 뒤쪽이면 `PointTextCanvas` 가장자리에서
+  `OffscreenMargin`(기본 32px)만큼 안쪽으로 들여온 위치로 클램프해서 항상 캔버스 안에 보이게
+  한다. **`ShowCoinPointText(ItemID, WorldLocation)`은 `ACPCoinPusher::GetItemDataTable()`에서
+  `ItemID`로 `FItemData` 행을 찾아 그 `CoinPointText`를 문구로 써서 `ShowPointText`를 호출하는
+  래퍼다** - 행을 못 찾거나 `CoinPointText`가 비어있으면(또는 `ItemDataTable` 자체가 없으면)
+  `CoinPointDisplayText`(기본 "+1")로 대체한다(`ResolveCoinPointText()`). 이렇게 하면 코인마다,
+  아이템마다 다른 문구("+1", "다이아!" 등)를 데이터로 관리할 수 있다. 레벨에 `ACPCoinPusher`가
+  없거나 그 Screen Capture 카메라를 찾지 못하면(테스트 레벨 등) 아무것도 표시하지 않는다
+- `ACPDropZone::OnCoinDropped`(`FName ItemID, FVector WorldLocation`) : 코인/아이템이 이 DropZone에
+  떨어져 `AddCollectedCoins`/`RecordCollectedItem`이 호출될 때마다(코인/아이템의 RowName/ItemCode와,
+  그 액터가 스스로 넘긴 `GetActorLocation()`) 함께 Broadcast (이름은 `OnCoinDropped`이지만 아이템도
   함께 씀). **`ACPCoinPusher::BeginPlay()`가 한 틱 뒤(`BindDropZoneEventsToInGameUI()`) 로컬
   스플릿 스크린의 각 `ACPTopDownPlayerController`마다 `GetInGameWidget()->GetCoinPointUI()`를
   찾아 이 델리게이트를 `ShowCoinPointText`에 C++에서 자동으로 `AddUniqueDynamic` 바인딩해준다**
-  - WBP에서 별도로 Bind Event를 걸 필요가 없으며, "코인/아이템을 먹을 때마다 그 자리에 +1 표시"가
-  그냥 동작한다
+  - WBP에서 별도로 Bind Event를 걸 필요가 없으며, "코인/아이템을 먹을 때마다 그 자리에 해당
+  아이템의 CoinPointText 표시"가 그냥 동작한다
 
 ### 원형 게이지
 
@@ -159,6 +175,31 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   컴포넌트 - 아무 Actor에나 Add Component로 붙이면 그 위에 월드 스페이스 원형 게이지가 뜬다.
   `SetGaugeEnabled(bool)`로 게이지 자체를 켜고 끌 수 있음(Off일 때 렌더링/컴포넌트 Tick 모두 중단) -
   항상 보일 필요 없는 게이지(특정 상황에서만 나타나는 충전 게이지 등)에 사용
+
+### 버프 아이콘
+
+- `UCPBuffIconWidget` : `UCPCharacterInfoWidget::BuffCreate(BuffCode)`가 하나씩 생성해
+  `BuffHorizontalBox`에 추가하는, 버프 하나당 아이콘 하나짜리 위젯. `BorderImage`(테두리)/
+  `BackgroundImage`(배경 - 버프 아이콘 텍스처를 여기 지정, 둘 다 `BindWidgetOptional`) 위에
+  `MaskImage`와 `CountDownText`를 겹쳐 보여준다. `MaskImage`는 `UCPRadialGaugeWidget`의
+  `FillImage`와 **완전히 동일한 방식**(Brush에 각도 기반 마스크 Material 지정 →
+  `NativeConstruct`에서 Dynamic Material Instance 생성/캐싱 → `PercentParameterName`(기본
+  `"Percent"`) 스칼라 파라미터 갱신)으로 남은 시간을 원형으로 깎아낸다 - Material 준비 방법은
+  위 "원형 게이지" 절의 안내를 그대로 따르면 된다. `UpdateBuff(CurrentTime, MaxTime)`을 호출부가
+  주기적으로(보통 매 틱) 불러주면 `MaskImage`를 `CurrentTime / MaxTime` 비율로 갱신하고
+  `CountDownText`를 `CountDownDisplayFormat`(기본 `"{0}"`)으로 포맷한 `CurrentTime`(정수로
+  올림)으로 채운다. **`CurrentTime`이 0 이하가 되면 갱신 대신 이 위젯 스스로 `RemoveFromParent()`로
+  사라진다** - 호출부가 버프가 끝났을 때 별도로 위젯을 지울 필요가 없다. `BuffCode`(생성 시
+  `BuffCreate`가 `SetBuffCode`로 기록)를 `GetBuffCode()`로 조회할 수 있어, 호출부가 여러 버프
+  아이콘 중 특정 버프의 인스턴스를 구분하는 데 쓸 수 있다. **`SetBuffCode(NewBuffCode)`가 `BuffCode`를
+  기록하는 것과 동시에 `PlayerBuffDataTable`(`TObjectPtr<UDataTable>`, EditAnywhere, Row Struct는
+  `Datatables/CPPlayerBuffData.h`의 `FCPPlayerBuffData`)에서 `NewBuffCode`(Row Name)에 해당하는
+  행을 찾아 그 `BuffImage`를 `BackgroundImage`에 `SetBrushFromTexture`로 적용한다** - 그래서
+  `BuffCreate(BuffCode)`로 아이콘을 생성하는 시점에 곧바로 그 버프에 맞는 아이콘 이미지로 바뀐다.
+  `PlayerBuffDataTable`이 없거나 행/`BuffImage`를 못 찾으면 텍스처는 그대로 둔다(`BuffCode` 기록은
+  항상 이뤄짐)
+
+`Datatables/README.md`의 `FCPPlayerBuffData`(`BuffID`/`BuffImage` 필드) 참고
 
 ### 개수/시간 표시
 

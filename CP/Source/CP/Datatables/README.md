@@ -12,6 +12,10 @@
 - `UCPItemDataTableGameInstance` : `ItemDataTable`을 들고 있는 `UGameInstance` — 레벨을 넘어서도
   전역적으로 아이템 마스터 데이터에 접근하고 싶을 때 사용 (현재 `ACPDispenser`는 이 GameInstance를
   거치지 않고 자기 자신의 `ItemDataTable` 참조를 직접 들고 있음 — 아래 "ACPDispenser 연동" 참고)
+- `FCPPlayerBuffData`(`Source/CP/Datatables/CPPlayerBuffData.h`) : 플레이어 버프 마스터 데이터의
+  DataTable Row Struct. 한 행 = 버프 하나, `UI/CPBuffIconWidget.h`의
+  `UCPBuffIconWidget::PlayerBuffDataTable`이 참조하는 테이블의 Row Struct로 쓰임 (아래
+  "FCPPlayerBuffData" 참고)
 
 ## 클래스별 상세
 
@@ -33,6 +37,30 @@
 - `RouletteProbability`(float, 기본값 0.0f) : `bRoulette`가 true인 행들의 `RouletteProbability` 합
   (TotalProbability) 대비 이 행의 비율로 룰렛 당첨 확률이 결정됨 (자세한 내용은 `Roulette/README.md` 참고)
 - `RouletteSpawnCount`(int32, 기본값 1) : 이 행이 룰렛에 당첨됐을 때 전달할 개수
+- `CoinPointText`(FText) : 이 아이템(코인 포함)이 `ACPDropZone`에 떨어질 때 `UI/CPCoinPointUI.h`의
+  `UCPCoinPointUI`가 그 자리에 띄울 안내 문구(예: "+1", "다이아!" 등). 비어있으면
+  `UCPCoinPointUI::CoinPointDisplayText`(기본 "+1")로 대체됨 (`Roulette 연동` 등과 무관하게 항상
+  `ACPCoinPusher::GetItemDataTable()`에서 조회 - `CoinPusher/README.md`/`UI/README.md` 참고)
+- `InventoryIcon`(`TObjectPtr<UTexture2D>`) : 인벤토리 슬롯에 표시할 아이콘 이미지
+- `ItemMesh`(`TObjectPtr<UStaticMesh>`) : `ACPItem`이 3D 메시로 표시될 때 쓰는 스태틱 메시.
+  `ACPItem::ApplyItemData()`가 `ItemId`로 이 행을 찾아 자신의 `Mesh` 컴포넌트에 적용함(비어있으면
+  `Mesh`에 원래 지정된 스태틱 메시를 그대로 둠) - `CoinPusher/README.md`의 "ACPItem" 참고
+- `ItemMaterial`(`TObjectPtr<UMaterialInterface>`) : `ItemMesh`(또는 `Mesh`에 이미 지정된 메시)의
+  슬롯 0에 적용할 머티리얼. 비어있으면 원래 지정된 머티리얼을 그대로 둠
+- `ItemMaterial2`(`TObjectPtr<UMaterialInterface>`) : `ItemMesh`(또는 `Mesh`에 이미 지정된 메시)의
+  슬롯 1에 적용할 머티리얼. 비어있으면 원래 지정된 머티리얼을 그대로 둠
+- `ItemImage`(`TObjectPtr<UTexture2D>`) : `ACPItem`이 3D 메시 대신 평면(Billboard, `ImageMesh`)으로
+  표시될 때 쓰는 이미지. `ACPItem::BillboardMaterial`로부터 만든 Dynamic Material Instance의
+  `ItemTextureParameterName`(기본 `"ItemTexture"`) 텍스처 파라미터에 이 값이 들어감. 비어있으면
+  `ImageMesh`를 숨김
+
+### FCPPlayerBuffData
+- `BuffID`(FName) : 식별용 버프 ID. DataTable의 **Row Name과 동일한 값으로 등록**해야
+  `FindRow<FCPPlayerBuffData>(BuffID, ...)`로 조회 가능 (실제 조회는 Row Name 기준이며 `BuffID`
+  필드 자체는 참조용/가독성용)
+- `BuffImage`(`TObjectPtr<UTexture2D>`) : 이 버프의 아이콘으로 표시할 이미지.
+  `UCPBuffIconWidget::SetBuffCode(BuffCode)`가 `BuffCode`(=Row Name)로 이 행을 찾아
+  `BackgroundImage`에 적용함 - `UI/README.md`의 "버프 아이콘" 참고
 
 ### UCPItemDataTableGameInstance
 - `ItemDataTable`(`TObjectPtr<UDataTable>`, EditDefaultsOnly) + `GetItemDataTable()` getter
@@ -54,9 +82,19 @@
    `Item Data`(`FItemData`) 선택. 행마다 `ID`/`Category`/`Type`/`Name`/`CoinType`/
    `CoinPusherSpawnBPClass`를 입력하고, **Row Name을 `ID`와 동일한 값으로** 지정
    (조회는 Row Name 기준). 룰렛에서 뽑히길 원하는 행이면 `bRoulette`를 true로, `RouletteProbability`/
-   `RouletteSpawnCount`도 함께 설정 (`Roulette/README.md` 참고)
-2. ItemID로 스폰해야 하는 모든 `ACPDispenser`(천장 Dispenser 등)의 `ItemDataTable`에 1번에서 만든
-   DataTable을 연결
+   `RouletteSpawnCount`도 함께 설정 (`Roulette/README.md` 참고). `ACPItem`으로 스폰되는 행이면
+   3D 메시로 표시할지(`ItemMesh`/`ItemMaterial`/`ItemMaterial2`) 평면 이미지로 표시할지(`ItemImage`)에 맞춰 해당
+   필드도 채움 (`CoinPusher/README.md`의 "ACPItem" 참고)
+2. ItemID로 스폰해야 하는 모든 `ACPDispenser`(천장 Dispenser 등)와 `ACPItem`(BP 인스턴스)의
+   `ItemDataTable`에 1번에서 만든 DataTable을 연결. `ItemImage`를 쓰는 `ACPItem`이라면
+   `BillboardMaterial`에 텍스처 파라미터(기본 이름 `ItemTexture`)를 갖는 머티리얼도 지정해야
+   `ImageMesh`가 실제로 그 이미지를 보여줌 - 이때 `Mesh`에 지정된 StaticMesh 에셋에 `ImagePoint`
+   라는 이름의 소켓이 정의돼 있어야 `ImageMesh`(사각 플레인)가 그 위치에 붙는다(스태틱 메시
+   에디터의 Socket Manager에서 추가). 소켓이 없으면 `ImageMesh`는 `Mesh`의 원점에 그대로 붙음
 3. (선택) 레벨을 넘어 전역적으로 아이템 마스터 데이터를 조회하고 싶으면
    `UCPItemDataTableGameInstance`를 상속하는 BP를 만들어 `ItemDataTable`을 지정하고, Project Settings
    > Maps & Modes > Game Instance Class에 지정
+4. 플레이어 버프 아이콘을 쓰려면 Row Structure로 `Cp Player Buff Data`(`FCPPlayerBuffData`)를
+   선택해 별도 DataTable 에셋을 만들고, 행마다 `BuffID`(=Row Name과 동일하게)/`BuffImage`를 등록한
+   뒤, `UCPBuffIconWidget`을 상속하는 WBP의 `PlayerBuffDataTable`에 그 DataTable을 연결
+   (`UI/README.md`의 "버프 아이콘" 참고)

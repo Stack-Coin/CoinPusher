@@ -86,6 +86,11 @@ void UCPInGameWidget::SetPlayerPortrait(UTexture2D* Portrait)
 	}
 }
 
+UCPBuffIconWidget* UCPInGameWidget::BuffCreate(FName BuffCode)
+{
+	return PlayerInfoWidget ? PlayerInfoWidget->BuffCreate(BuffCode) : nullptr;
+}
+
 void UCPInGameWidget::UpdateBossHealth(float CurrentHealth, float MaxHealth)
 {
 	if (BossInfoWidget)

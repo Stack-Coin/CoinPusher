@@ -100,8 +100,9 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* CoinTowerSpawnerComponent;
 
-	//CoinGridSpawner ActorComponent (컴포넌트를 통한 Has-a) - 게임 시작 시 자신의 SpawnVolume(Box) 안에
-	//Grid+Jitter 방식으로 코인 N개를 생성하는 액터 (ACPCoinGridSpawner::BeginPlay가 자체적으로 스폰함)
+	//CoinGridSpawner ActorComponent (컴포넌트를 통한 Has-a) - 자신의 SpawnVolume(Box) 안에 Grid+Jitter
+	//방식으로 코인 N개를 생성하는 액터. 스스로는 스폰하지 않으므로 BeginPlay()가 GetCoinGridSpawner()로
+	//찾아 SpawnCoins()를 직접 호출해줘야 게임 시작 시 코인이 생김
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UChildActorComponent* CoinGridSpawnerComponent;
 
@@ -198,7 +199,8 @@ public:
 	//DropZone에 ItemRespawnDispenser를 전달하고, CoinTowerSpawner에 Pusher를 전달
 	virtual void PostInitializeComponents() override;
 
-	//천장 Dispenser들이 게임 시작 시 코인을 드롭
+	//천장 Dispenser들이 게임 시작 시 코인을 드롭 + CoinGridSpawner에게 SpawnCoins()를 직접 호출해
+	//초기 코인을 깔아줌
 	virtual void BeginPlay() override;
 
 	//UGameplayStatics::ApplyDamage(및 ApplyPointDamage/ApplyRadialDamage)로 들어오는 데미지 처리

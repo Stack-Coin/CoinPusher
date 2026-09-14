@@ -17,11 +17,12 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemCollected, FName, ItemCode);
  *  OnCoinCollected/OnItemCollected와 달리 코인/아이템 구분 없이 "무엇이 떨어졌는지"만 알려준다 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPDropZoneDropped, FName, ItemID);
 
-/** 코인/아이템이 이 DropZone에 떨어져 수집될 때마다, 그 코인/아이템이 떨어진 월드 위치와 함께
- *  Broadcast하는 델리게이트(이름은 OnCoinDropped이지만 RecordCollectedItem에서도 함께 쓰임).
- *  UI/CPCoinPointUI.h의 UCPCoinPointUI::ShowCoinPointText(FVector)와 시그니처가 같아 그대로
- *  Bind Event해서 "획득" 안내 문구를 그 위치에 잠깐 띄우는 용도로 쓸 수 있다 */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPCoinDropped, FVector, WorldLocation);
+/** 코인/아이템이 이 DropZone에 떨어져 수집될 때마다, 그 코인/아이템의 ItemID/RowName과 떨어진
+ *  월드 위치를 함께 Broadcast하는 델리게이트(이름은 OnCoinDropped이지만 RecordCollectedItem에서도
+ *  함께 쓰임). UI/CPCoinPointUI.h의 UCPCoinPointUI::ShowCoinPointText(FName, FVector)와
+ *  시그니처가 같아 그대로 Bind Event해서 ItemDataTable의 CoinPointText를 그 위치에 잠깐 띄우는
+ *  용도로 쓸 수 있다 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPCoinDropped, FName, ItemID, FVector, WorldLocation);
 
 /** 콤보 수가 바뀔 때마다(증가 또는 0으로 리셋) Broadcast. UI/CPInGameWidget.h의
  *  UCPInGameWidget::SetComboCount(int32)와 시그니처가 같다 */

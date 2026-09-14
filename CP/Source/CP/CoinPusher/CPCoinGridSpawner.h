@@ -10,10 +10,13 @@ class UBoxComponent;
 class ACPCoin;
 
 /**
- *  게임 시작(BeginPlay) 시 SpawnVolume(UBoxComponent, RootComponent) 영역 안에 CoinClass를
- *  CoinCount개, Grid + Jitter 방식으로 생성하는 액터. ACPCoinPusher가 UChildActorComponent를 통해
- *  Has-a로 소유한다 (DispenserComponentA/DropZoneComponent 등 다른 CoinPusher 구성 요소와 동일한
- *  패턴).
+ *  SpawnVolume(UBoxComponent, RootComponent) 영역 안에 CoinClass를 CoinCount개, Grid + Jitter
+ *  방식으로 생성하는 액터. ACPCoinPusher가 UChildActorComponent를 통해 Has-a로 소유한다
+ *  (DispenserComponentA/DropZoneComponent 등 다른 CoinPusher 구성 요소와 동일한 패턴).
+ *
+ *  스스로는 BeginPlay에서 스폰하지 않는다 - ACPCoinPusher::BeginPlay()가 GetCoinGridSpawner()로
+ *  이 인스턴스를 찾아 SpawnCoins()를 직접 호출해줘야 실제로 코인이 생긴다 (호출 시점/조건을
+ *  CoinPusher 쪽에서 제어하기 위함).
  *
  *  "Grid + Jitter"란: SpawnVolume의 로컬 X/Y 범위를 CoinCount에 맞는 정사각형에 가까운 격자
  *  (Columns x Rows)로 나눠 각 셀 중심에 하나씩 배치하되(Grid), 완전히 균일한 격자로 보이지 않고
@@ -59,9 +62,6 @@ protected:
 	bool bJitterHeight = true;
 
 public:
-
-	/** SpawnCoins() 호출 */
-	virtual void BeginPlay() override;
 
 	/** SpawnVolume 안에 Grid + Jitter 방식으로 CoinCount개의 CoinClass를 생성한다. CoinClass가
 	 *  비어있거나 CoinCount가 0 이하면 아무 동작도 하지 않는다 */

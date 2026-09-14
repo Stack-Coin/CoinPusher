@@ -12,6 +12,7 @@
 #include "Player/CPGameMode.h"
 #include "Player/CPPlayerCharacter.h"
 #include "TimerManager.h"
+#include "CP/Log/CPLogCategories.h"
 
 ACPDropZone::ACPDropZone()
 {
@@ -43,7 +44,7 @@ void ACPDropZone::AddCollectedCoins(int32 Amount, FName ItemID, ECPCoinType Coin
 	CollectedCoinCount += Amount;
 
 	OnCoinCollected.Broadcast(CollectedCoinCount);
-	OnCoinDropped.Broadcast(WorldLocation);
+	OnCoinDropped.Broadcast(ItemID, WorldLocation);
 	RegisterComboHit();
 
 	//떨어진 아이템의 정보(ItemID/개수, 코인이면 CoinType까지)를 GameMode로 전달.
@@ -71,7 +72,7 @@ void ACPDropZone::RecordCollectedItem(FName ItemCode, FVector WorldLocation)
 
 	OnItemCollected.Broadcast(ItemCode);
 	OnDropped.Broadcast(ItemCode);
-	OnCoinDropped.Broadcast(WorldLocation);
+	OnCoinDropped.Broadcast(ItemCode, WorldLocation);
 	RegisterComboHit();
 
 	//CoinPusher가 지정해둔 재생성 담당 Dispenser에게 같은 ItemID로 재생성 요청

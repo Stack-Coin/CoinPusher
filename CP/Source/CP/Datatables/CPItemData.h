@@ -9,6 +9,8 @@
 
 class AActor;
 class UTexture2D;
+class UStaticMesh;
+class UMaterialInterface;
 
 /** 아이템 마스터 데이터 한 행. UCPItemDataTableGameInstance::ItemDataTable의 Row Struct로 쓰인다 */
 USTRUCT(BlueprintType)
@@ -69,7 +71,33 @@ struct FItemData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
 	int32 ScoreAmount = 0;
 
+	/** CoinPoint 로 표시될 Text */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Data")
+	FText CoinPointText;
+
 	/** 인벤토리 슬롯에 표시할 아이콘 이미지 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
 	TObjectPtr<UTexture2D> InventoryIcon = nullptr;
+
+	/** ACPItem이 월드에 3D 메시로 표시될 때 사용할 스태틱 메시. ACPItem::ApplyItemData()가 ItemId로
+	 *  이 행을 찾아 자신의 Mesh 컴포넌트에 적용한다. 비어있으면(nullptr) Mesh에 기존에 지정된
+	 *  스태틱 메시를 그대로 둔다 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
+	TObjectPtr<UStaticMesh> ItemMesh = nullptr;
+
+	/** ItemMesh(또는 Mesh 컴포넌트에 이미 지정된 메시)의 슬롯 0에 적용할 머티리얼. 비어있으면
+	 *  (nullptr) 메시에 원래 지정된 머티리얼을 그대로 둔다 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
+	TObjectPtr<UMaterialInterface> ItemMaterial = nullptr;
+
+	/** ItemMesh(또는 Mesh 컴포넌트에 이미 지정된 메시)의 슬롯 1에 적용할 머티리얼. 비어있으면
+	 *  (nullptr) 메시에 원래 지정된 머티리얼을 그대로 둔다 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
+	TObjectPtr<UMaterialInterface> ItemMaterial2 = nullptr;
+
+	/** ACPItem이 3D 메시 대신 평면(Billboard)으로 표시될 때 쓰는 이미지. ACPItem이 BillboardMaterial
+	 *  로부터 만든 Dynamic Material Instance의 ItemTextureParameterName(기본 "ItemTexture") 텍스처
+	 *  파라미터에 이 값을 넣어준다. 비어있으면(nullptr) Billboard(ImageMesh)를 숨긴다 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
+	TObjectPtr<UTexture2D> ItemImage = nullptr;
 };

@@ -16,11 +16,6 @@ ACPCoinGridSpawner::ACPCoinGridSpawner()
 	SpawnVolume->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-void ACPCoinGridSpawner::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
 void ACPCoinGridSpawner::SpawnCoins()
 {
 	if (!CoinClass || CoinCount <= 0 || !GetWorld())

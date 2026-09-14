@@ -117,6 +117,15 @@ CoinPusher가 자신의 `ItemDataTable`에서 그 `ItemID`의 `FItemData::bRoule
 true인 경우에만 `ItemSpawn(ItemID, SpawnCount)`으로 천장 Dispenser 중 하나에서 그 아이템을 스폰한다.
 자세한 내용은 `CoinPusher/README.md`의 `ACPCoinPusher` 섹션 참고.
 
+**당첨된 아이템이 스폰되지 않을 때 진단 방법**: `ACPRoulette::HandleRouletteResultDetermined()`가
+당첨된 `ItemID`/`SpawnCount`를 `LogRoulette`(Warning)로 항상 남기므로, 이 로그가 찍히는지부터
+확인한다. 그 다음 이어지는 파이프라인(`LinkedRoulette` 미지정 → `ItemDataTable` 미지정/Row 없음/
+`bRouletteToCoinPusher=false` → 유효한 천장 Dispenser 없음 → Dispenser의 `ItemDataTable`에 Row
+없음/`CoinPusherSpawnBPClass` 없음/`ICPCoinPusherItem` 미구현 → `SpawnActor` 실패)의 각 단계가
+전부 `LogCoinPusher`(Warning)로 로그를 남기므로, `LogRoulette`/`LogCoinPusher` 로그를 순서대로
+따라가면 어느 단계에서 끊겼는지 바로 확인할 수 있다 (자세한 각 로그는 `CoinPusher/README.md`의
+`ACPCoinPusher`/`ACPDispenser` 섹션 참고).
+
 ## 테스트 (CoinPusher/Test)
 
 - `ACPCoinPusherItemSpawnTestPawn` : R 키를 누르면 `TargetRoulette->Roll(PlayerLevel)`을 호출

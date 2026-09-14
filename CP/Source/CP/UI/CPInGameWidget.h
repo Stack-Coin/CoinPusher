@@ -7,6 +7,7 @@
 #include "CPInGameWidget.generated.h"
 
 class UCPCharacterInfoWidget;
+class UCPBuffIconWidget;
 class UCPCoinComboWidget;
 class UCPCoinPointUI;
 class UCPInventoryWidget;
@@ -116,6 +117,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	void SetPlayerPortrait(UTexture2D* Portrait);
 
+	/** PlayerInfoWidget에 버프 아이콘 하나를 생성해 추가하고 그 참조를 반환 - PlayerInfoWidget이
+	 *  없으면(또는 그 BuffIconWidgetClass/BuffHorizontalBox가 없으면) nullptr 반환. 반환된
+	 *  인스턴스의 UpdateBuff(CurrentTime, MaxTime)는 호출부가 직접 관리해야 한다 */
+	UFUNCTION(BlueprintCallable, Category="In Game")
+	UCPBuffIconWidget* BuffCreate(FName BuffCode);
+
 	/** BossInfoWidget의 체력 갱신 - 없으면 조용히 무시 */
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	void UpdateBossHealth(float CurrentHealth, float MaxHealth);
@@ -168,8 +175,9 @@ public:
 
 	/** 코인 포인트 안내 UI 인스턴스 - ShowPointText/ShowCoinPointText는 호출부가 직접 제어.
 	 *  ACPCoinPusher::BeginPlay()가 한 틱 뒤 BindDropZoneEventsToInGameUI()에서 ACPDropZone::OnCoinDropped
-	 *  (FVector)를 이 인스턴스의 ShowCoinPointText에 자동으로 바인딩해주므로, 코인/아이템이 떨어질
-	 *  때마다 그 위치에 안내 문구가 자동으로 뜬다 (WBP에서 별도 Bind Event 불필요) */
+	 *  (FName, FVector)를 이 인스턴스의 ShowCoinPointText에 자동으로 바인딩해주므로, 코인/아이템이
+	 *  떨어질 때마다 그 위치에 ItemDataTable의 CoinPointText가 자동으로 뜬다 (WBP에서 별도 Bind
+	 *  Event 불필요) */
 	UFUNCTION(BlueprintCallable, Category="In Game")
 	UCPCoinPointUI* GetCoinPointUI() const { return CoinPointUI; }
 

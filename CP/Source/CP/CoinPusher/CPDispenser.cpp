@@ -4,12 +4,14 @@
 #include "CPDispenser.h"
 #include "CPCoinPusherItem.h"
 #include "CPCoin.h"
+#include "CPItem.h"
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
+#include "Log/CPLogCategories.h"
 
 ACPDispenser::ACPDispenser()
 {
@@ -53,20 +55,41 @@ void ACPDispenser::DispenseItems(int32 Count)
 void ACPDispenser::DispenseItemByID(FName ItemID, int32 SpawnCount, bool bLaunch)
 {
 	const FItemData* Row = FindItemData(ItemID);
-	if (!Row || !Row->CoinPusherSpawnBPClass)
+	if (!Row)
 	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPDispenser] DispenseItemByID 무시됨(%s) - ItemDataTable(%s)에서 ItemID '%s' 행을 찾지 못했습니다."),
+			*GetName(), ItemDataTable ? *ItemDataTable->GetName() : TEXT("null"), *ItemID.ToString());
+		return;
+	}
+
+	if (!Row->CoinPusherSpawnBPClass)
+	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPDispenser] DispenseItemByID 무시됨(%s) - ItemID '%s' 행의 CoinPusherSpawnBPClass가 지정되지 않았습니다."),
+			*GetName(), *ItemID.ToString());
 		return;
 	}
 
 	//ICPCoinPusherItem을 구현하지 않는 클래스는 DropZone이 처리할 수 없으므로 스폰하지 않는다
 	if (!Row->CoinPusherSpawnBPClass->ImplementsInterface(UCPCoinPusherItem::StaticClass()))
 	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPDispenser] DispenseItemByID 무시됨(%s) - ItemID '%s' 행의 CoinPusherSpawnBPClass(%s)가 ICPCoinPusherItem을 구현하지 않습니다."),
+			*GetName(), *ItemID.ToString(), *Row->CoinPusherSpawnBPClass->GetName());
 		return;
 	}
 
 	for (int32 Index = 0; Index < SpawnCount; ++Index)
 	{
-		SpawnFromItemData(*Row, Row->CoinPusherSpawnBPClass, bLaunch);
+		AActor* SpawnedActor = SpawnFromItemData(ItemID, *Row, Row->CoinPusherSpawnBPClass, bLaunch);
+		if (!SpawnedActor)
+		{
+			UE_LOG(LogCoinPusher, Warning, TEXT("[ACPDispenser] DispenseItemByID 스폰 실패(%s) - ItemID '%s'(%d/%d), Class: %s"),
+				*GetName(), *ItemID.ToString(), Index + 1, SpawnCount, *Row->CoinPusherSpawnBPClass->GetName());
+		}
+		else
+		{
+			UE_LOG(LogCoinPusher, Warning, TEXT("[ACPDispenser] DispenseItemByID 스폰 성공(%s) - ItemID '%s'(%d/%d), Actor: %s"),
+				*GetName(), *ItemID.ToString(), Index + 1, SpawnCount, *SpawnedActor->GetName());
+		}
 	}
 }
 
@@ -78,7 +101,7 @@ ACPCoin* ACPDispenser::DispenseCoinByID(FName ItemID, bool bLaunch)
 		return nullptr;
 	}
 
-	return Cast<ACPCoin>(SpawnFromItemData(*Row, Row->CoinPusherSpawnBPClass, bLaunch));
+	return Cast<ACPCoin>(SpawnFromItemData(ItemID, *Row, Row->CoinPusherSpawnBPClass, bLaunch));
 }
 
 const FItemData* ACPDispenser::FindItemData(FName ItemID) const
@@ -91,17 +114,29 @@ const FItemData* ACPDispenser::FindItemData(FName ItemID) const
 	return ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPDispenser::FindItemData"));
 }
 
-AActor* ACPDispenser::SpawnFromItemData(const FItemData& Row, TSubclassOf<AActor> ClassToSpawn, bool bLaunch)
+AActor* ACPDispenser::SpawnFromItemData(FName ItemID, const FItemData& Row, TSubclassOf<AActor> ClassToSpawn, bool bLaunch)
 {
 	AActor* SpawnedActor = SpawnItemClass(ClassToSpawn, bLaunch);
+	if (!SpawnedActor)
+	{
+		return nullptr;
+	}
 
 	//Category가 "Coin"인 행이면, 실제로 스폰된 액터가 ACPCoin일 때만 행에 지정된 CoinType을 적용
-	if (SpawnedActor && Row.Category == FName("Coin"))
+	if (Row.Category == FName("Coin"))
 	{
 		if (ACPCoin* SpawnedCoin = Cast<ACPCoin>(SpawnedActor))
 		{
 			SpawnedCoin->SetCoinType(Row.CoinType);
 		}
+	}
+
+	//실제로 ACPItem이면 BP Class Defaults에 고정된 ItemId 대신, 지금 스폰을 요청한 실제 ItemID로
+	//갱신해야 Mesh/Material/Image가 이 ItemID에 맞게 나온다 (안 그러면 화면에 다른 아이템의 모습으로
+	//나오거나, 해당 ItemID 행에 시각 정보가 없으면 아예 안 보이게 됨)
+	if (ACPItem* SpawnedItem = Cast<ACPItem>(SpawnedActor))
+	{
+		SpawnedItem->SetItemId(ItemID);
 	}
 
 	return SpawnedActor;
@@ -111,6 +146,8 @@ AActor* ACPDispenser::SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLau
 {
 	if (!ClassToSpawn || !GetWorld())
 	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPDispenser] SpawnItemClass 실패(%s) - ClassToSpawn: %s, World: %s"),
+			*GetName(), ClassToSpawn ? *ClassToSpawn->GetName() : TEXT("null"), GetWorld() ? TEXT("OK") : TEXT("null"));
 		return nullptr;
 	}
 
@@ -121,6 +158,8 @@ AActor* ACPDispenser::SpawnItemClass(TSubclassOf<AActor> ClassToSpawn, bool bLau
 	AActor* SpawnedItem = GetWorld()->SpawnActor<AActor>(ClassToSpawn, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation(), SpawnParams);
 	if (!SpawnedItem)
 	{
+		UE_LOG(LogCoinPusher, Warning, TEXT("[ACPDispenser] SpawnItemClass 실패(%s) - SpawnActor가 %s를 생성하지 못했습니다."),
+			*GetName(), *ClassToSpawn->GetName());
 		return nullptr;
 	}
 
