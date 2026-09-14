@@ -12,6 +12,8 @@ class USphereComponent;
 class UStaticMeshComponent;
 class UProjectileMovementComponent;
 class UNiagaraSystem;
+class UNiagaraComponent;
+class USoundBase;
 
 /**
  *  ACPProjectile
@@ -44,6 +46,29 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<UProjectileMovementComponent> ProjectileMovement;
 
+	/** Persistent visual effect attached to the projectile for its entire flight (e.g. a trail/glow) - assign
+	 *  the Niagara System directly on this component in the projectile Blueprint. Distinct from HitEffect,
+	 *  which is a one-shot burst spawned only at the impact location. Its System's Emitter(s) need Local
+	 *  Space enabled for the effect to actually track this projectile's motion/scale rather than being left
+	 *  behind at its spawn transform - see ProjectileEffectLocationOffset/RotationOffset/Scale below */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
+	TObjectPtr<UNiagaraComponent> ProjectileEffectComponent;
+
+	/** Relative location applied to ProjectileEffectComponent at spawn, relative to this projectile's own
+	 *  facing (X = forward, Y = right, Z = up) - leave the component's own Relative Location at (0,0,0) in
+	 *  the Blueprint and tune this instead, for the same offset convention used by HitEffect/LaunchSound */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	FVector ProjectileEffectLocationOffset = FVector::ZeroVector;
+
+	/** Relative rotation applied to ProjectileEffectComponent at spawn */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	FRotator ProjectileEffectRotationOffset = FRotator::ZeroRotator;
+
+	/** Relative scale applied to ProjectileEffectComponent at spawn. Only visually affects the effect if its
+	 *  Niagara System's Emitter(s) have Local Space enabled */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	FVector ProjectileEffectScale = FVector(1.0f, 1.0f, 1.0f);
+
 	/** If true, the projectile continues after hitting a target instead of being destroyed */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
 	bool bCanPierce = false;
@@ -67,6 +92,28 @@ protected:
 	/** Effect played at the impact location when this projectile hits something */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
 	TObjectPtr<UNiagaraSystem> HitEffect;
+
+	/** Uniform/non-uniform scale applied to HitEffect when it's spawned */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	FVector HitEffectScale = FVector(1.0f, 1.0f, 1.0f);
+
+	/** Added on top of the projectile's travel direction at the moment of impact when HitEffect is spawned */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	FRotator HitEffectRotationOffset = FRotator::ZeroRotator;
+
+	/** Added to the impact location before HitEffect is spawned, relative to the projectile's travel
+	 *  direction at the moment of impact (X = forward along travel, Y = right, Z = up) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	FVector HitEffectLocationOffset = FVector::ZeroVector;
+
+	/** Sound played once, at spawn, when this projectile is launched */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	TObjectPtr<USoundBase> LaunchSound;
+
+	/** Added to the spawn location before LaunchSound is played, relative to this projectile's fire direction
+	 *  (X = forward along travel, Y = right, Z = up) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	FVector LaunchSoundLocationOffset = FVector::ZeroVector;
 
 	/** If true, redraws CollisionComp's sphere at its current location on a short repeating timer for debugging.
 	 *  Uses a timer rather than Tick, since CollisionComp itself moves every frame via ProjectileMovementComponent */
@@ -94,7 +141,7 @@ public:
 	virtual void BeginPlay() override;
 
 	/** Called by the firing weapon right after spawn to set up damage and instigator info */
-	void InitializeProjectile(float InDamageAmount, AController* InInstigatorController, AActor* InDamageCauser);
+	void InitializeProjectile(float InDamageAmount, AController* InInstigatorController, AActor* InDamageCauser, float InRangeMultiplier = 1.0f);
 
 	/** Sets (or clears, if Target is null) the homing target. Only takes effect if bIsHoming is true */
 	UFUNCTION(BlueprintCallable, Category="Projectile")

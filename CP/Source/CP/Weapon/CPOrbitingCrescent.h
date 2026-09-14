@@ -8,6 +8,8 @@
 
 class UStaticMeshComponent;
 class UNiagaraSystem;
+class UNiagaraComponent;
+class USoundBase;
 class ACharacter;
 
 UCLASS(Blueprintable)
@@ -26,6 +28,27 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<UStaticMeshComponent> CrescentMesh;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
+	TObjectPtr<UNiagaraComponent> CrescentEffectComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Orbit|Effect")
+	FVector CrescentEffectLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Orbit|Effect")
+	FRotator CrescentEffectRotationOffset = FRotator::ZeroRotator;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Orbit|Effect")
+	FVector CrescentEffectScale = FVector(1.0f, 1.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Orbit|Spawn Sound")
+	TObjectPtr<USoundBase> SpawnSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Orbit|Spawn Sound")
+	FVector SpawnSoundLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Orbit|Spawn Sound", meta = (ClampMin = 0))
+	float SpawnSoundVolume = 1.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Orbit")
 	TObjectPtr<UNiagaraSystem> HitEffect;
 
@@ -34,6 +57,7 @@ protected:
 
 	TWeakObjectPtr<ACharacter> OrbitOwner;
 
+	float BaseOrbitAngleOffset = 0.0f;
 	float OrbitRadius = 200.0f;
 	float OrbitSpeedDegPerSec = 90.0f;
 	float SelfSpinSpeedDegPerSec = 180.0f;
@@ -41,6 +65,7 @@ protected:
 	float VerticalOffset = 80.0f;
 	float Damage = 15.0f;
 	float KnockbackDistance = 300.0f;
+	float EffectScaleMultiplier = 1.0f;
 
 	TWeakObjectPtr<AController> InstigatorController;
 	TWeakObjectPtr<AActor> DamageCauserActor;
@@ -52,7 +77,7 @@ protected:
 
 public:
 
-	void InitializeCrescent(ACharacter* InOwnerCharacter, float InOrbitRadius, float InOrbitSpeedDegPerSec, float InSelfSpinSpeedDegPerSec, float InHitRadius, float InVerticalOffset, float InDuration, float InDamage, float InKnockbackDistance, float InDamageTickInterval, AController* InInstigatorController, AActor* InDamageCauser);
+	void InitializeCrescent(ACharacter* InOwnerCharacter, float InOrbitRadius, float InOrbitSpeedDegPerSec, float InSelfSpinSpeedDegPerSec, float InHitRadius, float InVerticalOffset, float InBaseOrbitAngleOffset, float InDamage, float InKnockbackDistance, float InDamageTickInterval, float InEffectScaleMultiplier, AController* InInstigatorController, AActor* InDamageCauser);
 
 protected:
 

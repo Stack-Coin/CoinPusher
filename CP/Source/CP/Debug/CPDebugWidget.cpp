@@ -23,7 +23,6 @@ void UCPDebugWidget::NativeConstruct()
 	InitializeCheckBox(EnemyHitboxCheckBox, ECPDebugCollisionCategory::EnemyHitbox);
 	InitializeCheckBox(MonsterAttackRangeCheckBox, ECPDebugCollisionCategory::MonsterAttackRange);
 	InitializeCheckBox(MonsterDetectRangeCheckBox, ECPDebugCollisionCategory::MonsterDetectRange);
-	InitializeCheckBox(PlayerReviveCheckBox, ECPDebugCollisionCategory::PlayerRevive);
 	InitializeCheckBox(CoinNexusCheckBox, ECPDebugCollisionCategory::CoinNexus);
 	InitializeCheckBox(ItemPickupCheckBox, ECPDebugCollisionCategory::ItemPickup);
 
@@ -46,10 +45,6 @@ void UCPDebugWidget::NativeConstruct()
 	if (MonsterDetectRangeCheckBox)
 	{
 		MonsterDetectRangeCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandleMonsterDetectRangeCheckChanged);
-	}
-	if (PlayerReviveCheckBox)
-	{
-		PlayerReviveCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayerReviveCheckChanged);
 	}
 	if (CoinNexusCheckBox)
 	{
@@ -124,29 +119,42 @@ FString UCPDebugWidget::BuildPlayerInfoString() const
 	}
 
 	FString WeaponName = TEXT("Unarmed");
+	const ACPWeaponBase* CurrentWeapon = nullptr;
 	if (ICPWeaponEquipper* WeaponEquipper = Cast<ICPWeaponEquipper>(Pawn))
 	{
-		if (const ACPWeaponBase* CurrentWeapon = WeaponEquipper->GetCurrentWeapon())
+		CurrentWeapon = WeaponEquipper->GetCurrentWeapon();
+		if (CurrentWeapon)
 		{
 			WeaponName = CurrentWeapon->GetWeaponDisplayName().ToString();
+		}
+	}
+
+	FString PassiveBuffInfo = TEXT("None");
+	if (CurrentWeapon)
+	{
+		const float TimeRemaining = CurrentWeapon->GetPassiveStatBuffTimeRemaining();
+		if (TimeRemaining > 0.0f)
+		{
+			PassiveBuffInfo = FString::Printf(TEXT("%.1fs (Range x%.2f)"), TimeRemaining, CurrentWeapon->GetFinalAttackRangeMultiplier());
 		}
 	}
 
 	const ICPStatInterface* StatInterface = Cast<ICPStatInterface>(Pawn);
 	if (!StatInterface)
 	{
-		return FString::Printf(TEXT("Weapon : %s"), *WeaponName);
+		return FString::Printf(TEXT("Weapon : %s\nPassive Buff : %s"), *WeaponName, *PassiveBuffInfo);
 	}
 
 	return FString::Printf(
-		TEXT("Health : %.0f\nAttackPower : %.0f\nMoveSpeed : %.0f\nAttackSpeed : %.2f\nExperience : %.0f\nLevel : %.0f\nWeapon : %s"),
+		TEXT("Health : %.0f\nAttackPower : %.0f\nMoveSpeed : %.0f\nAttackSpeed : %.2f\nExperience : %.0f\nLevel : %.0f\nWeapon : %s\nPassive Buff : %s"),
 		StatInterface->GetStat(ECPStatType::Health),
 		StatInterface->GetStat(ECPStatType::AttackPower),
 		StatInterface->GetStat(ECPStatType::MoveSpeed),
 		StatInterface->GetStat(ECPStatType::AttackSpeed),
 		StatInterface->GetStat(ECPStatType::Experience),
 		StatInterface->GetStat(ECPStatType::Level),
-		*WeaponName);
+		*WeaponName,
+		*PassiveBuffInfo);
 }
 
 void UCPDebugWidget::InitializeCheckBox(UCheckBox* CheckBox, ECPDebugCollisionCategory Category)
@@ -194,11 +202,6 @@ void UCPDebugWidget::HandleMonsterAttackRangeCheckChanged(bool bIsChecked)
 void UCPDebugWidget::HandleMonsterDetectRangeCheckChanged(bool bIsChecked)
 {
 	SetCategoryVisible(ECPDebugCollisionCategory::MonsterDetectRange, bIsChecked);
-}
-
-void UCPDebugWidget::HandlePlayerReviveCheckChanged(bool bIsChecked)
-{
-	SetCategoryVisible(ECPDebugCollisionCategory::PlayerRevive, bIsChecked);
 }
 
 void UCPDebugWidget::HandleCoinNexusCheckChanged(bool bIsChecked)

@@ -28,6 +28,12 @@ ACPWeaponBase* UCPWeaponManagerComponent::EquipWeapon(TSubclassOf<ACPWeaponBase>
 		return nullptr;
 	}
 
+	if (CurrentWeapon && CurrentWeapon->GetClass() == WeaponClass)
+	{
+		CurrentWeapon->LevelUp();
+		return CurrentWeapon;
+	}
+
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	UWorld* World = GetWorld();
 	if (!OwnerCharacter || !World)

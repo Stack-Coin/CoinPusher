@@ -8,6 +8,7 @@
 #include "CPDelayedExplosion.generated.h"
 
 class UNiagaraSystem;
+class USoundBase;
 
 /**
  *  ACPDelayedExplosion
@@ -31,6 +32,27 @@ protected:
 	/** Effect played at the explosion location on detonation */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Explosion")
 	TObjectPtr<UNiagaraSystem> ExplosionEffect;
+
+	/** Uniform/non-uniform scale applied to ExplosionEffect when it's spawned */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Explosion")
+	FVector ExplosionEffectScale = FVector(1.0f, 1.0f, 1.0f);
+
+	/** Rotation ExplosionEffect is spawned with (this actor is always spawned at world-zero rotation, so
+	 *  this is effectively the effect's final world rotation) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Explosion")
+	FRotator ExplosionEffectRotationOffset = FRotator::ZeroRotator;
+
+	/** Added to this actor's location before ExplosionEffect is spawned */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Explosion")
+	FVector ExplosionEffectLocationOffset = FVector::ZeroVector;
+
+	/** Sound played at the explosion location on detonation */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Explosion")
+	TObjectPtr<USoundBase> ExplosionSound;
+
+	/** Added to this actor's location before ExplosionSound is played */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Explosion")
+	FVector ExplosionSoundLocationOffset = FVector::ZeroVector;
 
 	/** If true, draws the detonation's damage/knockback radius for debugging */
 	UPROPERTY(EditAnywhere, Category="Explosion|Debug")

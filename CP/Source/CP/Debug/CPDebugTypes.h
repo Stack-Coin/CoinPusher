@@ -28,9 +28,6 @@ enum class ECPDebugCollisionCategory : uint8
 	/** Monster detection range, redrawn every tick of UCPBTService_Detect */
 	MonsterDetectRange,
 
-	/** Both players' revive detection range (ACPPlayerCharacter::ReviveDetectionRange) */
-	PlayerRevive,
-
 	/** Coin Nexus collision sphere (ACPNexus::CollisionSphere) */
 	CoinNexus,
 

@@ -7,6 +7,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
@@ -30,11 +31,21 @@ ACPMeteor::ACPMeteor()
 	MeteorMovement->SetUpdatedComponent(MeteorMesh);
 	MeteorMovement->ProjectileGravityScale = 0.0f;
 	MeteorMovement->bRotationFollowsVelocity = false;
+
+	MeteorEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("MeteorEffectComponent"));
+	MeteorEffectComponent->SetupAttachment(MeteorMesh);
 }
 
 void ACPMeteor::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (MeteorEffectComponent)
+	{
+		MeteorEffectComponent->SetRelativeLocation(MeteorEffectLocationOffset);
+		MeteorEffectComponent->SetRelativeRotation(MeteorEffectRotationOffset);
+		MeteorEffectComponent->SetRelativeScale3D(MeteorEffectScale);
+	}
 
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
 	{
@@ -43,7 +54,7 @@ void ACPMeteor::BeginPlay()
 	}
 }
 
-void ACPMeteor::InitializeMeteor(const FVector& InLandingLocation, float FallSpeed, float InImpactRadius, float InImpactDamage, float InImpactKnockbackDistance, TSubclassOf<ACPMeteorGroundZone> InGroundZoneClass, float InGroundZoneDuration, float InGroundZoneDamagePerTick, float InGroundZoneTickInterval, float InGroundZoneRadius, AController* InInstigatorController, AActor* InDamageCauser)
+void ACPMeteor::InitializeMeteor(const FVector& InLandingLocation, float FallSpeed, float InImpactRadius, float InImpactDamage, float InImpactKnockbackDistance, TSubclassOf<ACPMeteorGroundZone> InGroundZoneClass, float InGroundZoneDuration, float InGroundZoneDamagePerTick, float InGroundZoneTickInterval, float InGroundZoneRadius, float InEffectScaleMultiplier, AController* InInstigatorController, AActor* InDamageCauser)
 {
 	LandingLocation = InLandingLocation;
 	ImpactRadius = InImpactRadius;
@@ -54,6 +65,7 @@ void ACPMeteor::InitializeMeteor(const FVector& InLandingLocation, float FallSpe
 	GroundZoneDamagePerTick = InGroundZoneDamagePerTick;
 	GroundZoneTickInterval = InGroundZoneTickInterval;
 	GroundZoneRadius = InGroundZoneRadius;
+	EffectScaleMultiplier = InEffectScaleMultiplier;
 	InstigatorController = InInstigatorController;
 	DamageCauserActor = InDamageCauser;
 
@@ -123,7 +135,12 @@ void ACPMeteor::Impact()
 
 	if (ImpactEffect)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactEffect, LandingLocation);
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactEffect, LandingLocation + ImpactEffectLocationOffset, ImpactEffectRotationOffset, ImpactEffectScale * EffectScaleMultiplier);
+	}
+
+	if (ImpactSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, LandingLocation + ImpactSoundLocationOffset, ImpactSoundVolume);
 	}
 
 	if (GroundZoneClass && GroundZoneDuration > 0.0f)
@@ -134,7 +151,7 @@ void ACPMeteor::Impact()
 
 		if (ACPMeteorGroundZone* GroundZone = GetWorld()->SpawnActor<ACPMeteorGroundZone>(GroundZoneClass, LandingLocation, FRotator::ZeroRotator, SpawnParams))
 		{
-			GroundZone->InitializeZone(GroundZoneRadius, GroundZoneDamagePerTick, GroundZoneTickInterval, GroundZoneDuration, InstigatorController.Get(), DamageCauserActor.Get());
+			GroundZone->InitializeZone(GroundZoneRadius, GroundZoneDamagePerTick, GroundZoneTickInterval, GroundZoneDuration, EffectScaleMultiplier, InstigatorController.Get(), DamageCauserActor.Get());
 		}
 	}
 

@@ -9,6 +9,8 @@
 class UStaticMeshComponent;
 class UProjectileMovementComponent;
 class UNiagaraSystem;
+class UNiagaraComponent;
+class USoundBase;
 class ACPMeteorGroundZone;
 
 UCLASS(Blueprintable)
@@ -28,8 +30,38 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<UProjectileMovementComponent> MeteorMovement;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
+	TObjectPtr<UNiagaraComponent> MeteorEffectComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Effect")
+	FVector MeteorEffectLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Effect")
+	FRotator MeteorEffectRotationOffset = FRotator::ZeroRotator;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Effect")
+	FVector MeteorEffectScale = FVector(1.0f, 1.0f, 1.0f);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor")
 	TObjectPtr<UNiagaraSystem> ImpactEffect;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Impact")
+	FVector ImpactEffectLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Impact")
+	FRotator ImpactEffectRotationOffset = FRotator::ZeroRotator;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Impact")
+	FVector ImpactEffectScale = FVector(1.0f, 1.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Impact")
+	TObjectPtr<USoundBase> ImpactSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Impact")
+	FVector ImpactSoundLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Meteor|Impact", meta = (ClampMin = 0))
+	float ImpactSoundVolume = 1.0f;
 
 	UPROPERTY(EditAnywhere, Category="Meteor|Debug")
 	bool bDrawDebugImpactRadius = false;
@@ -38,6 +70,7 @@ protected:
 	float ImpactRadius = 300.0f;
 	float ImpactDamage = 0.0f;
 	float ImpactKnockbackDistance = 400.0f;
+	float EffectScaleMultiplier = 1.0f;
 
 	TSubclassOf<ACPMeteorGroundZone> GroundZoneClass;
 	float GroundZoneDuration = 0.0f;
@@ -53,7 +86,7 @@ protected:
 
 public:
 
-	void InitializeMeteor(const FVector& InLandingLocation, float FallSpeed, float InImpactRadius, float InImpactDamage, float InImpactKnockbackDistance, TSubclassOf<ACPMeteorGroundZone> InGroundZoneClass, float InGroundZoneDuration, float InGroundZoneDamagePerTick, float InGroundZoneTickInterval, float InGroundZoneRadius, AController* InInstigatorController, AActor* InDamageCauser);
+	void InitializeMeteor(const FVector& InLandingLocation, float FallSpeed, float InImpactRadius, float InImpactDamage, float InImpactKnockbackDistance, TSubclassOf<ACPMeteorGroundZone> InGroundZoneClass, float InGroundZoneDuration, float InGroundZoneDamagePerTick, float InGroundZoneTickInterval, float InGroundZoneRadius, float InEffectScaleMultiplier, AController* InInstigatorController, AActor* InDamageCauser);
 
 protected:
 

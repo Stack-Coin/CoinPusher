@@ -91,7 +91,12 @@ void ACPDelayedExplosion::Detonate()
 
 	if (ExplosionEffect)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionEffect, Origin);
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionEffect, Origin + ExplosionEffectLocationOffset, ExplosionEffectRotationOffset, ExplosionEffectScale);
+	}
+
+	if (ExplosionSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, ExplosionSound, Origin + ExplosionSoundLocationOffset);
 	}
 
 	Destroy();

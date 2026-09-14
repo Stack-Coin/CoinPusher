@@ -6,6 +6,7 @@
 #include "CPWeaponTypes.generated.h"
 
 class UNiagaraSystem;
+class USoundBase;
 
 /** Broad category a weapon belongs to. Drives which ACPWeaponBase subclass is used */
 UENUM(BlueprintType)
@@ -66,7 +67,39 @@ struct FCPWeaponData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon", meta = (ClampMin = 0, Units = "s"))
 	float AttackInterval = 0.8f;
 
-	/** Effect played each time this weapon executes an attack (swing/muzzle flash, not a hit-impact effect) */
+	/** Effect played each time this weapon executes an attack (swing/muzzle flash, not a hit-impact effect).
+	 *  Spawned oriented to face the attack direction and scaled by AttackEffectScale */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
 	TObjectPtr<UNiagaraSystem> AttackEffect;
+
+	/** Uniform/non-uniform scale applied to AttackEffect when it's spawned. Tune per weapon instead of
+	 *  editing the Niagara System's own internal size for a quick per-weapon size adjustment */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
+	FVector AttackEffectScale = FVector(1.0f, 1.0f, 1.0f);
+
+	/** Added on top of the attack direction when AttackEffect is spawned, so an effect authored facing a
+	 *  different axis (or needing a consistent tilt/twist) can be corrected per weapon without editing the
+	 *  Niagara System itself */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
+	FRotator AttackEffectRotationOffset = FRotator::ZeroRotator;
+
+	/** Added to the swing/muzzle origin before AttackEffect is spawned, relative to the attack direction
+	 *  (X = forward along the attack direction, Y = right, Z = up) - same convention as
+	 *  ACPMeleeWeapon::FCPMeleeComboStepData::PostHitModuleOffset */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
+	FVector AttackEffectLocationOffset = FVector::ZeroVector;
+
+	/** Sound played each time this weapon executes an attack (swing/muzzle blast, not a hit-impact sound) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
+	TObjectPtr<USoundBase> AttackSound;
+
+	/** Volume multiplier applied to AttackSound when it's played. Tune per weapon instead of editing the
+	 *  sound asset itself for a quick per-weapon loudness adjustment */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon", meta = (ClampMin = 0))
+	float AttackSoundVolume = 1.0f;
+
+	/** Added to the swing/muzzle origin before AttackSound is played, relative to the attack direction
+	 *  (X = forward along the attack direction, Y = right, Z = up) - same convention as AttackEffectLocationOffset */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
+	FVector AttackSoundLocationOffset = FVector::ZeroVector;
 };

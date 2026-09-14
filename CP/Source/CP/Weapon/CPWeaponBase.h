@@ -10,9 +10,10 @@
 
 class ACharacter;
 class UStaticMeshComponent;
-class UCPWeaponAnimationData;
+class UAnimMontage;
 class ICPStatInterface;
 class UCPWeaponPassiveSkillModule;
+class UNiagaraSystem;
 
 /** Broadcast right when a combo string starts (true), and right when the attack motion is actually over (false):
  *  when the attack montage finishes/blends out if one is assigned, otherwise as soon as the last swing is
@@ -59,9 +60,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
 	FCPWeaponData WeaponData;
 
-	/** Animation set applied to the wielder while this weapon is equipped */
+	/** Montage played on the wielder when this weapon attacks. Play rate is scaled by the weapon's
+	 *  final attack speed */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Animation")
-	TObjectPtr<UCPWeaponAnimationData> AnimationData;
+	TObjectPtr<UAnimMontage> AttackMontage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category="Passive Skill")
 	TObjectPtr<UCPWeaponPassiveSkillModule> PassiveSkillModule;
@@ -69,6 +71,21 @@ protected:
 	/** Floor for GetFinalAttackInterval(), so an extreme AttackSpeed stat can never produce a zero/negative timer */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon", AdvancedDisplay, meta = (ClampMin = 0.01, Units = "s"))
 	float MinAttackInterval = 0.05f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon|Level")
+	int32 WeaponLevel = 1;
+
+	float PassiveAttackPowerBonus = 0.0f;
+	float PassiveAttackSpeedMultiplier = 1.0f;
+	float PassiveRangeMultiplier = 1.0f;
+	FTimerHandle PassiveStatBuffTimerHandle;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraSystem> PassiveBuffAttackEffect;
+
+	FVector PassiveBuffAttackEffectLocationOffset = FVector::ZeroVector;
+	FRotator PassiveBuffAttackEffectRotationOffset = FRotator::ZeroRotator;
+	FVector PassiveBuffAttackEffectScale = FVector(1.0f, 1.0f, 1.0f);
 
 	/** True from StartAttack until the whole combo string finishes (FinishAttack), not just a single swing */
 	bool bIsAttacking = false;
@@ -108,9 +125,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	ECPWeaponType GetWeaponType() const { return WeaponType; }
 
-	/** Returns this weapon's animation set, or nullptr if none was assigned */
+	/** Returns the montage played on the wielder when this weapon attacks, or nullptr if none was assigned */
 	UFUNCTION(BlueprintPure, Category="Weapon")
-	UCPWeaponAnimationData* GetWeaponAnimationData() const { return AnimationData; }
+	UAnimMontage* GetAttackMontage() const { return AttackMontage; }
 
 	/** Returns this weapon's display name, for UI */
 	UFUNCTION(BlueprintPure, Category="Weapon")
@@ -148,7 +165,31 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Passive Skill")
 	virtual void ActivatePassiveSkill();
 
+	UFUNCTION(BlueprintPure, Category="Weapon|Level")
+	int32 GetWeaponLevel() const { return WeaponLevel; }
+
+	UFUNCTION(BlueprintPure, Category="Weapon|Level")
+	int32 GetMaxWeaponLevel() const;
+
+	UFUNCTION(BlueprintCallable, Category="Weapon|Level")
+	virtual bool SetWeaponLevel(int32 NewLevel);
+
+	UFUNCTION(BlueprintCallable, Category="Weapon|Level")
+	virtual bool LevelUp();
+
+	UFUNCTION(BlueprintPure, Category="Passive Skill")
+	float GetFinalAttackRangeMultiplier() const { return PassiveRangeMultiplier; }
+
+	UFUNCTION(BlueprintPure, Category="Passive Skill")
+	float GetPassiveStatBuffTimeRemaining() const;
+
+	UFUNCTION(BlueprintCallable, Category="Passive Skill")
+	void ApplyPassiveStatBuff(float InAttackPowerBonus, float InAttackSpeedMultiplierBonus, float InRangeMultiplierBonus, float InDuration,
+		UNiagaraSystem* InBuffEffect, const FVector& InBuffEffectLocationOffset, const FRotator& InBuffEffectRotationOffset, const FVector& InBuffEffectScale);
+
 protected:
+
+	void ClearPassiveStatBuff();
 
 	/** Begins a new combo string: flags the weapon as attacking, plays the attack montage, and runs the first swing */
 	virtual void StartAttack();
@@ -176,6 +217,12 @@ protected:
 	 *  combo string, from StartAttack - see CapturedAttackDirection */
 	FVector ResolveAimDirection() const;
 
-	/** Spawns WeaponData.AttackEffect at Location, if one is assigned */
-	void PlayAttackEffect(const FVector& Location) const;
+	/** Spawns WeaponData.AttackEffect at Location, offset by WeaponData.AttackEffectLocationOffset (relative
+	 *  to Rotation - typically the attack direction), oriented to Rotation + WeaponData.AttackEffectRotationOffset,
+	 *  and scaled by WeaponData.AttackEffectScale, if one is assigned */
+	void PlayAttackEffect(const FVector& Location, const FRotator& Rotation) const;
+
+	/** Plays WeaponData.AttackSound at Location, offset by WeaponData.AttackSoundLocationOffset (relative to
+	 *  Rotation - typically the attack direction), if one is assigned */
+	void PlayAttackSound(const FVector& Location, const FRotator& Rotation) const;
 };

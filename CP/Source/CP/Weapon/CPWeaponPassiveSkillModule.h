@@ -25,4 +25,7 @@ class CP_API UCPWeaponPassiveSkillModule : public UObject
 public:
 
 	virtual void Activate(const FCPPassiveSkillActivationContext& Context) PURE_VIRTUAL(UCPWeaponPassiveSkillModule::Activate, );
+
+	UFUNCTION(BlueprintPure, Category="Passive Skill")
+	virtual int32 GetMaxLevel() const { return 1; }
 };

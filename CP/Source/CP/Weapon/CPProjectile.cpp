@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
@@ -36,6 +37,9 @@ ACPProjectile::ACPProjectile()
 	ProjectileMesh->SetGenerateOverlapEvents(false);
 	ProjectileMesh->SetupAttachment(RootComponent);
 
+	ProjectileEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("ProjectileEffectComponent"));
+	ProjectileEffectComponent->SetupAttachment(RootComponent);
+
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
 	ProjectileMovement->bRotationFollowsVelocity = true;
@@ -52,9 +56,22 @@ void ACPProjectile::BeginPlay()
 	ProjectileMovement->bIsHomingProjectile = bIsHoming && ProjectileMovement->HomingTargetComponent.IsValid();
 	ProjectileMovement->Velocity = GetActorForwardVector() * ProjectileSpeed;
 
+	if (ProjectileEffectComponent)
+	{
+		ProjectileEffectComponent->SetRelativeLocation(ProjectileEffectLocationOffset);
+		ProjectileEffectComponent->SetRelativeRotation(ProjectileEffectRotationOffset);
+		ProjectileEffectComponent->SetRelativeScale3D(ProjectileEffectScale);
+	}
+
 	if (ProjectileSpeed > 0.0f)
 	{
 		SetLifeSpan(Range / ProjectileSpeed);
+	}
+
+	if (LaunchSound)
+	{
+		const FVector SoundLocation = GetActorLocation() + GetActorRotation().RotateVector(LaunchSoundLocationOffset);
+		UGameplayStatics::PlaySoundAtLocation(this, LaunchSound, SoundLocation);
 	}
 
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
@@ -87,11 +104,21 @@ void ACPProjectile::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCateg
 	}
 }
 
-void ACPProjectile::InitializeProjectile(float InDamageAmount, AController* InInstigatorController, AActor* InDamageCauser)
+void ACPProjectile::InitializeProjectile(float InDamageAmount, AController* InInstigatorController, AActor* InDamageCauser, float InRangeMultiplier)
 {
 	DamageAmount = InDamageAmount;
 	InstigatorController = InInstigatorController;
 	DamageCauserActor = InDamageCauser;
+
+	if (InRangeMultiplier != 1.0f)
+	{
+		Range *= InRangeMultiplier;
+
+		if (ProjectileSpeed > 0.0f)
+		{
+			SetLifeSpan(Range / ProjectileSpeed);
+		}
+	}
 }
 
 void ACPProjectile::SetHomingTarget(AActor* Target)
@@ -140,15 +167,19 @@ void ACPProjectile::ProcessHit(AActor* OtherActor, const FVector& HitLocation)
 
 	UGameplayStatics::ApplyDamage(OtherActor, DamageAmount, InstigatorController.Get(), DamageCauserActor.Get(), nullptr);
 
+	const FVector Direction = ProjectileMovement ? ProjectileMovement->Velocity.GetSafeNormal() : GetActorForwardVector();
+
 	if (ICPKnockbackable* Knockbackable = Cast<ICPKnockbackable>(OtherActor))
 	{
-		const FVector Direction = ProjectileMovement ? ProjectileMovement->Velocity.GetSafeNormal() : GetActorForwardVector();
 		Knockbackable->ApplyKnockback(Direction, KnockbackDistance, DamageCauserActor.Get());
 	}
 
 	if (HitEffect)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitEffect, HitLocation);
+		const FRotator BaseRotation = Direction.Rotation();
+		const FVector EffectLocation = HitLocation + BaseRotation.RotateVector(HitEffectLocationOffset);
+		const FRotator EffectRotation = BaseRotation + HitEffectRotationOffset;
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, HitEffect, EffectLocation, EffectRotation, HitEffectScale);
 	}
 
 	if (!bCanPierce)
