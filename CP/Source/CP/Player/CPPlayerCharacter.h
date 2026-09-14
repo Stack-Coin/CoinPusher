@@ -242,6 +242,23 @@ protected:
 	 *  instead of following movement input (see HandleAttackStateChanged/OrientTowardsAttackDirection) */
 	bool bIsAttackLocked = false;
 
+	/** True while auto-attack is turned on (see SetAutoAttackEnabled) - the F1 debug widget's auto-attack
+	 *  checkbox toggles this. While true, DoAttack() is retried every AutoAttackPollInterval seconds without
+	 *  any attack input - the aim direction still comes from GetAttackDirection() as usual (mouse cursor/
+	 *  gamepad right stick, falling back to the movement direction), so the player only ever adjusts where
+	 *  the auto-attack swings land, never whether it swings */
+	bool bAutoAttackEnabled = false;
+
+	/** How often (in seconds) DoAttack() is retried while auto-attack is on. ACPWeaponBase::Attack() already
+	 *  no-ops on its own combo/interval cooldown (see CanAttack), so this only needs to be short enough that
+	 *  the next swing starts promptly once the weapon becomes ready again - it does not itself pace the
+	 *  attack rate. Tune this in BP */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack", meta = (ClampMin = 0.01, Units = "s"))
+	float AutoAttackPollInterval = 0.1f;
+
+	/** Loops TickAutoAttack every AutoAttackPollInterval while bAutoAttackEnabled is true */
+	FTimerHandle AutoAttackTimerHandle;
+
 	/** Distance covered by a single dash */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Dash", meta = (ClampMin = 0, Units = "cm"))
 	float DashDistance = 600.0f;
@@ -392,6 +409,10 @@ protected:
 	/** Called for attack input */
 	void Attack(const FInputActionValue& Value);
 
+	/** Bound to AutoAttackTimerHandle while bAutoAttackEnabled is true. Just calls DoAttack() - the weapon's
+	 *  own CanAttack() cooldown makes this a no-op on every poll except the one right after it's ready again */
+	void TickAutoAttack();
+
 	/** Called while the gamepad right stick is pushed past the deadzone - updates LastGamepadAimInputVector,
 	 *  sets bIsGamepadAiming/bIsUsingGamepadAim true, and immediately (and continuously, every time this
 	 *  fires) rotates the character to face the stick direction - even while not attacking */
@@ -455,6 +476,16 @@ public:
 	/** Handles attack inputs from either controls or UI interfaces. Forwards to the current weapon if one is equipped, otherwise falls back to the legacy unarmed box-trace attack */
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	virtual void DoAttack();
+
+	/** Turns auto-attack on/off. While on, DoAttack() is retried every AutoAttackPollInterval seconds with no
+	 *  attack input required - bound to the F1 debug widget's auto-attack checkbox (see
+	 *  UCPDebugWidget::HandleAutoAttackCheckChanged) */
+	UFUNCTION(BlueprintCallable, Category="Combat")
+	void SetAutoAttackEnabled(bool bEnabled);
+
+	/** Returns true while auto-attack is on */
+	UFUNCTION(BlueprintPure, Category="Combat")
+	bool IsAutoAttackEnabled() const { return bAutoAttackEnabled; }
 
 	// ~begin ICPWeaponEquipper
 

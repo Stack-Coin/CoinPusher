@@ -342,6 +342,7 @@ void ACPPlayerCharacter::Aim(const FInputActionValue& Value)
 	// Cancels any pending revert-to-movement-facing countdown from a previous release/attack
 	GetWorldTimerManager().ClearTimer(PostAttackRotationTimerHandle);
 	GetCharacterMovement()->bOrientRotationToMovement = false;
+	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 	OrientTowardsAttackDirection();
 }
 
@@ -390,6 +391,17 @@ void ACPPlayerCharacter::DoMove(float Right, float Forward)
 		return;
 	}
 
+	// Actual movement just resumed - if facing was left locked onto the last attack/aim direction because
+	// the character was standing still when ReorientToMovementDirection last ran (see there), hand facing
+	// back to the movement component now that there's really a direction to turn towards. Left alone while
+	// a combo string or the gamepad's right stick is still actively locking facing - those own this
+	// transition themselves (HandleAttackStateChanged/Aim/EndAim)
+	if (!bIsAttackLocked && !bIsGamepadAiming)
+	{
+		GetCharacterMovement()->bOrientRotationToMovement = true;
+		GetCharacterMovement()->bUseControllerDesiredRotation = false;
+	}
+
 	AddMovementInput(GetWorldDirectionFromInput(InputVector), 1.0f);
 }
 
@@ -408,6 +420,39 @@ void ACPPlayerCharacter::DoAttack()
 	{
 		WeaponManager->Attack();
 	}
+}
+
+void ACPPlayerCharacter::SetAutoAttackEnabled(bool bEnabled)
+{
+	if (bAutoAttackEnabled == bEnabled)
+	{
+		return;
+	}
+
+	bAutoAttackEnabled = bEnabled;
+
+	if (bAutoAttackEnabled)
+	{
+		GetWorldTimerManager().SetTimer(AutoAttackTimerHandle, this, &ACPPlayerCharacter::TickAutoAttack, AutoAttackPollInterval, true);
+	}
+	else
+	{
+		GetWorldTimerManager().ClearTimer(AutoAttackTimerHandle);
+
+		// While auto-attack was on, HandleAttackStateChanged kept facing locked to the attack direction
+		// between swings instead of reverting to movement-driven rotation (see there) - now that it's off,
+		// hand facing back to the movement component again, unless a combo string is still finishing up or
+		// the gamepad's right stick is still actively aiming (those own this transition themselves)
+		if (!bIsAttackLocked && !bIsGamepadAiming)
+		{
+			ReorientToMovementDirection();
+		}
+	}
+}
+
+void ACPPlayerCharacter::TickAutoAttack()
+{
+	DoAttack();
 }
 
 ACPWeaponBase* ACPPlayerCharacter::EquipWeapon(TSubclassOf<ACPWeaponBase> WeaponClass)
@@ -486,18 +531,27 @@ void ACPPlayerCharacter::HandleAttackStateChanged(bool bIsAttacking)
 	if (bIsAttacking)
 	{
 		// A new combo string just started: stop the movement component from turning the character to face
-		// movement, and snap to face the attack direction instead. Movement itself is left alone - the
-		// player can keep moving freely, just without the character turning to follow it
+		// movement, and turn to face the attack direction instead (see OrientTowardsAttackDirection -
+		// bUseControllerDesiredRotation drives a smooth turn instead of an instant snap). Movement itself is
+		// left alone - the player can keep moving freely, just without the character turning to follow it
 		GetWorldTimerManager().ClearTimer(PostAttackRotationTimerHandle);
 		GetCharacterMovement()->bOrientRotationToMovement = false;
+		GetCharacterMovement()->bUseControllerDesiredRotation = true;
 		OrientTowardsAttackDirection();
 	}
-	else if (!bIsGamepadAiming)
+	else if (!bIsGamepadAiming && !bAutoAttackEnabled)
 	{
 		// The attack's motion just ended (montage finished, or last swing dispatched if no montage) - keep
 		// facing the attack direction for a bit longer before resuming movement-driven rotation. Skipped
 		// while the gamepad's right stick is still held - Aim/EndAim own that transition in that case, so
-		// this doesn't fight it by reverting early while the player is still actively aiming with the stick
+		// this doesn't fight it by reverting early while the player is still actively aiming with the stick.
+		// Also skipped entirely while auto-attack is on: it keeps re-triggering combos back-to-back with
+		// little to no gap, so reverting to movement-driven rotation between each one - only to instantly
+		// snap back to the attack direction the moment the next combo starts a moment later - made the
+		// character's facing oscillate/jitter whenever attacking in a direction other than the movement
+		// direction. Facing just stays locked to the (continuously refreshed - see OrientTowardsAttackDirection)
+		// attack direction the whole time auto-attack is on; SetAutoAttackEnabled hands facing back to
+		// movement once it's turned off
 		GetWorldTimerManager().SetTimer(PostAttackRotationTimerHandle, this, &ACPPlayerCharacter::ReorientToMovementDirection, PostAttackRotationDelay, false);
 	}
 }
@@ -613,12 +667,51 @@ FVector ACPPlayerCharacter::GetAttackDirection() const
 void ACPPlayerCharacter::OrientTowardsAttackDirection()
 {
 	const FVector AimDirection = GetAttackDirection();
-	SetActorRotation(FRotator(0.0f, AimDirection.Rotation().Yaw, 0.0f));
+	const float TargetYaw = AimDirection.Rotation().Yaw;
+
+	// Turn smoothly (via CharacterMovementComponent's own RotationRate-bounded interpolation, driven by
+	// bUseControllerDesiredRotation - see HandleAttackStateChanged/Aim) instead of an instant hard snap.
+	// A one-off manual attack barely notices a hard snap, but auto-attack calls this every cycle, and the
+	// mouse-cursor-relative aim direction naturally drifts a little as the character moves through the world
+	// even with the cursor held still on screen - repeatedly hard-snapping to each slightly different
+	// direction reads as the character (and the screen along with it) continuously twitching/twisting.
+	// Falls back to an instant snap if there's no Controller to drive bUseControllerDesiredRotation with
+	if (AController* PlayerOrAIController = GetController())
+	{
+		PlayerOrAIController->SetControlRotation(FRotator(0.0f, TargetYaw, 0.0f));
+	}
+	else
+	{
+		SetActorRotation(FRotator(0.0f, TargetYaw, 0.0f));
+	}
+
+	// Standing still (no movement input) - bank this direction as the "last movement direction" too. This is
+	// what GetAttackDirection() itself falls back on once the gamepad's right stick that produced this
+	// direction is released (bIsGamepadAiming goes false - see there), and without this, that fallback would
+	// resolve to whatever direction the character happened to be moving in long before this aim/attack, not
+	// the direction just faced. With it, every following attack (including auto-attack's continuous retries -
+	// see TickAutoAttack) keeps facing/attacking this same direction as long as the player stays put, instead
+	// of snapping back to a stale movement direction the instant the stick is let go. DoMove() overwrites this
+	// with the real movement direction the moment the player actually moves again
+	if (GetCharacterMovement()->GetCurrentAcceleration().IsNearlyZero())
+	{
+		LastMoveInputVector = FVector2D(AimDirection.Y, AimDirection.X);
+	}
 }
 
 void ACPPlayerCharacter::ReorientToMovementDirection()
 {
+	// Standing still (no move input right now) - there's no movement direction to face yet, so keep facing
+	// the last attack/aim direction instead of handing rotation back to the movement component (which would
+	// otherwise snap the character towards whatever stale direction it falls back on with no input). DoMove()
+	// re-enables bOrientRotationToMovement itself the moment real movement input resumes
+	if (GetCharacterMovement()->GetCurrentAcceleration().IsNearlyZero())
+	{
+		return;
+	}
+
 	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->bUseControllerDesiredRotation = false;
 }
 
 void ACPPlayerCharacter::EndDash()
@@ -755,6 +848,12 @@ void ACPPlayerCharacter::PlayHitCameraShake()
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
+		// Stop any instance still playing from an earlier hit before starting a new one. TakeDamage isn't
+		// throttled, so getting hit again before the previous shake finished (e.g. standing in sustained melee
+		// with auto-attack on, instead of a manual player who naturally breaks off between attacks) used to
+		// stack multiple overlapping shake instances - their rotation/FOV oscillations sum up into what reads
+		// as a continuously warped/twisting camera instead of a series of distinct hit reactions
+		PC->ClientStopCameraShake(HitCameraShakeClass, true);
 		PC->ClientStartCameraShake(HitCameraShakeClass, HitCameraShakeIntensity);
 	}
 }
