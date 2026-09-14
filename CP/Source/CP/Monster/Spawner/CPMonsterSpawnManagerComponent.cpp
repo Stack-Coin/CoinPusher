@@ -56,38 +56,11 @@ void UCPMonsterSpawnManagerComponent::LoadDefaultMonsterClasses()
 	}
 
 	FSoftClassPath Bomb(TEXT("/Game/Monster/Blueprints/BP_Bomb.BP_Bomb_C"));
-	UClass* BombClass = Normal.TryLoadClass<ACPMonsterBase>();
+	UClass* BombClass = Bomb.TryLoadClass<ACPMonsterBase>();
 	if (BombClass)
 	{
 		MonsterClassByType.Add(ECPMonsterType::Bomb, BombClass);
 	}
-
-	//auto LoadMonsterClassIfMissing = [this](ECPMonsterType Type, const TCHAR* ClassPath)
-	//	{
-	//		if (MonsterClassByType.Contains(Type))
-	//		{
-	//			return;
-	//		}
-
-	//LoadClass는 ConstructorHelpers::FClassFinder와 달리 "_C" 접미사가 붙은 완전한 제너레이티드 클래스 경로가 필요
-
-	//		UClass* LoadedClass = LoadClass<ACPMonsterBase>(this, ClassPath);
-	//		TObjectPtr<ACPMonsterBase> LoadClass = 
-	//		if (LoadedClass->)
-	//		{
-	//			MonsterClassByType.Add(Type, LoadedClass);
-	//		}
-	//		else
-	//		{
-	//			UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] MonsterClassByType 기본 경로를 찾지 못했습니다: %s"), ClassPath);
-	//		}
-	//	};
-
-	//LoadMonsterClassIfMissing(ECPMonsterType::Normal, TEXT("/Game/Monster/Blueprints/BP_Normal.BP_Normal_C"));
-	//LoadMonsterClassIfMissing(ECPMonsterType::Tanker, TEXT("/Game/Monster/Blueprints/BP_Tanker.BP_Tanker_C"));
-	//LoadMonsterClassIfMissing(ECPMonsterType::Ranged, TEXT("/Game/Monster/Blueprints/BP_Ranged.BP_Ranged_C"));
-	//LoadMonsterClassIfMissing(ECPMonsterType::Boss, TEXT("/Game/Monster/Blueprints/BP_BossMonster.BP_BossMonster_C"));
-	//LoadMonsterClassIfMissing(ECPMonsterType::Bomb, TEXT("/Game/Monster/Blueprints/BP_Bomb.BP_Bomb_C"));
 }
 
 void UCPMonsterSpawnManagerComponent::BeginPlay()
@@ -95,7 +68,6 @@ void UCPMonsterSpawnManagerComponent::BeginPlay()
 	Super::BeginPlay();
 
 	LoadDefaultMonsterClasses();
-
 
 	ApplyRoundInfo(CurrentRound);
 
