@@ -158,7 +158,14 @@ void ACPMonsterBase::OnReturnedToPool()
 
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
-		PooledMovementMode = MoveComp->MovementMode;
+		// Dead()가 먼저 DisableMovement()를 호출해 MovementMode를 None으로 만들어버리므로, 여기서
+		// 그 순간 값을 그대로 캐시하면 한 번이라도 죽었다 풀로 돌아온 개체는 재사용(OnAcquiredFromPool)
+		// 때마다 계속 None으로 복구돼 영원히 못 움직임. None이면 덮어쓰지 않고 마지막으로 유효했던 값
+		// (최초 WarmUp 시점의 Walking 등)을 그대로 유지함
+		if (MoveComp->MovementMode != MOVE_None)
+		{
+			PooledMovementMode = MoveComp->MovementMode;
+		}
 		MoveComp->DisableMovement();
 
 		// SetActorTickEnabled(false)는 액터 자신의 Tick()만 끌 뿐 컴포넌트의 PrimaryComponentTick은
@@ -205,6 +212,14 @@ void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
 		MoveComp->PrimaryComponentTick.TickInterval = 0.f; // 풀에 들어가기 전 거리 스로틀로 늘어나 있었을 수 있음
 		SetActorLocationAndRotation(NewTransform.GetLocation(), NewTransform.GetRotation());
 		MoveComp->SetMovementMode(PooledMovementMode);
+
+		// 방어 로직: 위 캐시가 무슨 이유로든 여전히 None이면(이번에 고친 경로 외의 다른 경로로 또
+		// None이 새어들어와도) 활성 개체가 영구히 못 움직이는 상태로 풀리지 않도록 기본 지상 이동
+		// 모드로라도 강제 복구함
+		if (MoveComp->MovementMode == MOVE_None)
+		{
+			MoveComp->SetMovementMode(MoveComp->DefaultLandMovementMode);
+		}
 
 		if (bWasConstrainedToPlane)
 		{
