@@ -214,11 +214,12 @@ void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
 		MoveComp->SetMovementMode(PooledMovementMode);
 
 		// 방어 로직: 위 캐시가 무슨 이유로든 여전히 None이면(이번에 고친 경로 외의 다른 경로로 또
-		// None이 새어들어와도) 활성 개체가 영구히 못 움직이는 상태로 풀리지 않도록 기본 지상 이동
-		// 모드로라도 강제 복구함
+		// None이 새어들어와도) 활성 개체가 영구히 못 움직이는 상태로 풀리지 않도록 강제 복구함.
+		// 비행형(ShouldUseFixedSpawnHeight)은 DefaultLandMovementMode(Walking)로 떨어지면 지면으로
+		// 끌려 내려가버리므로 Flying으로, 그 외는 지상 기본 모드로 분기함
 		if (MoveComp->MovementMode == MOVE_None)
 		{
-			MoveComp->SetMovementMode(MoveComp->DefaultLandMovementMode);
+			MoveComp->SetMovementMode(ShouldUseFixedSpawnHeight() ? MOVE_Flying : MoveComp->DefaultLandMovementMode.GetValue());
 		}
 
 		if (bWasConstrainedToPlane)
