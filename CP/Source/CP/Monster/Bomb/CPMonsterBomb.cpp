@@ -1,7 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Monster/Bomb/CPMonsterBomb.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "NiagaraComponent.h"
 #include "Player/CPPlayerCharacter.h"
 
@@ -13,32 +12,6 @@ ACPMonsterBomb::ACPMonsterBomb()
 	FuseEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("FuseEffect"));
 	FuseEffect->SetupAttachment(GetMesh(), TEXT("Wick"));
 	FuseEffect->bAutoActivate = true;
-}
-
-void ACPMonsterBomb::BeginPlay()
-{
-	Super::BeginPlay();
-
-	// ACPMonsterRanged와 동일한 방식: 비행 몹은 지형 고저차와 무관하게 항상 스폰 높이를 유지하도록
-	// PlaneConstraint로 Z 이동만 잠금(그 외 이동 로직은 기존 BT MoveTo를 그대로 씀)
-	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
-	{
-		MoveComp->SetMovementMode(MOVE_Flying);
-		MoveComp->SetPlaneConstraintEnabled(true);
-		MoveComp->SetPlaneConstraintNormal(FVector::UpVector);
-		MoveComp->SetPlaneConstraintOrigin(GetActorLocation());
-	}
-}
-
-void ACPMonsterBomb::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-
-	// 비행 중 이동 방향에 따라 기울어지지 않도록 Pitch/Roll 고정 (ACPMonsterRanged와 동일)
-	FRotator CurrentRotation = GetActorRotation();
-	CurrentRotation.Pitch = 0.f;
-	CurrentRotation.Roll = 0.f;
-	SetActorRotation(CurrentRotation);
 }
 
 void ACPMonsterBomb::AttackHitCheck()
@@ -65,11 +38,6 @@ void ACPMonsterBomb::Explode()
 	// SetLifeSpan(2초)으로 정리됨. Dead()가 코인 드랍/OnMonsterDied 브로드캐스트/파괴까지 전부
 	// 처리하므로 여기서는 따로 할 일이 없음
 	Dead();
-}
-
-float ACPMonsterBomb::GetSpawnHeightOffset() const
-{
-	return FlightSpawnHeight;
 }
 
 void ACPMonsterBomb::OnReturnedToPool()

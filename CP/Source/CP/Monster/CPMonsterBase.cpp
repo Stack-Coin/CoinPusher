@@ -48,24 +48,6 @@ void ACPMonsterBase::BeginPlay()
 
 	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
 
-	GetCapsuleComponent()->SetCapsuleRadius(GetAICollisionRadius());
-
-	// DataTable에 Half Height 값이 채워져 있으면 그걸로 캡슐 높이도 맞춤 (0이면 아직 데이터가
-	// 안 채워진 것으로 보고 BP에 세팅된 기존 캡슐 Half Height를 그대로 둠)
-	if (GetAICollisionHalfHeight() > 0.f)
-	{
-		GetCapsuleComponent()->SetCapsuleHalfHeight(GetAICollisionHalfHeight());
-	}
-
-	// 몬스터 타입마다 캡슐 Half Height가 달라서, 메쉬가 고정 오프셋으로 붙어있으면 캡슐 바닥과
-	// 안 맞아 스폰 시 붕 뜨거나 파묻힌 것처럼 보일 수 있음 - 메쉬 Z를 캡슐 크기에 맞춰 정렬
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-	{
-		FVector MeshRelativeLocation = MeshComp->GetRelativeLocation();
-		MeshRelativeLocation.Z = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		MeshComp->SetRelativeLocation(MeshRelativeLocation);
-	}
-
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
 		// RVO 회피 반경 배율은 몬스터마다 다르게 줄 이유가 없어서 코드 상수로 고정함. 가중치만
@@ -682,37 +664,14 @@ float ACPMonsterBase::GetAIAttackInterval()
 	return StatComponent ? StatComponent->DefaultStat.AttackInterval : 1.0f;
 }
 
-namespace
-{
-	/** 캡슐 Radius/HalfHeight는 SKM 실측 크기 기반 고정값 - 기획자가 DataTable에서 임의로 바꾸지
-	 *  못하게 일부러 코드에 하드코딩함(스폰 위치/공격 판정/RVO가 전부 이 값에 엮여있어서 값이
-	 *  틀어지면 여러 시스템이 동시에 깨짐) */
-	void GetDefaultCollisionSize(ECPMonsterType InType, float& OutRadius, float& OutHalfHeight)
-	{
-		switch (InType)
-		{
-		case ECPMonsterType::Normal: OutRadius = 61.f;  OutHalfHeight = 76.f;  break;
-		case ECPMonsterType::Ranged: OutRadius = 59.f;  OutHalfHeight = 79.f;  break;
-		case ECPMonsterType::Tanker: OutRadius = 95.f;  OutHalfHeight = 95.f;  break;
-		case ECPMonsterType::Bomb:   OutRadius = 95.f;  OutHalfHeight = 95.f;  break;
-		case ECPMonsterType::Boss:   OutRadius = 293.f; OutHalfHeight = 304.f; break;
-		default:                     OutRadius = 0.f;   OutHalfHeight = 0.f;   break;
-		}
-	}
-}
-
 float ACPMonsterBase::GetAICollisionRadius() const
 {
-	float Radius, HalfHeight;
-	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
-	return Radius;
+	return GetCapsuleComponent()->GetScaledCapsuleRadius();
 }
 
 float ACPMonsterBase::GetAICollisionHalfHeight() const
 {
-	float Radius, HalfHeight;
-	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
-	return HalfHeight;
+	return GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 }
 
 float ACPMonsterBase::GetAIAttackRange()
