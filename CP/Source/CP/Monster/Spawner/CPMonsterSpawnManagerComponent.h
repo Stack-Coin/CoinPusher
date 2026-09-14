@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -215,6 +215,11 @@ public:
 	float GetRoundWaitSecondsRemaining() const;
 
 protected:
+	/** MonsterClassByType 기본값을 하드코딩 경로로 채움 - 생성자에서만 호출됨(CDO/인스턴스 생성 시점).
+	 *  BeginPlay가 아니라 생성자에서 실행돼야 쿠커가 CDO를 만들며 이 코드를 실행해 하드레퍼런스로
+	 *  잡아줌(패키지 빌드에 포함됨) */
+	void LoadDefaultMonsterClasses();
+
 	UPROPERTY(EditAnywhere, Category = "SpawnerRing")
 	int32 SpawnerCount = 8;
 
@@ -237,11 +242,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (ClampMin = 1))
 	int32 MaxMonstersPerJobTick = 30;
 
-	/** 몬스터 타입별 스폰 클래스. BP_Normal/BP_Tanker/BP_Ranged/BP_BossMonster/BP_Bomb를 여기 직접 연결
-	 *  해야 함 - 예전엔 런타임에 하드코딩 경로로 LoadClass 했었는데, 그 경로는 쿠커가 정적으로 못 보는
-	 *  참조라 패키지 빌드에서 SkipPackage 되어 전부 빠졌었음(에디터/PIE에서만 됨) */
+	/** 몬스터 타입별 스폰 클래스. 생성자(LoadDefaultMonsterClasses)에서 하드코딩 경로로 기본값을 채움 -
+	 *  BP Class Defaults에서 개별 타입만 다른 클래스로 덮어쓰고 싶으면 여기서 직접 지정해도 됨(생성자는
+	 *  이미 값 있는 타입은 안 건드림). BP_CPPlayerCharacter Class Defaults에 이 맵을 직접 채워두면
+	 *  안 됨 - 그러면 BP_CPPlayerCharacter 로드 시점에 몬스터 BP(+거기 딸린 메시/이펙트)가 전부 강제
+	 *  로드돼서 무거운 나이아가라 VFX 때문에 에디터 로드가 오래 걸리거나 멈춘 것처럼 보임 */
 	UPROPERTY(EditAnywhere, Category = "Data")
 	TMap<ECPMonsterType, TSubclassOf<ACPMonsterBase>> MonsterClassByType;
+	//TMap<ECPMonsterType, TSoftObjectPtr<ACPMonsterBase>> MonsterClassByType;
 
 	UPROPERTY(EditAnywhere, Category = "Round")
 	int32 CurrentRound = 1;
