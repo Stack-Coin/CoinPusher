@@ -9,6 +9,7 @@
 class USceneComponent;
 class UCPRouletteWidget;
 class UDataTable;
+class UTexture2D;
 
 /** 룰렛에서 아이템이 뽑힐 때마다 ItemID/개수와 함께 Broadcast */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPRoulettePickedUp, FName, ItemID, int32, Count);
@@ -71,6 +72,11 @@ protected:
 	 *  OnPickedUp으로 전달한다 (스핀 도중 ItemDataTable이 바뀌어도 결과가 흔들리지 않도록 캐싱) */
 	FName PendingResultItemID;
 	int32 PendingResultSpawnCount = 0;
+
+	/** Roll() 시점에 추첨으로 확정된 행의 PickUpImage - 스핀이 끝나면 UCPRouletteWidget::PlaySpin에
+	 *  그대로 전달되어 PickUp 연출에 사용된다 */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> PendingResultPickUpImage;
 
 public:
 

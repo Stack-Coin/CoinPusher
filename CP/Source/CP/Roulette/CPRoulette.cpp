@@ -20,6 +20,7 @@ namespace
 		FName ItemID;
 		int32 SpawnCount = 1;
 		int32 MustPickLevel = 0;
+		UTexture2D* PickUpImage = nullptr;
 	};
 
 	/** FCPRouletteProbabilityRow는 레벨당 최대 10개 후보(Roulette_index0~9)까지만 가중치를 갖는
@@ -75,7 +76,7 @@ bool ACPRoulette::Roll(int32 PlayerLevel)
 		{
 			if (Widget)
 			{
-				Widget->PlaySpin(ResultIndex, CandidateCount);
+				Widget->PlaySpin(ResultIndex, CandidateCount, PendingResultPickUpImage);
 			}
 		}
 	}
@@ -145,6 +146,7 @@ bool ACPRoulette::PickWeightedItem(int32 PlayerLevel, int32& OutResultIndex, int
 		Candidate.ItemID = Row->ItemID;
 		Candidate.SpawnCount = Row->PickEA;
 		Candidate.MustPickLevel = Row->MustPickLevel;
+		Candidate.PickUpImage = Row->PickUpImage;
 	}
 
 	if (Candidates.Num() == 0)
@@ -226,6 +228,7 @@ bool ACPRoulette::PickWeightedItem(int32 PlayerLevel, int32& OutResultIndex, int
 
 	PendingResultItemID = Candidates[PickedIndex].ItemID;
 	PendingResultSpawnCount = Candidates[PickedIndex].SpawnCount;
+	PendingResultPickUpImage = Candidates[PickedIndex].PickUpImage;
 
 	OutResultIndex = PickedIndex;
 	OutCandidateCount = Candidates.Num();

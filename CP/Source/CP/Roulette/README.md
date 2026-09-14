@@ -8,8 +8,9 @@
 반드시 하나를 당첨시키고, 없으면 `RouletteProbabilityDataTable`(Row Struct는
 `FCPRouletteProbabilityRow`)에서 `Level`이 `PlayerLevel`과 같은 행을 찾아 그 행의
 `Roulette_index0`~`Roulette_index9` 가중치로 후보 인덱스를 추첨한다. 화면 중앙 위쪽에서 아래로
-등장하는 UI가 그 칸에서 멈추는 연출을 보여준 뒤, 당첨된 행의 `ItemID`/`PickEA`를 `OnPickedUp`으로
-Broadcast한다. `ACPRoulette`는 그 결과를 누가 어떻게 쓰는지 전혀 모른다 — 외부 시스템(예:
+등장하는 UI가 그 칸에서 멈추는 연출을 보여준 뒤, 당첨된 행의 `PickUpImage`를 잠시 보여주는 PickUp
+연출까지 끝나야 `ItemID`/`PickEA`를 `OnPickedUp`으로 Broadcast한다. `ACPRoulette`는 그 결과를
+누가 어떻게 쓰는지 전혀 모른다 — 외부 시스템(예:
 `ACPCoinPusher::LinkedRoulette`)이 `OnPickedUp`에 직접 바인딩해서 원하는 대로 처리한다. 당첨된
 `ItemID`의 실제 표시/스폰 정보(아이콘, 스폰 클래스 등)는 `ItemDataTable`(Row Struct는 `FItemData`,
 `Datatables/CPItemData.h`)에서 조회한다. `ACPCoinPusher`와 마찬가지로 C++ 클래스는
@@ -29,7 +30,8 @@ Broadcast한다. `ACPRoulette`는 그 결과를 누가 어떻게 쓰는지 전�
       추첨 후보 테이블. 각 행이 후보 하나이며, 행의 나열 순서가 곧 추첨 인덱스(0..N-1)다. `ItemID`
       (`ItemDataTable`의 ID와 매칭), `PickEA`(당첨 시 지급 개수), `bRouletteToCoinPusher`(당첨 시
       CoinPusher로 전달되는지), `MustPickLevel`(`PlayerLevel`과 같으면 이 행이 반드시 당첨되는 강제
-      레벨) 필드를 가짐
+      레벨), `PickUpImage`(`TObjectPtr<UTexture2D>`, 스핀이 끝난 뒤 `UCPRouletteWidget`의
+      `PickUpImage`에 잠시 보여줄 이미지) 필드를 가짐
     - `RouletteProbabilityDataTable` (`TObjectPtr<UDataTable>`, `EditAnywhere`, Row Struct
       `FCPRouletteProbabilityRow`) : 팀 레벨별 확률 가중치 테이블. 각 행의 `Level` 필드로 검색하며,
       `Roulette_index0`~`Roulette_index9`(최대 10개 후보까지 지원)가 `RouletteDataTable`의 후보
@@ -37,9 +39,12 @@ Broadcast한다. `ACPRoulette`는 그 결과를 누가 어떻게 쓰는지 전�
       가장 마지막 행의 가중치를 그대로 사용한다
     - `bIsRolling` : 스핀이 시작되어 결과가 결정될 때까지 true. 한 플레이어가 `Roll()`을 호출해 스핀
       중일 때 다른 플레이어가 `Roll()`을 호출해도 무시되도록 막는 잠금 상태 (`IsRolling()`으로 조회 가능)
-    - `PendingResultItemID` / `PendingResultSpawnCount` : `Roll()` 시점(추첨 직후)에 확정된 당첨
-      ItemID/개수를 캐싱해두는 멤버. 위젯의 스핀 애니메이션이 끝나면 이 값을 그대로 `OnPickedUp`으로
-      전달한다 — 스핀 도중 데이터 테이블이 바뀌거나 순서가 달라져도 결과가 흔들리지 않도록 하기 위함
+    - `PendingResultItemID` / `PendingResultSpawnCount` / `PendingResultPickUpImage` : `Roll()`
+      시점(추첨 직후)에 확정된 당첨 ItemID/개수/PickUp 이미지를 캐싱해두는 멤버.
+      `PendingResultPickUpImage`는 그대로 위젯의 `PlaySpin()`에 전달되어 PickUp 연출에 쓰이고,
+      `PendingResultItemID`/`PendingResultSpawnCount`는 위젯의 스핀+PickUp 연출이 모두 끝나면 그대로
+      `OnPickedUp`으로 전달한다 — 스핀 도중 데이터 테이블이 바뀌거나 순서가 달라져도 결과가 흔들리지
+      않도록 하기 위함
     - `OnPickedUp` (`FOnCPRoulettePickedUp`, `ItemID`/`Count` 매개변수) : 행이 당첨(아이템이 뽑힘)될
       때마다 Broadcast. 이 결과를 누가 어떻게 처리할지는 전혀 모르므로, `ACPCoinPusher` 등 외부 시스템이
       여기에 직접 바인딩해서 사용한다 (아래 "CoinPusher 연동" 참고)
@@ -48,10 +53,12 @@ Broadcast한다. `ACPRoulette`는 그 결과를 누가 어떻게 쓰는지 전�
       `PlayerLevel`은 `MustPickLevel` 강제 당첨 판정과 `RouletteProbabilityDataTable` 조회에
       쓰이며, 호출자가 팀 레벨 등을 직접 구해서 넘겨줘야 한다. 로컬 스플릿 스크린의 모든 플레이어
       화면에 동일한 룰렛 UI를 동시에 재생한 뒤 당첨 정보를 전달한다
-- `UCPRouletteWidget` : 룰렛 UI (UMG). `PlaySpin(ResultIndex, CandidateCount)`가 호출되면
-  화면 중앙 위쪽에서 아래로 슬라이드하며 등장한 뒤, `WheelImage`를 여러 바퀴 돌려 `ResultIndex`번째
-  칸이 (고정된) 위쪽 화살표 아래에서 멈추도록 연출한다. 칸이 결정되면 `OnResultDetermined`를
-  브로드캐스트하고, `PostResultHideDelay`(기본 2초) 후 스스로 사라진다. `ResultIndex`/`CandidateCount`는
+- `UCPRouletteWidget` : 룰렛 UI (UMG). `PlaySpin(ResultIndex, CandidateCount, PickUpTexture)`가
+  호출되면 화면 중앙 위쪽에서 아래로 슬라이드하며 등장한 뒤, `WheelImage`를 여러 바퀴 돌려
+  `ResultIndex`번째 칸이 (고정된) 위쪽 화살표 아래에서 멈추도록 연출한다. 칸이 멈추면 곧바로
+  결과를 알리지 않고 `PickUpImage`를 `PickUpTexture`로 채워 `PickUpDisplayDuration`(기본 1.5초)
+  동안 보여준 뒤, 그 시간이 지나면 `PickUpImage`가 사라짐과 동시에 `OnResultDetermined`를
+  브로드캐스트하고 위젯 자신도 함께 `Collapsed`되어 사라진다. `ResultIndex`/`CandidateCount`는
   이번 `Roll()` 한 번에 한정된 추첨 후보 목록 안에서의 순번일 뿐, 특정 아이템을 가리키는 영구적인
   인덱스가 아니므로 오직 스핀 연출(몇 칸 중 몇 번째에서 멈추는지)에만 쓰인다
 
@@ -63,8 +70,8 @@ Broadcast한다. `ACPRoulette`는 그 결과를 누가 어떻게 쓰는지 전�
   있는 행이 하나도 없으면 티켓을 소모하지 않고 바로 `false` 반환), 성공하면 그다음 월드의 GameMode가
   `ACPGameMode`인 경우에만 `TrySpendTeamTicket(1)`이 성공해야 진행되며(실패 시 `false` 반환),
   `ACPGameMode`가 아니면(테스트 레벨 등) 티켓 검사를 건너뛴다. 이후 `GetLocalRouletteWidgets()`가
-  반환한 모든(로컬 스플릿 스크린) 위젯에 대해 `PlaySpin(ResultIndex, CandidateCount)`을 호출해 두
-  플레이어의 화면에 동시에 같은 연출이 나오도록 한다. 위젯이 하나도 없으면(InGameUI 미생성,
+  반환한 모든(로컬 스플릿 스크린) 위젯에 대해 `PlaySpin(ResultIndex, CandidateCount, PendingResultPickUpImage)`를
+  호출해 두 플레이어의 화면에 동시에 같은 연출이 나오도록 한다. 위젯이 하나도 없으면(InGameUI 미생성,
   RouletteWidget 미배치 등) UI 없이 바로 `HandleRouletteResultDetermined()`를 호출하는 폴백 동작.
   성공적으로 스핀을 시작했으면 `true` 반환
 - `PickWeightedItem(PlayerLevel, OutResultIndex, OutCandidateCount)` : `RouletteDataTable->GetRowNames()`
@@ -73,9 +80,10 @@ Broadcast한다. `ACPRoulette`는 그 결과를 누가 어떻게 쓰는지 전�
   `RouletteProbabilityDataTable`에서 `Level`이 `PlayerLevel`과 같은 행을 찾아 그 행의
   `Roulette_index0`~`9` 가중치로 추첨한다 - 일치하는 `Level` 행이 없으면 테이블에 정의된 순서상 가장
   마지막 행의 가중치를 그대로 사용하고, 테이블이 비어있거나 가중치 합이 0 이하면(설정 실수 등) 균등
-  확률로 대체한다. 뽑힌 행의 `ItemID`/`PickEA`를 `PendingResultItemID`/`PendingResultSpawnCount`에
-  저장하고, 위젯 스핀 연출용으로 후보 목록 안에서의 순번(`OutResultIndex`)과 전체 후보 수
-  (`OutCandidateCount`)를 반환한다. 후보가 하나도 없으면(`RouletteDataTable` 미지정 포함) `false` 반환
+  확률로 대체한다. 뽑힌 행의 `ItemID`/`PickEA`/`PickUpImage`를
+  `PendingResultItemID`/`PendingResultSpawnCount`/`PendingResultPickUpImage`에 저장하고, 위젯 스핀
+  연출용으로 후보 목록 안에서의 순번(`OutResultIndex`)과 전체 후보 수(`OutCandidateCount`)를
+  반환한다. 후보가 하나도 없으면(`RouletteDataTable` 미지정 포함) `false` 반환
 - `GetLocalRouletteWidgets()` : 월드의 로컬 `ACPTopDownPlayerController`(스플릿 스크린 인원 수만큼)
   마다 `GetInGameWidget()->GetRouletteWidget()`을 조회해서 모은다 - 위젯을 새로 만들지 않고 이미
   InGameUI 안에 존재하는 인스턴스를 그대로 재사용하며, 조회할 때마다 `OnResultDetermined`에
@@ -89,12 +97,20 @@ Broadcast한다. `ACPRoulette`는 그 결과를 누가 어떻게 쓰는지 전�
 ### UCPRouletteWidget
 - `WheelImage` (`BindWidgetOptional`) : 칸이 그려진 회전판 이미지. 위쪽 화살표는 고정된 비주얼
   요소이므로 BP에서 `WheelImage` 위에 배치하기만 하면 되고 별도 C++ 바인딩은 필요 없음
-- `PlaySpin(ResultIndex, NumSlots)` : 매 호출마다 위젯을 `EnterStartOffsetY`(화면 위쪽)에서
-  다시 등장시키고, 진행 중이던 숨김 타이머를 취소한 뒤 새 스핀을 시작 (연속 호출 시 이전 연출을
-  덮어씀 - `Player/CPItemToastWidget`과 동일한 재시작 방식)
-- 내부적으로 `Entering`(등장 슬라이드) → `Spinning`(회전) 두 단계를 `NativeTick`에서 `FMath::InterpEaseOut`으로
-  보간하며, `Spinning`이 끝나면 `FinishSpin()`이 `OnResultDetermined`를 브로드캐스트하고
-  `PostResultHideDelay` 후 `HideRoulette()`으로 스스로 `Collapsed` 처리
+- `PickUpImage` (`BindWidgetOptional`) : 스핀이 멈춘 직후 당첨 아이템 이미지를 잠시 보여주는 PickUp
+  연출용 이미지. `NativeConstruct`/`PlaySpin` 시작 시점에는 항상 `Collapsed`로 숨겨져 있다가,
+  스핀이 끝나면 `PlaySpin`에 전달된 텍스처로 채워져 `PickUpDisplayDuration` 동안만 보인다
+- `PlaySpin(ResultIndex, NumSlots, PickUpTexture)` : 매 호출마다 위젯을 `EnterStartOffsetY`(화면
+  위쪽)에서 다시 등장시키고, `PickUpImage`를 초기화한 뒤 새 스핀을 시작 (연속 호출 시 이전 연출을
+  덮어씀 - `Player/CPItemToastWidget`과 동일한 재시작 방식). `PickUpTexture`는 스핀이 끝난 뒤
+  `PickUpImage`에 채울 텍스처로, 널이면 텍스처를 갱신하지 않는다
+- 내부적으로 `Entering`(등장 슬라이드) → `Spinning`(회전) → `ShowingPickUp`(`PickUpImage` 노출) 세
+  단계를 `NativeTick`에서 진행한다. `Entering`/`Spinning`은 `FMath::InterpEaseOut`으로 보간하며,
+  `Spinning`이 끝나면 `ShowPickUp()`이 `PickUpImage`를 채워 보이게 하고(`PickUpImage`가 없으면
+  대기 없이 바로 `FinishSpin()`으로 넘어감), `PickUpDisplayDuration`이 지나면 `FinishSpin()`이
+  `PickUpImage`를 다시 숨기고 `OnResultDetermined`를 브로드캐스트한 뒤 위젯 자신도 곧바로
+  `SetVisibility(Collapsed)`로 함께 비활성화한다 - PickUp 이미지가 사라지는 시점과 룰렛 UI가
+  꺼지는 시점이 항상 같음
 
 ## InGameUI 연동
 
@@ -140,15 +156,17 @@ true인 경우에만 `ItemSpawn(ItemID, SpawnCount)`으로 천장 Dispenser 중 
 
 1. `WBP_CPRoulette`(`UCPRouletteWidget` 상속) 생성: 화면 중앙에 위쪽 화살표 이미지와,
    `WheelImage`라는 이름의 회전판 `Image`를 배치 (이름이 일치해야 `BindWidgetOptional`이 연결됨).
-   이 WBP는 `ACPRoulette`가 아니라 `WBP_InGameWidget`(`UI/README.md` 참고)의 `RouletteWidget`
-   슬롯에 배치한다
+   PickUp 연출을 쓰려면 `PickUpImage`라는 이름의 `Image`도 함께 배치한다(선택 사항 - 없으면 PickUp
+   연출 없이 `PickUpDisplayDuration`만큼 대기 후 바로 결과가 처리됨). 이 WBP는 `ACPRoulette`가
+   아니라 `WBP_InGameWidget`(`UI/README.md` 참고)의 `RouletteWidget` 슬롯에 배치한다
 2. `BP_CPRoulette`(`ACPRoulette` 상속) 생성 후 다음 3개의 DataTable 에셋을 연결
    (`Datatables/README.md` 참고):
    - `ItemDataTable` : Row Struct `FItemData`. 당첨된 `ItemID`의 표시/스폰 정보 조회용
    - `RouletteDataTable` : Row Struct `FCPRouletteDataRow`. 추첨 후보 하나당 한 행 - `ItemID`
-     (`ItemDataTable`의 ID와 일치해야 함), `PickEA`, `bRouletteToCoinPusher`, `MustPickLevel`을
-     원하는 값으로 설정. 행을 만든 순서가 곧 추첨 인덱스이므로 `RouletteProbabilityDataTable`의
-     `Roulette_indexN` 컬럼과 순서를 맞춰야 한다 (최대 10개 후보까지 지원)
+     (`ItemDataTable`의 ID와 일치해야 함), `PickEA`, `bRouletteToCoinPusher`, `MustPickLevel`,
+     `PickUpImage`(스핀이 끝난 뒤 `WBP_CPRoulette`의 `PickUpImage`에 보여줄 텍스처)를 원하는 값으로
+     설정. 행을 만든 순서가 곧 추첨 인덱스이므로 `RouletteProbabilityDataTable`의 `Roulette_indexN`
+     컬럼과 순서를 맞춰야 한다 (최대 10개 후보까지 지원)
    - `RouletteProbabilityDataTable` : Row Struct `FCPRouletteProbabilityRow`. 팀 레벨 하나당 한
      행 - `Level`에 해당 레벨 값을, `Roulette_index0`~`9`에 `RouletteDataTable`의 인덱스별 확률
      가중치를 설정 (합이 1일 필요는 없음, 상대 비율로만 반영됨)

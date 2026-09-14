@@ -6,11 +6,14 @@
 #include "Engine/DataTable.h"
 #include "CPRouletteDataTypes.generated.h"
 
+class UTexture2D;
+
 /**
  *  룰렛 항목별 부가 규칙 한 행. ACPRoulette가 실제 당첨 후보를 추첨하는 데 쓰는 ItemDataTable
  *  (Datatables/CPItemData.h의 FItemData)과는 완전히 별개의 신규 테이블로, "당첨 시 몇 개를
- *  줄지", "CoinPusher로 전달되는지", "몇 레벨부터 뽑힐 수 있는지"처럼 룰렛에서만 의미 있는 부가
- *  규칙을 ItemID로 매칭해서 관리한다 (ItemDataTable/FItemData는 건드리지 않는다).
+ *  줄지", "CoinPusher로 전달되는지", "몇 레벨부터 뽑힐 수 있는지", "스핀이 끝난 뒤 PickUp
+ *  연출에 어떤 이미지를 보여줄지"처럼 룰렛에서만 의미 있는 부가 규칙을 ItemID로 매칭해서
+ *  관리한다 (ItemDataTable/FItemData는 건드리지 않는다).
  */
 USTRUCT(BlueprintType)
 struct FCPRouletteDataRow : public FTableRowBase
@@ -32,6 +35,11 @@ struct FCPRouletteDataRow : public FTableRowBase
 	/** 이 ItemID가 당첨 후보로 뽑히기 위해 팀이 최소로 도달해 있어야 하는 레벨 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
 	int32 MustPickLevel = 0;
+
+	/** 이 ItemID가 당첨된 후, 룰렛 UI(UCPRouletteWidget)의 스핀이 끝나면 PickUp 연출로 잠시
+	 *  보여줄 이미지 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Roulette")
+	TObjectPtr<UTexture2D> PickUpImage = nullptr;
 };
 
 /**

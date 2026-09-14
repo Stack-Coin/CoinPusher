@@ -295,7 +295,10 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   화면과 동일한 `SelfHitTestInvisible`/`Collapsed` 토글 방식). `EndGameButton`/`ReturnToTitleButton`
   (둘 다 `BindWidgetOptional` `UButton`)과 그에 대응하는 `EndGameButtonOutline`/
   `ReturnToTitleButtonOutline`(둘 다 `BindWidgetOptional` `UWidget` - Border/Image 등 자유롭게 사용)로
-  구성. 두 버튼을 `NavigableButtons`/`ButtonOutlines` 배열로 모아두고 `SelectedButtonIndex` 하나로
+  구성. `DarkBackground`/`CoinInfo`(둘 다 `BindWidgetOptional` `UImage`)는 화면을 덮는 어두운 배경과
+  보유 코인 정보 이미지로, `RefreshForDisplay()`가 매번 `SelfHitTestInvisible`로 보이게 갱신한다 -
+  꺼질 때는 별도 처리 없이 이 위젯 자체가 `Collapsed`되면서 자식인 두 이미지도 함께 가려진다. 두
+  버튼을 `NavigableButtons`/`ButtonOutlines` 배열로 모아두고 `SelectedButtonIndex` 하나로
   "지금 윤곽선이 표시된 버튼"을 관리한다 - 키보드/마우스는 포인터가 버튼 위로 올라오면(`OnHovered`)
   그 버튼이 선택되고 클릭(`OnClicked`)하면 즉시 실행되며, 게임패드는 `ACPTopDownPlayerController`가
   L-Stick 입력을 `MoveSelection(Delta)`(선택 인덱스를 순환 이동)로, A버튼 입력을
@@ -477,6 +480,7 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
    Log에 찍힌다
 9. 인게임 일시정지/엔딩 화면: `UCPInGamePauseWidget` 상속 WBP를 만들어
    `KeyboardMouseBackgroundImage`/`GamePadBackgroundImage`(반투명 배경, 장치별로 다른 이미지)와
+   `DarkBackground`(화면을 덮는 어두운 배경)/`CoinInfo`(보유 코인 정보 이미지)와
    `EndGameButton`/`ReturnToTitleButton` + 각각의 `EndGameButtonOutline`/`ReturnToTitleButtonOutline`
    (선택 시 보일 윤곽선 - Border든 테두리만 그려진 Image든 자유)을 배치하고, `TitleLevelName`에
    타이틀 레벨을 지정한다. `UCPEndingWidget` 상속 WBP도 동일하게 만들되 `ClearImage`/`LoseImage`를
