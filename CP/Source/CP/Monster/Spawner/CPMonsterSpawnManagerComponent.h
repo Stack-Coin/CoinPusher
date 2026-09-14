@@ -201,6 +201,12 @@ protected:
 	void SpawnRandomRewardMonster();
 
 public:
+	/** 디버그 위젯 전용 - 지금 살아있는 웨이브 몹을 전부 즉시 죽이고, 남은 웨이브 타이머/스폰 Job을
+	 *  모두 정리한 뒤 BeginRoundWait()를 태움(정상 흐름과 동일하게 RoundEndWaitTime만큼 기다렸다가
+	 *  RoundMob+보스 동시 등장). 이미 RoundWait 이후 단계면(보스가 이미 살아있거나 대기 중) 아무것도
+	 *  안 하고 경고만 남김 */
+	void DebugSkipToLastWave();
+
 	// ----- UI 표시용 getter -----
 	ECPWavePhase GetCurrentPhase() const { return CurrentPhase; }
 	int32 GetCurrentWaveIndex() const { return CurrentWaveIndex; }

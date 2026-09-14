@@ -364,6 +364,48 @@ void UCPMonsterSpawnManagerComponent::GetWaveEntries(int32 InRound, int32 InWave
 	}
 }
 
+void UCPMonsterSpawnManagerComponent::DebugSkipToLastWave()
+{
+	if (CurrentPhase == ECPWavePhase::RoundWait || CurrentPhase == ECPWavePhase::Finished || ActiveBoss.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] DebugSkipToLastWave() - 이미 RoundWait/Finished거나 보스가 살아있어(ActiveBoss=%s) 무시함 (CurrentPhase=%d)"),
+			ActiveBoss.IsValid() ? TEXT("Valid") : TEXT("Invalid"), (int32)CurrentPhase);
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] DebugSkipToLastWave() - Round %d 마지막 웨이브(보스 페이즈)로 강제 점프"), CurrentRound);
+
+	// 남아있는 웨이브 스폰 Job 타이머부터 정리 - 안 하면 옛 웨이브 스폰이 보스 페이즈 중에도 계속 흘러들어옴
+	for (FCPActiveSpawnJob& Job : ActiveJobs)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(Job.TimerHandle);
+	}
+	ActiveJobs.Reset();
+	GetWorld()->GetTimerManager().ClearTimer(WaveWaitTimer);
+	GetWorld()->GetTimerManager().ClearTimer(RoundWaitTimer);
+
+	// 지금 살아있는 웨이브 몹을 전부 즉시 처치 - Dead()가 OnMonsterDied를 맨 앞에서 바로 브로드캐스트하므로
+	// WaveAliveMonsterCount/TotalAliveMonsterCount는 기존 델리게이트(HandleWaveMonsterDied/HandleAnyMonsterDied)가
+	// 알아서 맞춰줌 - 카운터를 직접 건드릴 필요 없음
+	TArray<AActor*> AliveMonsters;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBase::StaticClass(), AliveMonsters);
+	for (AActor* Actor : AliveMonsters)
+	{
+		if (ACPMonsterBase* Monster = Cast<ACPMonsterBase>(Actor))
+		{
+			if (!Monster->HasCCState(ECPMonsterCCState::Dead))
+			{
+				Monster->Dead();
+			}
+		}
+	}
+
+	// BeginBossPhase() 직접 호출 대신 정상 흐름 그대로 BeginRoundWait()를 태움 - RoundEndWaitTime만큼
+	// 짧게 기다린 뒤 RoundMob+보스가 동시 등장함(실제 라운드 클리어 때와 동일한 연출/상태 전환).
+	// CurrentPhase=RoundWait 전환도 이 함수가 알아서 해주므로 직접 건드릴 필요 없음
+	BeginRoundWait();
+}
+
 void UCPMonsterSpawnManagerComponent::BeginRoundWait()
 {
 	// 마지막 웨이브 직전 웨이브 전멸 확인 시 호출됨 - RoundEndWaitTime만큼 기다렸다가 BeginBossPhase()에서

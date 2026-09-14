@@ -14,6 +14,7 @@
 #include "Player/Inventory/CPInventoryComponent.h"
 #include "CoinPusher/CPCoinPusher.h"
 #include "Monster/Boss/CPMonsterBoss.h"
+#include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
 
 void UCPDebugWidget::NativeConstruct()
 {
@@ -70,6 +71,10 @@ void UCPDebugWidget::NativeConstruct()
 	if (BossRVOAvoidanceCheckBox)
 	{
 		BossRVOAvoidanceCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandleBossRVOAvoidanceCheckChanged);
+	}
+	if (SkipToLastWaveButton)
+	{
+		SkipToLastWaveButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleSkipToLastWaveClicked);
 	}
 	if (ApplyDamageButton)
 	{
@@ -281,6 +286,19 @@ void UCPDebugWidget::SetBossDebugRVOAvoidance(bool bEnabled)
 			Boss->SetDebugUseRVOAvoidance(bEnabled);
 		}
 	}
+}
+
+void UCPDebugWidget::HandleSkipToLastWaveClicked()
+{
+	ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	UCPMonsterSpawnManagerComponent* SpawnManager = PlayerCharacter ? PlayerCharacter->GetMonsterSpawnManager() : nullptr;
+	if (!SpawnManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleSkipToLastWaveClicked - no local ACPPlayerCharacter/MonsterSpawnManager found"));
+		return;
+	}
+
+	SpawnManager->DebugSkipToLastWave();
 }
 
 void UCPDebugWidget::HandleApplyDamageClicked()

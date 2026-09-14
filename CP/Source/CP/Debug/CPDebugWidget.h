@@ -86,6 +86,11 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* BossRVOAvoidanceCheckBox;
 
+	/** Calls ACPPlayerCharacter::GetMonsterSpawnManager()->DebugSkipToLastWave() - jumps the current round
+	 *  straight to the boss phase (RoundMob + Boss appear immediately, skipping remaining waves) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* SkipToLastWaveButton;
+
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* DamageInputText;
 
@@ -178,6 +183,10 @@ protected:
 
 	UFUNCTION()
 	void HandleBossRVOAvoidanceCheckChanged(bool bIsChecked);
+
+	/** Bound to SkipToLastWaveButton - forwards to the local player's UCPMonsterSpawnManagerComponent */
+	UFUNCTION()
+	void HandleSkipToLastWaveClicked();
 
 	/** Finds every ACPMonsterBoss in the level (GetAllActorsOfClass) and applies bEnabled via
 	 *  SetDebugUseRVOAvoidance - a boss spawned after this is toggled keeps its own BP default */
