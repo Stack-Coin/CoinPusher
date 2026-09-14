@@ -90,6 +90,19 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UButton* ActivatePassiveSkillButton;
 
+	/** Levels up the local player's currently equipped weapon by one when clicked (ACPWeaponBase::LevelUp) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* LevelUpWeaponButton;
+
+	/** ItemID looked up in the CoinPusher's ItemDataTable when ChangeWeaponButton is clicked - the row's
+	 *  FItemData::WeaponClass is equipped onto the local player, replacing whatever it's currently holding */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UEditableText* WeaponItemCodeInputText;
+
+	/** Equips WeaponItemCodeInputText's row's WeaponClass onto the local player via ACPPlayerCharacter::SwapWeapon */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* ChangeWeaponButton;
+
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UEditableText* ItemCodeInputText;
 
@@ -176,6 +189,15 @@ protected:
 
 	UFUNCTION()
 	void HandleActivatePassiveSkillClicked();
+
+	/** Bound to LevelUpWeaponButton. Calls LevelUp() on the local player's currently equipped weapon */
+	UFUNCTION()
+	void HandleLevelUpWeaponClicked();
+
+	/** Bound to ChangeWeaponButton. Looks up WeaponItemCodeInputText's value in the CoinPusher's ItemDataTable
+	 *  and equips the row's WeaponClass onto the local player via ACPPlayerCharacter::SwapWeapon */
+	UFUNCTION()
+	void HandleChangeWeaponClicked();
 
 	UFUNCTION()
 	void HandleStoreItemClicked();

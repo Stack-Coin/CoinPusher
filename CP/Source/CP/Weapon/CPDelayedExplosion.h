@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Engine/TimerHandle.h"
+#include "Debug/CPDebugTypes.h"
 #include "CPDelayedExplosion.generated.h"
 
 class UNiagaraSystem;
@@ -54,7 +55,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Explosion")
 	FVector ExplosionSoundLocationOffset = FVector::ZeroVector;
 
-	/** If true, draws the detonation's damage/knockback radius for debugging */
+	/** If true, draws the detonation's damage/knockback radius for debugging. Kept in sync with
+	 *  ECPDebugCollisionCategory::PlayerWeapon (same category ACPMeleeWeapon's attack shape uses) via
+	 *  UCPDebugCollisionSubsystem, so toggling the F1 debug widget's PlayerWeapon checkbox hides this too */
 	UPROPERTY(EditAnywhere, Category="Explosion|Debug")
 	bool bDrawDebugExplosionRadius = false;
 
@@ -83,7 +86,14 @@ public:
 
 protected:
 
+	/** Subscribes to UCPDebugCollisionSubsystem so the F1 debug widget's PlayerWeapon checkbox can drive bDrawDebugExplosionRadius */
+	virtual void BeginPlay() override;
+
 	/** Runs the radial damage/knockback check, plays ExplosionEffect, then destroys this actor */
 	UFUNCTION()
 	void Detonate();
+
+	/** Bound to UCPDebugCollisionSubsystem::OnCollisionVisibilityChanged */
+	UFUNCTION()
+	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
 };

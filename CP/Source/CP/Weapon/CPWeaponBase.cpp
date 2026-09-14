@@ -50,6 +50,7 @@ void ACPWeaponBase::Unequip()
 {
 	GetWorldTimerManager().ClearTimer(ComboTimerHandle);
 	GetWorldTimerManager().ClearTimer(AttackIntervalTimerHandle);
+	GetWorldTimerManager().ClearTimer(AttackEffectTimerHandle);
 	GetWorldTimerManager().ClearTimer(PassiveStatBuffTimerHandle);
 	ClearPassiveStatBuff();
 	bIsAttacking = false;
@@ -124,6 +125,7 @@ void ACPWeaponBase::CancelAttack()
 
 	GetWorldTimerManager().ClearTimer(ComboTimerHandle);
 	GetWorldTimerManager().ClearTimer(AttackIntervalTimerHandle);
+	GetWorldTimerManager().ClearTimer(AttackEffectTimerHandle);
 	bIsAttacking = false;
 
 	if (AttackMontage)
@@ -322,4 +324,27 @@ void ACPWeaponBase::PlayAttackSound(const FVector& Location, const FRotator& Rot
 		const FVector FinalLocation = Location + Rotation.RotateVector(WeaponData.AttackSoundLocationOffset);
 		UGameplayStatics::PlaySoundAtLocation(this, WeaponData.AttackSound, FinalLocation, WeaponData.AttackSoundVolume);
 	}
+}
+
+void ACPWeaponBase::TriggerAttackEffect(const FVector& Location, const FRotator& Rotation)
+{
+	GetWorldTimerManager().ClearTimer(AttackEffectTimerHandle);
+
+	if (WeaponData.AttackEffectDelay > 0.0f)
+	{
+		PendingAttackEffectLocation = Location;
+		PendingAttackEffectRotation = Rotation;
+		GetWorldTimerManager().SetTimer(AttackEffectTimerHandle, this, &ACPWeaponBase::PlayPendingAttackEffect, WeaponData.AttackEffectDelay, false);
+	}
+	else
+	{
+		PlayAttackEffect(Location, Rotation);
+		PlayAttackSound(Location, Rotation);
+	}
+}
+
+void ACPWeaponBase::PlayPendingAttackEffect()
+{
+	PlayAttackEffect(PendingAttackEffectLocation, PendingAttackEffectRotation);
+	PlayAttackSound(PendingAttackEffectLocation, PendingAttackEffectRotation);
 }

@@ -8,12 +8,32 @@
 #include "NiagaraFunctionLibrary.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
+#include "Debug/CPDebugCollisionSubsystem.h"
 
 ACPDelayedExplosion::ACPDelayedExplosion()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+}
+
+void ACPDelayedExplosion::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
+	{
+		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPDelayedExplosion::HandleDebugCollisionVisibilityChanged);
+		bDrawDebugExplosionRadius = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::PlayerWeapon);
+	}
+}
+
+void ACPDelayedExplosion::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
+{
+	if (Category == ECPDebugCollisionCategory::PlayerWeapon)
+	{
+		bDrawDebugExplosionRadius = bVisible;
+	}
 }
 
 void ACPDelayedExplosion::InitializeExplosion(float Delay, float InRadius, float InKnockbackDistance, float InDamageAmount, AController* InInstigatorController, AActor* InDamageCauser)

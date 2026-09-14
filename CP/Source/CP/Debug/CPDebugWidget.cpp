@@ -13,6 +13,7 @@
 #include "Player/CPPlayerCharacter.h"
 #include "Player/Inventory/CPInventoryComponent.h"
 #include "CoinPusher/CPCoinPusher.h"
+#include "Datatables/CPItemData.h"
 
 void UCPDebugWidget::NativeConstruct()
 {
@@ -74,6 +75,14 @@ void UCPDebugWidget::NativeConstruct()
 	{
 		ActivatePassiveSkillButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleActivatePassiveSkillClicked);
 	}
+	if (LevelUpWeaponButton)
+	{
+		LevelUpWeaponButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleLevelUpWeaponClicked);
+	}
+	if (ChangeWeaponButton)
+	{
+		ChangeWeaponButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleChangeWeaponClicked);
+	}
 	if (StoreItemButton)
 	{
 		StoreItemButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleStoreItemClicked);
@@ -119,6 +128,7 @@ FString UCPDebugWidget::BuildPlayerInfoString() const
 	}
 
 	FString WeaponName = TEXT("Unarmed");
+	int32 WeaponLevel = 0;
 	const ACPWeaponBase* CurrentWeapon = nullptr;
 	if (ICPWeaponEquipper* WeaponEquipper = Cast<ICPWeaponEquipper>(Pawn))
 	{
@@ -126,6 +136,7 @@ FString UCPDebugWidget::BuildPlayerInfoString() const
 		if (CurrentWeapon)
 		{
 			WeaponName = CurrentWeapon->GetWeaponDisplayName().ToString();
+			WeaponLevel = CurrentWeapon->GetWeaponLevel();
 		}
 	}
 
@@ -142,11 +153,11 @@ FString UCPDebugWidget::BuildPlayerInfoString() const
 	const ICPStatInterface* StatInterface = Cast<ICPStatInterface>(Pawn);
 	if (!StatInterface)
 	{
-		return FString::Printf(TEXT("Weapon : %s\nPassive Buff : %s"), *WeaponName, *PassiveBuffInfo);
+		return FString::Printf(TEXT("Weapon : %s\nWeapon Level : %d\nPassive Buff : %s"), *WeaponName, WeaponLevel, *PassiveBuffInfo);
 	}
 
 	return FString::Printf(
-		TEXT("Health : %.0f\nAttackPower : %.0f\nMoveSpeed : %.0f\nAttackSpeed : %.2f\nExperience : %.0f\nLevel : %.0f\nWeapon : %s\nPassive Buff : %s"),
+		TEXT("Health : %.0f\nAttackPower : %.0f\nMoveSpeed : %.0f\nAttackSpeed : %.2f\nExperience : %.0f\nLevel : %.0f\nWeapon : %s\nWeapon Level : %d\nPassive Buff : %s"),
 		StatInterface->GetStat(ECPStatType::Health),
 		StatInterface->GetStat(ECPStatType::AttackPower),
 		StatInterface->GetStat(ECPStatType::MoveSpeed),
@@ -154,6 +165,7 @@ FString UCPDebugWidget::BuildPlayerInfoString() const
 		StatInterface->GetStat(ECPStatType::Experience),
 		StatInterface->GetStat(ECPStatType::Level),
 		*WeaponName,
+		WeaponLevel,
 		*PassiveBuffInfo);
 }
 
@@ -286,6 +298,58 @@ void UCPDebugWidget::HandleActivatePassiveSkillClicked()
 	}
 
 	Weapon->ActivatePassiveSkill();
+}
+
+void UCPDebugWidget::HandleLevelUpWeaponClicked()
+{
+	ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	if (!PlayerCharacter)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleLevelUpWeaponClicked - no local ACPPlayerCharacter found"));
+		return;
+	}
+
+	ACPWeaponBase* Weapon = PlayerCharacter->GetCurrentWeapon();
+	if (!Weapon)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleLevelUpWeaponClicked - player has no weapon equipped"));
+		return;
+	}
+
+	Weapon->LevelUp();
+}
+
+void UCPDebugWidget::HandleChangeWeaponClicked()
+{
+	if (!WeaponItemCodeInputText)
+	{
+		return;
+	}
+
+	ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	if (!PlayerCharacter)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleChangeWeaponClicked - no local ACPPlayerCharacter found"));
+		return;
+	}
+
+	ACPCoinPusher* CoinPusher = Cast<ACPCoinPusher>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPCoinPusher::StaticClass()));
+	UDataTable* ItemDataTable = CoinPusher ? CoinPusher->GetItemDataTable() : nullptr;
+	if (!ItemDataTable)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleChangeWeaponClicked - no ItemDataTable found"));
+		return;
+	}
+
+	const FName ItemCode(*WeaponItemCodeInputText->GetText().ToString());
+	const FItemData* Row = ItemDataTable->FindRow<FItemData>(ItemCode, TEXT("UCPDebugWidget::HandleChangeWeaponClicked"));
+	if (!Row || !Row->WeaponClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleChangeWeaponClicked - ItemID %s has no WeaponClass"), *ItemCode.ToString());
+		return;
+	}
+
+	PlayerCharacter->SwapWeapon(Row->WeaponClass);
 }
 
 void UCPDebugWidget::HandleStoreItemClicked()

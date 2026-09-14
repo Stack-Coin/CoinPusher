@@ -80,6 +80,13 @@ protected:
 	float PassiveRangeMultiplier = 1.0f;
 	FTimerHandle PassiveStatBuffTimerHandle;
 
+	/** Ticks down to actually playing AttackEffect/AttackSound, when WeaponData.AttackEffectDelay > 0 */
+	FTimerHandle AttackEffectTimerHandle;
+
+	/** Location/Rotation captured by TriggerAttackEffect for AttackEffectTimerHandle's delayed callback */
+	FVector PendingAttackEffectLocation = FVector::ZeroVector;
+	FRotator PendingAttackEffectRotation = FRotator::ZeroRotator;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraSystem> PassiveBuffAttackEffect;
 
@@ -225,4 +232,15 @@ protected:
 	/** Plays WeaponData.AttackSound at Location, offset by WeaponData.AttackSoundLocationOffset (relative to
 	 *  Rotation - typically the attack direction), if one is assigned */
 	void PlayAttackSound(const FVector& Location, const FRotator& Rotation) const;
+
+	/** Entry point subclasses (ACPMeleeWeapon/ACPRangedWeapon) should call instead of PlayAttackEffect/
+	 *  PlayAttackSound directly - plays them immediately if WeaponData.AttackEffectDelay is 0, otherwise
+	 *  schedules them after that delay so per-weapon VFX/SFX timing can be tuned independently of the
+	 *  hit-scan/projectile-spawn moment */
+	void TriggerAttackEffect(const FVector& Location, const FRotator& Rotation);
+
+private:
+
+	/** Bound to AttackEffectTimerHandle - plays AttackEffect/AttackSound at the captured pending location/rotation */
+	void PlayPendingAttackEffect();
 };

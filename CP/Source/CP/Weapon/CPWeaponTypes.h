@@ -72,6 +72,13 @@ struct FCPWeaponData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
 	TObjectPtr<UNiagaraSystem> AttackEffect;
 
+	/** Delay from when this swing/shot is executed to when AttackEffect/AttackSound actually play - independent
+	 *  of hit-scan/projectile timing (melee: FCPMeleeComboStepData::AttackTiming already delays the hit itself;
+	 *  ranged fires its projectile immediately). Lets the VFX/SFX be time-shifted to match the attack animation
+	 *  per weapon, without touching when damage/projectiles land. 0 = plays immediately, as before */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon", meta = (ClampMin = 0, Units = "s"))
+	float AttackEffectDelay = 0.0f;
+
 	/** Uniform/non-uniform scale applied to AttackEffect when it's spawned. Tune per weapon instead of
 	 *  editing the Niagara System's own internal size for a quick per-weapon size adjustment */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
