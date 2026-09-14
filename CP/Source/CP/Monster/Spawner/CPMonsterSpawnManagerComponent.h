@@ -24,6 +24,11 @@ struct FCPActiveSpawnJob
 	UPROPERTY()
 	TSubclassOf<ACPMonsterBase> MonsterClass;
 
+	/** MonsterClass의 CDO에서 재추론하지 않고, WaveInfoTable의 이 Job을 만든 행이 갖고 있던 값을 그대로
+	 *  저장해둠 - 몬스터 풀(UCPMonsterPoolSubsystem)이 타입별로 정확히 나뉘도록 스포너에 그대로 전달됨 */
+	UPROPERTY()
+	ECPMonsterType MonsterType = ECPMonsterType::Normal;
+
 	UPROPERTY()
 	int32 CountPerSpawnPoint = 0;
 
@@ -38,6 +43,13 @@ struct FCPActiveSpawnJob
 
 	UPROPERTY()
 	FTimerHandle TimerHandle;
+
+	/** 이번 "라운드"(TargetSpawners 전체에 MonstersPerSpawn씩 스폰하는 한 바퀴) 안에서 어디까지
+	 *  처리했는지 - MaxMonstersPerJobTick 예산을 넘는 라운드를 여러 틱(SpawnInterval마다)에 걸쳐
+	 *  나눠서 처리하기 위한 커서. 라운드를 끝까지 돌면 0으로 리셋되고 SpawnedCount가 증가함(한 프레임에
+	 *  스포너 수 x MonstersPerSpawn만큼 몰아서 스폰해 프레임 히치가 나는 걸 막기 위함) */
+	UPROPERTY()
+	int32 NextSpawnerCursor = 0;
 };
 
 /*
@@ -78,6 +90,13 @@ protected:
 
 	void ApplyRoundInfo(int32 InRound);
 	void CreateSpawnerRing(int32 InSpawnerCount, float InSpawnerRadius);
+
+	/** 이 라운드의 WaveInfoTable 행들(마지막 웨이브=RoundMob 전용 행 포함)을 훑어서, 타입별로 동시에
+	 *  살아있을 수 있는 최대 마릿수를 추정함(같은 웨이브 안의 CountPerSpawnPoint*스포너수 - 웨이브는
+	 *  순차 진행이라 합산이 아니라 최댓값). 보스 타입은 RoundInfoTable 기준으로 항상 1을 보장.
+	 *  UCPMonsterPoolSubsystem::WarmUp() 호출 크기를 정하는 데만 쓰임(성능 힌트일 뿐이라 추정이 어긋나도
+	 *  Acquire()가 새로 스폰해서 동작은 정상적으로 유지됨) */
+	void WarmUpMonsterPools(int32 InRound, const FCPMonsterRoundInfoRow* InRoundInfo) const;
 
 	void StartWave(int32 InWaveIndex);
 	void GetWaveEntries(int32 InRound, int32 InWave, TArray<FCPMonsterWaveInfoRow*>& OutEntries) const;
@@ -131,6 +150,11 @@ protected:
 	 *  MaxAliveMonsterCount 상한 체크용으로, 위 HandleWaveMonsterDied/HandleBossDied와 별개로 항상 같이 구독됨 */
 	UFUNCTION()
 	void HandleAnyMonsterDied();
+
+	/** 보상 몬스터(SpawnRandomRewardMonster)가 죽을 때마다 호출 - ActiveRewardMonsterCount만 줄임.
+	 *  MaxRewardMonsterCount 상한 체크용으로, HandleAnyMonsterDied와 별개로 보상 몬스터에만 추가로 구독됨 */
+	UFUNCTION()
+	void HandleRewardMonsterDied();
 
 	FCPMonsterRoundInfoRow* FindRoundInfoRow(int32 InRound) const;
 
@@ -203,6 +227,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Data")
 	TObjectPtr<UDataTable> RoundInfoTable;
 
+	/** 스폰 Job 하나가 한 틱(SpawnInterval마다)당 최대 몇 마리까지 스폰할지. 웨이브 데이터
+	 *  (CountPerSpawnPoint/MonstersPerSpawn x 스포너 수)가 이보다 크면 한 틱에 몰아서 스폰하지 않고
+	 *  여러 틱에 걸쳐 나눠서 처리함(FCPActiveSpawnJob::NextSpawnerCursor 참고) - 한 웨이브에 수백
+	 *  마리를 스폰하는 기획에서 프레임 히치를 막기 위함 */
+	UPROPERTY(EditAnywhere, Category = "Performance", meta = (ClampMin = 1))
+	int32 MaxMonstersPerJobTick = 30;
+
 	TMap<ECPMonsterType, TSubclassOf<ACPMonsterBase>> MonsterClassByType;
 
 	UPROPERTY(EditAnywhere, Category = "Round")
@@ -221,6 +252,11 @@ protected:
 	/** 자폭 몬스터가 플레이어에 닿아 터졌을 때 CoinPusher->SpawnMonsterCoin()에 넘길 개수 */
 	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 1))
 	int32 MonsterCoinSpawnCountOnBombExplode = 1;
+
+	/** 보상 몬스터(SpawnRandomRewardMonster) 동시 생존 상한 - MaxAliveMonsterCount와는 별개로 관리됨.
+	 *  0이면 무제한(GetMaxAliveMonsterCount()와 같은 컨벤션) */
+	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 0))
+	int32 MaxRewardMonsterCount = 5;
 
 private:
 	UPROPERTY()
@@ -255,6 +291,9 @@ private:
 	/** 현재 월드에 살아있는 몬스터(웨이브 몹+RoundMob+보스) 총 수 - MaxAliveMonsterCount 상한 체크용.
 	 *  WaveAliveMonsterCount(웨이브 전멸 판정용, 보스/RoundMob 미포함)와는 별개로 관리됨 */
 	int32 TotalAliveMonsterCount = 0;
+
+	/** 현재 살아있는 보상 몬스터(SpawnRandomRewardMonster) 수 - MaxRewardMonsterCount 상한 체크용 */
+	int32 ActiveRewardMonsterCount = 0;
 
 	FTimerHandle WaveWaitTimer;
 

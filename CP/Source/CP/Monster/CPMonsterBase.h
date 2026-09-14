@@ -47,9 +47,32 @@ protected:
 	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
 
 public:
+	/** 정면 스윕 공격 판정의 시작/끝/두께 - AttackHitCheck()와 공격범위 표시 NotifyState가 항상
+	 *  같은 값을 쓰도록 여기로 뽑음(따로 계산하면 판정이랑 화면에 보이는 범위가 어긋날 수 있음) */
+	struct FAttackSweepShape
+	{
+		FVector Start = FVector::ZeroVector;
+		FVector End = FVector::ZeroVector;
+		float Radius = 0.f;
+	};
+	/** InForwardOverride를 주면 그 방향 기준으로 계산함(예: 공격범위 표시가 TurnToTarget이 덜 끝난
+	 *  상태에서도 실제 플레이어 방향을 보여주고 싶을 때) - 비워두면(기본) 캡슐 Forward 그대로 씀,
+	 *  AttackHitCheck()의 실제 판정은 항상 기본값으로 호출해서 동작 그대로 유지됨 */
+	FAttackSweepShape GetAttackSweepShape(const FVector& InForwardOverride = FVector::ZeroVector);
+
+	/** 원형 AOE 공격(보스 슬램 등)의 판정 반경 - 기본은 AttackRange를 그대로 씀. AOE 판정을
+	 *  따로 쓰는 서브클래스(보스)는 이걸 오버라이드해서 그 판정에 실제로 쓰는 반경을 반환하면,
+	 *  공격범위 표시 NotifyState도 같은 값으로 그려짐 */
+	virtual float GetAIAOERadius() { return GetAIAttackRange(); }
+
 	// 공격 판정 함수
 	virtual void AttackHitCheck() override;
 	virtual void Dead();
+
+protected:
+	/** Dead()가 사망 연출(몽타주 재생/2초 대기) 끝에 호출 - 풀 서브시스템이 있으면 그리로 반환하고,
+	 *  없으면(에디터 유틸리티 등 예외) 기존처럼 파괴함 */
+	void ReturnToPoolOrDestroy();
 
 	// 공격 함수 // BTTask에서 수행
 	virtual void SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished) override;
@@ -88,8 +111,8 @@ public:
 
 	// Default
 	virtual float GetAIAttackInterval() override;
-	virtual float GetAICollisionRadius() override;
-	virtual float GetAICollisionHalfHeight() override;
+	virtual float GetAICollisionRadius() const override;
+	virtual float GetAICollisionHalfHeight() const override;
 	virtual float GetAIAttackRange() override;
 	virtual float GetAITurnSpeed() override;
 	virtual float GetAIMoveAcceptableRadius() override;
@@ -103,6 +126,31 @@ public:
 	 *  이걸 오버라이드해서 지면과 무관한 고정 비행 높이를 반환하면 됨 */
 	virtual float GetSpawnHeightOffset() const;
 
+	/** true면 스포너가 NavMesh 투영(ResolveFreeSpawnLocation/ProjectToNavMesh) 결과의 Z를 무시하고
+	 *  GetSpawnHeightOffset() 기준 높이를 그대로 강제함. NavMesh 투영은 지면(NavMesh 표면) 위의 점을
+	 *  돌려주므로, 일반 몹처럼 "지면에 닿아야 하는" 경우엔 필요하지만 Ranged/Bomb처럼 "항상 고정
+	 *  비행 고도를 유지해야 하는" 경우엔 그대로 쓰면 스폰 시 지면 높이로 끌려 내려가 파묻힘 */
+	virtual bool ShouldUseFixedSpawnHeight() const { return false; }
+
+	ECPMonsterType GetMonsterType() const { return MonsterType; }
+
+	/** UCPMonsterPoolSubsystem이 풀로 반환할 때(Dead() 경유) 호출 - Collision/Tick/AI/Movement를 전부
+	 *  끄고 화면에서 숨김. Dead()를 거쳤든 안 거쳤든(Pre-warm으로 갓 스폰된 액터 포함) 이것만 호출하면
+	 *  안전하게 비활성화되도록 멱등하게 구현됨 */
+	virtual void OnReturnedToPool();
+
+	/** UCPMonsterPoolSubsystem이 풀에서 꺼내 재사용할 때 호출 - 위치 배치 + 상태/Collision/Tick/AI 복원.
+	 *  스탯(체력 등) 재적용은 호출부(스포너)가 기존 ApplyWaveStat()으로 별도 처리함 - 여기서는 안 건드림.
+	 *  서브클래스(Bomb의 FuseEffect 등)는 Super:: 호출 후 자기 고유 이펙트/상태만 추가로 리셋 */
+	virtual void OnAcquiredFromPool(const FTransform& NewTransform);
+
+protected:
+	/** RVO 회피 가중치(0~1) - 다른 몬스터와 경로가 겹칠 때 자기 진행 방향을 얼마나 고수할지.
+	 *  기본은 전부 동일(일반 몹끼리는 서로 동등하게 비켜줘야 자연스러운 스웜이 됨). 보스처럼
+	 *  "남들이 나한테 더 비켜줘야 하는" 예외만 이걸 오버라이드해서 값을 올리면 됨 - 일반 몹끼리의
+	 *  상호 회피(0.5 vs 0.5)는 그대로 유지되고, 보스와 마주칠 때만 보스가 덜 양보하게 됨 */
+	virtual float GetAIAvoidanceWeight() const { return 0.5f; }
+
 protected:
 	virtual void NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted);
 
@@ -113,6 +161,29 @@ protected:
 
 protected:
 	void SeparateFromOtherMonsters(float DeltaSeconds);
+
+	/** 플레이어와의 거리에 따라 SetActorTickInterval()을 조절함 - Tick() 자체가 덜 불리게 해서
+	 *  SeparateFromOtherMonsters를 포함한 Tick 전체 비용이 같이 줄어듦(멀수록 DeltaSeconds가 커진
+	 *  만큼만 드물게 호출되므로 이동/분리 거리는 왜곡되지 않음). 거리 계산 자체도 몹 수가 많으면
+	 *  비용이라, 매틱 하지 않고 몬스터별로 프레임을 분산시켜 DistanceCheckFrameInterval마다 한 번만 검사함 */
+	void UpdateTickThrottle();
+
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 1))
+	int32 DistanceCheckFrameInterval = 10;
+
+	/** 이 거리보다 가까우면 매 프레임 그대로 Tick(TickInterval=0) */
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 0))
+	float NearDistanceThreshold = 2000.f;
+
+	/** 이 거리보다 멀면 FarTickInterval, Near~Far 사이면 MidTickInterval 적용 */
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 0))
+	float FarDistanceThreshold = 4000.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 0))
+	float MidTickInterval = 0.1f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Optimization", meta = (ClampMin = 0))
+	float FarTickInterval = 0.5f;
 
 public:
 	FAICharacterAttackFinished OnAttackFinished;
@@ -175,6 +246,14 @@ protected:
 	 *  나중 넉백을 중간에 취소시켜버림) */
 	FTimerHandle KnockbackRestoreHandle;
 
-	// [임시 디버그] Tick 생존 확인용 로그 스로틀 (인스턴스별로 따로 누적되어야 해서 static 지역변수 대신 멤버로 둠)
-	float DebugTickLogAccum = 0.f;
+	/** OnReturnedToPool()이 무브먼트를 끄기(DisableMovement) 직전의 MovementMode를 저장해뒀다가
+	 *  OnAcquiredFromPool()에서 그대로 복원함 - 일반형은 MOVE_Walking, Ranged/Bomb 같은 비행형은
+	 *  MOVE_Flying이라 값이 서로 다른데, 여기서 직접 값을 정하지 않고 껐던 값을 그대로 되돌리는
+	 *  방식이라 서브클래스가 따로 오버라이드하지 않아도 됨 */
+	TEnumAsByte<EMovementMode> PooledMovementMode = MOVE_Walking;
+
+	/** BeginPlay()에서 한 번 캐시해둔 캡슐/메쉬의 원래 CollisionEnabled 값. Dead()가 사망 시 이 둘을
+	 *  NoCollision으로 꺼버리므로, 풀에서 재사용될 때(OnAcquiredFromPool) 원래 값으로 복원하는 데 씀 */
+	TEnumAsByte<ECollisionEnabled::Type> DefaultCapsuleCollisionEnabled = ECollisionEnabled::QueryAndPhysics;
+	TEnumAsByte<ECollisionEnabled::Type> DefaultMeshCollisionEnabled = ECollisionEnabled::QueryAndPhysics;
 };

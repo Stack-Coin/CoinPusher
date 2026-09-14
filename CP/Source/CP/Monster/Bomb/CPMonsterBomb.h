@@ -6,6 +6,8 @@
 #include "Monster/CPMonsterBase.h"
 #include "CPMonsterBomb.generated.h"
 
+class UNiagaraComponent;
+
 /** 자폭 몬스터가 플레이어에 닿아 자폭할 때 Broadcast (스윕이 빗나갔거나 넥서스를 맞춰 자폭한 경우는 제외) -
  *  UCPMonsterSpawnManagerComponent가 구독해서 CoinPusher에 몬스터 코인을 스폰시키는 데 사용 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBombExplodedOnPlayer);
@@ -39,6 +41,12 @@ public:
 	virtual void AttackHitCheck() override;
 
 	virtual float GetSpawnHeightOffset() const override;
+	virtual bool ShouldUseFixedSpawnHeight() const override { return true; }
+
+	/** 심지 이펙트(FuseEffect)를 꺼서 풀에 있는 동안 불필요하게 시뮬레이션되지 않게 함 */
+	virtual void OnReturnedToPool() override;
+	/** 재사용 시 심지 이펙트를 다시 재생 - bAutoActivate로는 재활성화 안 되므로(이미 스폰된 컴포넌트) 직접 켜줌 */
+	virtual void OnAcquiredFromPool(const FTransform& NewTransform) override;
 
 protected:
 	/** 데미지 판정 직후 자폭 처리. Dead()를 그대로 호출해서 기존 사망 처리(코인 드랍/DeadMontage
@@ -53,4 +61,9 @@ protected:
 	 *  블루프린트(BP_Bomb)의 Class Defaults 값은 자동으로 안 바뀌니 주의 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bomb")
 	float FlightSpawnHeight;
+
+	/** 심지 이펙트 - 메쉬의 "Wick" 소켓에 부착, 스폰부터 계속 재생됨(Niagara System은 BP에서 지정,
+	 *  예: Shooter_VFXPack/P_Hit_Classic_Custom) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UNiagaraComponent> FuseEffect;
 };

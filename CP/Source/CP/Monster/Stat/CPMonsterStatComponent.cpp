@@ -100,11 +100,9 @@ void UCPMonsterStatComponent::InitStat(ECPMonsterType InMonsterType, int32 InRou
 
 	// 웨이브에 따른 수치 변화 없음 (평탄화된 BaseRow 필드를 DefaultStat 캐시로 복사)
 	DefaultStat.AttackInterval = BaseRow->AttackInterval;
-	DefaultStat.CollisionRadius = BaseRow->CollisionRadius;
-	DefaultStat.CollisionHalfHeight = BaseRow->CollisionHalfHeight;
 	DefaultStat.AttackRange = BaseRow->AttackRange;
 	DefaultStat.TurnSpeed = BaseRow->TurnSpeed;
 	DefaultStat.MoveAcceptableRadius = BaseRow->MoveAcceptableRadius;
-	DefaultStat.SeparationPadding = BaseRow->SeparationPadding;
-	DefaultStat.SeparationSpeed = BaseRow->SeparationSpeed;
+	// SeparationPadding/SeparationSpeed는 더 이상 DataTable에서 안 옴 - DefaultStat 필드
+	// 기본값(70/400)을 그대로 씀 (CPMonsterStatTypes.h FCPMonsterDefaultStat 참고)
 }

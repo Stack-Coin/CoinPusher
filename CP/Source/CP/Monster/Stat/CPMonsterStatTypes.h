@@ -27,13 +27,6 @@ struct FCPMonsterDefaultStat
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float AttackInterval = 0.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float CollisionRadius = 0.f;
-
-	/** 캡슐 Half Height (cm). 몬스터 실제 메쉬 크기에 맞춰 지정 - 0이면 BP에 설정된 기존 캡슐 값을 그대로 씀 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
-	float CollisionHalfHeight = 0.f;
-
 	/** 공격 사거리 (cm) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Template")
 	float AttackRange = 0.f;
@@ -77,13 +70,6 @@ struct FCPMonsterStatRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
 	float AttackInterval = 0.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float CollisionRadius = 0.f;
-
-	/** 캡슐 Half Height (cm). 몬스터 실제 메쉬 크기에 맞춰 지정 - 0이면 BP에 설정된 기존 캡슐 값을 그대로 씀 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float CollisionHalfHeight = 0.f;
-
 	/** 공격 사거리 (cm) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
 	float AttackRange = 0.f;
@@ -96,13 +82,9 @@ struct FCPMonsterStatRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
 	float MoveAcceptableRadius = 0.f;
 
-	/** 다른 몬스터와 유지할 최소 여유 간격 (cm) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float SeparationPadding = 70.f;
-
-	/** 겹쳤을 때 밀어내는 최대 속도 (cm/s) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|Default")
-	float SeparationSpeed = 400.f;
+	// Separation(몬스터 간 분리 push) 관련 값은 데이터 테이블에서 뺌 - 전 타입 동일값(70/400)으로
+	// 쓰이고 있었고, 분리 로직 자체가 O(n^2) 이웃 탐색이라 별도 성능 최적화가 먼저 필요함.
+	// FCPMonsterDefaultStat의 기본값(70/400)이 그대로 쓰임 - CPMonsterStatComponent::InitStat 참고
 };
 
 /**

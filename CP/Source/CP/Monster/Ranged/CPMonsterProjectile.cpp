@@ -2,7 +2,7 @@
 
 #include "Monster/Ranged/CPMonsterProjectile.h"
 #include "Components/SphereComponent.h"
-#include "Components/StaticMeshComponent.h"
+#include "NiagaraComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
@@ -32,10 +32,11 @@ ACPMonsterProjectile::ACPMonsterProjectile()
 	CollisionComp->OnComponentBeginOverlap.AddDynamic(this, &ACPMonsterProjectile::OnProjectileOverlap);
 	RootComponent = CollisionComp;
 
-	ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
-	ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	ProjectileMesh->SetGenerateOverlapEvents(false);
-	ProjectileMesh->SetupAttachment(RootComponent);
+	// Niagara System 에셋은 BP_Projectile에서 지정(예: Shooter_VFXPack/P_Trail_Darkness) - 메쉬 없이
+	// 이 이펙트만으로 투사체를 표현함
+	TrailEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("TrailEffect"));
+	TrailEffect->SetupAttachment(RootComponent);
+	TrailEffect->bAutoActivate = true;
 
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
@@ -93,10 +94,6 @@ void ACPMonsterProjectile::OnProjectileOverlap(UPrimitiveComponent* OverlappedCo
 	{
 		return;
 	}
-
-	UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s OnProjectileOverlap - OtherActor=%s"),
-		*GetName(),
-		OtherActor ? *OtherActor->GetName() : TEXT("NULL"));
 
 	ProcessHit(OtherActor, bFromSweep ? FVector(SweepResult.Location) : GetActorLocation());
 

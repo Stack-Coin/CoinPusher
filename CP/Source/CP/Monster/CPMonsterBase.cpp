@@ -3,6 +3,7 @@
 
 #include "Monster/CPMonsterBase.h"
 #include "Monster/CPMonsterAIController.h"
+#include "Monster/Pool/CPMonsterPoolSubsystem.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -65,34 +66,25 @@ void ACPMonsterBase::BeginPlay()
 		MeshComp->SetRelativeLocation(MeshRelativeLocation);
 	}
 
-	// [임시 디버그] 스폰 직후 DataTable에서 실제로 어떤 수치가 들어왔는지 한 번에 확인용
-	UE_LOG(LogTemp, Warning,
-		TEXT("[임시 디버그] %s BeginPlay 스탯 - MonsterType=%d, MaxHealth=%.1f, MoveSpeed=%.1f, AttackPower=%.1f, AttackRange=%.1f, CollisionRadius=%.1f(실제 캡슐=%.1f), MoveAcceptableRadius=%.1f, TurnSpeed=%.1f"),
-		*GetName(),
-		static_cast<int32>(MonsterType),
-		GetAIMaxHealth(),
-		GetAIMoveSpeed(),
-		GetAIAttackPower(),
-		GetAIAttackRange(),
-		GetAICollisionRadius(),
-		GetCapsuleComponent()->GetScaledCapsuleRadius(),
-		GetAIMoveAcceptableRadius(),
-		GetAITurnSpeed());
-
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
-		// RVO 회피 반경 배율 / 비중은 몬스터마다 다르게 줄 이유가 없어서 데이터테이블에서 빼고
-		// 코드 상 권장값으로 고정함 (AvoidanceWeight는 0~1 사이 값이어야 함)
+		// RVO 회피 반경 배율은 몬스터마다 다르게 줄 이유가 없어서 코드 상수로 고정함. 가중치만
+		// GetAIAvoidanceWeight()로 뽑아서, 보스처럼 "남들이 나한테 더 비켜줘야 하는" 예외가
+		// 오버라이드로 값을 올릴 수 있게 함 (0~1 사이 값이어야 함)
 		constexpr float RVOAvoidanceRadiusMultiplier = 3.f;
-		constexpr float RVOAvoidanceWeight = 0.5f;
 
 		MoveComp->bUseRVOAvoidance = true;
 		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * RVOAvoidanceRadiusMultiplier;
-		MoveComp->AvoidanceWeight = RVOAvoidanceWeight;
+		MoveComp->AvoidanceWeight = GetAIAvoidanceWeight();
 
 		// 몬스터끼리만 서로 피하도록 그룹 마스크 설정
 		MoveComp->SetAvoidanceGroup(1);
 		MoveComp->SetGroupsToAvoid(1);
+
+		// NavMesh Agent 매칭용 - 타입별로 크기 차이가 커서(Boss vs 일반) 프로젝트 세팅에
+		// Supported Agent를 여러 개 등록해뒀다면 이 값 기준으로 알맞은 NavMesh를 골라 씀
+		MoveComp->NavAgentProps.AgentRadius = GetAICollisionRadius();
+		MoveComp->NavAgentProps.AgentHeight = GetAICollisionHalfHeight() * 2.f;
 	}
 
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
@@ -100,23 +92,65 @@ void ACPMonsterBase::BeginPlay()
 		Subsystem->OnCollisionVisibilityChanged.AddDynamic(this, &ACPMonsterBase::HandleDebugCollisionVisibilityChanged);
 		bDrawDebugAttackRange = Subsystem->IsCategoryVisible(ECPDebugCollisionCategory::MonsterAttackRange);
 	}
+
+	// Dead()가 사망 시 이 값들을 NoCollision으로 꺼버리므로, 풀에서 재사용될 때(OnAcquiredFromPool)
+	// 되돌릴 원래 값을 지금(BP 기본값이 반영된 시점) 캐시해둠
+	DefaultCapsuleCollisionEnabled = GetCapsuleComponent()->GetCollisionEnabled();
+	DefaultMeshCollisionEnabled = GetMesh()->GetCollisionEnabled();
 }
 
 void ACPMonsterBase::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	// [임시 디버그] player 다운 시 몬스터가 실제로 계속 틱되고 있는지 확인용 (1초에 한 번만 출력)
-	DebugTickLogAccum += DeltaSeconds;
-	if (DebugTickLogAccum >= 1.0f)
-	{
-		DebugTickLogAccum = 0.f;
-		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s Tick 살아있음 - CurrentCCState=%d"), *GetName(), static_cast<uint8>(CurrentCCState));
-	}
-
 	if (!bIsDead)
 	{
+		UpdateTickThrottle();
 		SeparateFromOtherMonsters(DeltaSeconds);
+	}
+}
+
+void ACPMonsterBase::UpdateTickThrottle()
+{
+	// GetUniqueID()로 몬스터마다 검사 프레임을 분산시켜, DistanceCheckFrameInterval프레임에 한 번만
+	// 거리 계산함 - 매틱 전부가 같은 프레임에 몰리면 분산 의미가 없으므로 몬스터별로 어긋나게 함
+	if ((GFrameCounter + GetUniqueID()) % DistanceCheckFrameInterval != 0)
+	{
+		return;
+	}
+
+	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!PlayerPawn)
+	{
+		return;
+	}
+
+	const float DistanceToPlayer = FVector::Dist(GetActorLocation(), PlayerPawn->GetActorLocation());
+
+	float NewInterval = 0.f; // 기본(근접): 매 프레임
+	if (DistanceToPlayer > FarDistanceThreshold)
+	{
+		NewInterval = FarTickInterval;
+	}
+	else if (DistanceToPlayer > NearDistanceThreshold)
+	{
+		NewInterval = MidTickInterval;
+	}
+
+	if (GetActorTickInterval() != NewInterval)
+	{
+		SetActorTickInterval(NewInterval);
+	}
+
+	// SetActorTickInterval은 ACPMonsterBase::Tick()만 늦춤 - CharacterMovementComponent는 자기
+	// PrimaryComponentTick으로 독립적으로 돌아서 실제 이동 연산(무브먼트 갱신) 비용은 안 줄어듦.
+	// 무브먼트 컴포넌트 틱 간격도 같이 늘려줘야 거리 기반 스로틀링이 실질적인 효과가 있음
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		if (MoveComp->PrimaryComponentTick.TickInterval != NewInterval)
+		{
+			MoveComp->PrimaryComponentTick.TickInterval = NewInterval;
+		}
 	}
 }
 
@@ -134,6 +168,79 @@ void ACPMonsterBase::ApplyWaveStat(int32 InRound, int32 InWave)
 	}
 }
 
+void ACPMonsterBase::OnReturnedToPool()
+{
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
+	SetActorTickEnabled(false);
+
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		PooledMovementMode = MoveComp->MovementMode;
+		MoveComp->DisableMovement();
+
+		// SetActorTickEnabled(false)는 액터 자신의 Tick()만 끌 뿐 컴포넌트의 PrimaryComponentTick은
+		// 안 건드림 - 무브먼트 컴포넌트를 그냥 두면 풀 안에서 숨어있는 동안에도 매 프레임 계속 돎.
+		// 풀에 있는 동안은 이동 연산이 전혀 필요 없으므로 아예 꺼버림(TickInterval을 늘리는 것보다 확실함)
+		MoveComp->SetComponentTickEnabled(false);
+	}
+
+	if (ACPMonsterAIController* AIController = GetController<ACPMonsterAIController>())
+	{
+		AIController->StopAI();
+	}
+
+	GetWorldTimerManager().ClearTimer(KnockbackRestoreHandle);
+}
+
+void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
+{
+	bIsDead = false;
+	bPendingDeath = false;
+	CurrentCCState = ECPMonsterCCState::None;
+	LastAttackHitActor = nullptr;
+
+	SetActorHiddenInGame(false);
+	SetActorEnableCollision(true);
+	SetActorTickEnabled(true);
+	SetActorTickInterval(0.f); // 풀에 들어가기 전 거리 기반 스로틀로 늘어나 있었을 수 있음 - UpdateTickThrottle()이 곧 다시 알맞게 조절함
+
+	GetCapsuleComponent()->SetCollisionEnabled(DefaultCapsuleCollisionEnabled);
+	GetMesh()->SetCollisionEnabled(DefaultMeshCollisionEnabled);
+
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		// 비행형(Ranged/Bomb)은 PlaneConstraint로 Z를 고정해두는데, 그 기준점이 예전(풀에 들어가기 전)
+		// 위치에 그대로 남아있는 상태로 텔레포트하면 그 낡은 평면에 걸려 Z가 도로 끌려갈 수 있음 -
+		// 텔레포트 전에 일단 꺼서 그 영향을 피하고, 새 위치로 옮긴 다음 새 기준점으로 다시 켬
+		const bool bWasConstrainedToPlane = MoveComp->bConstrainToPlane;
+		if (bWasConstrainedToPlane)
+		{
+			MoveComp->SetPlaneConstraintEnabled(false);
+		}
+
+		MoveComp->SetComponentTickEnabled(true); // OnReturnedToPool()에서 꺼뒀던 것 복구
+		MoveComp->PrimaryComponentTick.TickInterval = 0.f; // 풀에 들어가기 전 거리 스로틀로 늘어나 있었을 수 있음
+		SetActorLocationAndRotation(NewTransform.GetLocation(), NewTransform.GetRotation());
+		MoveComp->SetMovementMode(PooledMovementMode);
+
+		if (bWasConstrainedToPlane)
+		{
+			MoveComp->SetPlaneConstraintOrigin(NewTransform.GetLocation());
+			MoveComp->SetPlaneConstraintEnabled(true);
+		}
+	}
+	else
+	{
+		SetActorLocationAndRotation(NewTransform.GetLocation(), NewTransform.GetRotation());
+	}
+
+	if (ACPMonsterAIController* AIController = GetController<ACPMonsterAIController>())
+	{
+		AIController->RunAI();
+	}
+}
+
 void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible)
 {
 	if (Category == ECPDebugCollisionCategory::MonsterAttackRange)
@@ -142,58 +249,56 @@ void ACPMonsterBase::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCate
 	}
 }
 
-void ACPMonsterBase::AttackHitCheck()
+ACPMonsterBase::FAttackSweepShape ACPMonsterBase::GetAttackSweepShape(const FVector& InForwardOverride)
 {
-	// 이번 AttackHitCheck() 호출의 결과로 새로 채워짐 - 못 맞추면 nullptr로 남음
-	LastAttackHitActor = nullptr;
-
 	// 스윕 시작점을 액터 피벗(캡슐 중심)이 아니라 "자기 몸통 표면"에서 출발하도록 자신의
 	// 콜리전 반경만큼 앞으로 밀어줌. 기존엔 피벗에서 AttackRange만큼만 재서, 일반/탱커처럼
 	// 캡슐이 작은 몬스터는 티가 안 났지만 보스처럼 캡슐이 큰 몬스터는 실제 몸통 밖으로 뻗는
 	// 유효 사거리가 그만큼 짧아져서 육안상 딱 붙어있어도 스윕이 플레이어까지 안 닿는 문제가 있었음
 	const float SelfRadius = GetAICollisionRadius();
-	const FVector SweepStart = GetActorLocation() + GetActorForwardVector() * SelfRadius;
-	const FVector SweepEnd = SweepStart + GetActorForwardVector() * GetAIAttackRange();
+	const FVector Forward = InForwardOverride.IsNearlyZero() ? GetActorForwardVector() : InForwardOverride.GetSafeNormal();
 
-	// 튜브 두께(SweepRadius)도 몬스터 몸집에 비례하게 함. 기존엔 고정 10cm라서 캡슐이 큰(그래서
+	FAttackSweepShape Shape;
+	Shape.Start = GetActorLocation() + Forward * SelfRadius;
+	Shape.End = Shape.Start + Forward * GetAIAttackRange();
+
+	// 튜브 두께(Radius)도 몬스터 몸집에 비례하게 함. 기존엔 고정 10cm라서 캡슐이 큰(그래서
 	// 피벗 높이도 훨씬 높은) 보스 같은 몬스터는, 스윕이 자기 몸통 중심 높이에서 완전히 수평으로만
 	// 지나가는데 두께가 얇아 상대방 캡슐 범위(특히 높이)를 살짝만 벗어나도 그냥 미스가 났음.
 	// 자기 반경에 비례해서 두께를 키우면 몸집이 큰 몬스터일수록 판정에 여유(특히 상하 방향)가
 	// 생겨서, 피벗 높이 차이로 인한 미스가 줄어듦 - 최소값은 기존 10cm로 유지
-	const float SweepRadius = FMath::Max(10.f, SelfRadius * 0.5f);
+	Shape.Radius = FMath::Max(10.f, SelfRadius * 0.5f);
+
+	return Shape;
+}
+
+void ACPMonsterBase::AttackHitCheck()
+{
+	// 이번 AttackHitCheck() 호출의 결과로 새로 채워짐 - 못 맞추면 nullptr로 남음
+	LastAttackHitActor = nullptr;
+
+	const FAttackSweepShape SweepShape = GetAttackSweepShape();
 
 	FHitResult HitResult;
 	FCollisionQueryParams Params(NAME_None, false, this);
 	bool bResult = GetWorld()->SweepSingleByChannel
 	(
 		HitResult,
-		SweepStart,
-		SweepEnd,
+		SweepShape.Start,
+		SweepShape.End,
 		FQuat::Identity,
 		ECollisionChannel::ECC_GameTraceChannel1,
-		FCollisionShape::MakeSphere(SweepRadius),
+		FCollisionShape::MakeSphere(SweepShape.Radius),
 		Params
 	);
-
-	// [임시 디버그] 실제 스윕 범위/결과 확인용 - AnimNotify는 호출되는데 데미지가 안 들어가는 경우와
-	// AnimNotify 자체가 안 불리는 경우를 구분하기 위함
-	UE_LOG(LogTemp, Warning,
-		TEXT("[임시 디버그] %s AttackHitCheck - SelfRadius=%.1f, AttackRange=%.1f, Start=%s, End=%s, bResult=%d, HitActor=%s"),
-		*GetName(),
-		SelfRadius,
-		GetAIAttackRange(),
-		*SweepStart.ToString(),
-		*SweepEnd.ToString(),
-		bResult ? 1 : 0,
-		(bResult && HitResult.GetActor()) ? *HitResult.GetActor()->GetName() : TEXT("NULL"));
 
 	if (bDrawDebugAttackRange)
 	{
 		// Visualizes the swept sphere (Start->End, radius SweepRadius) as the equivalent capsule
-		const FVector Center = (SweepStart + SweepEnd) * 0.5f;
-		const float HalfHeight = (SweepEnd - SweepStart).Size() * 0.5f + SweepRadius;
+		const FVector Center = (SweepShape.Start + SweepShape.End) * 0.5f;
+		const float HalfHeight = (SweepShape.End - SweepShape.Start).Size() * 0.5f + SweepShape.Radius;
 		const FQuat CapsuleRotation = FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat();
-		DrawDebugCapsule(GetWorld(), Center, HalfHeight, SweepRadius, CapsuleRotation, bResult ? FColor::Red : FColor::Orange, false, 0.5f, 0, 1.5f);
+		DrawDebugCapsule(GetWorld(), Center, HalfHeight, SweepShape.Radius, CapsuleRotation, bResult ? FColor::Red : FColor::Orange, false, 0.5f, 0, 1.5f);
 	}
 
 	if (bResult)
@@ -204,10 +309,6 @@ void ACPMonsterBase::AttackHitCheck()
 			UGameplayStatics::ApplyDamage(HitActor, GetAIAttackPower(), GetController(), this, UDamageType::StaticClass());
 			LastAttackHitActor = HitActor;
 		}
-	}
-	else 
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Boss 충돌 반지름 문제"));
 	}
 }
 
@@ -273,9 +374,9 @@ void ACPMonsterBase::Dead()
 				[this](UAnimMontage*, bool)
 				{
 					// 몽타주가 끝난 뒤 잠깐이라도 대기하면, 그 사이에 애님 그래프가 베이스 포즈(Idle)로
-					// 블렌드백되면서 몬스터가 다시 일어서는 것처럼 보이는 문제가 있어 지연 없이 바로 파괴함.
+					// 블렌드백되면서 몬스터가 다시 일어서는 것처럼 보이는 문제가 있어 지연 없이 바로 반환함.
 					// (애님 그래프에 "사망 상태 유지"용 스테이트를 추가하는 게 근본적인 해결책이라 추후 필요)
-					Destroy();
+					ReturnToPoolOrDestroy();
 				});
 
 			AnimInstance->Montage_SetEndDelegate(EndDelegate, DeadMontage);
@@ -284,7 +385,23 @@ void ACPMonsterBase::Dead()
 		}
 	}
 
-	SetLifeSpan(2.0f);
+	// DeadMontage가 없으면(또는 AnimInstance가 없으면) 2초 뒤 반환 - 죽는 순간부터 이미 화면에는
+	// 안 보이는 게 자연스러우므로 여기서도 즉시 숨기고, 실제 반환(재사용 가능 상태 전환)만 지연시킴
+	SetActorHiddenInGame(true);
+	FTimerHandle DelayedReturnHandle;
+	GetWorldTimerManager().SetTimer(DelayedReturnHandle, this, &ACPMonsterBase::ReturnToPoolOrDestroy, 2.0f, false);
+}
+
+void ACPMonsterBase::ReturnToPoolOrDestroy()
+{
+	if (UCPMonsterPoolSubsystem* Pool = GetWorld() ? GetWorld()->GetSubsystem<UCPMonsterPoolSubsystem>() : nullptr)
+	{
+		Pool->Release(this);
+	}
+	else
+	{
+		Destroy();
+	}
 }
 
 void ACPMonsterBase::SetAIAttackDelegate(const FAICharacterAttackFinished& InOnAttackFinished)
@@ -302,8 +419,6 @@ void ACPMonsterBase::PlayAttackMontage(UAnimMontage* Montage)
 	TObjectPtr<UAnimInstance> AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && Montage)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s PlayAttackMontage: %s 재생 시작"), *GetName(), *Montage->GetName());
-
 		AddCCState(ECPMonsterCCState::Attacking);
 
 		AnimInstance->StopAllMontages(0.0f);
@@ -317,10 +432,6 @@ void ACPMonsterBase::PlayAttackMontage(UAnimMontage* Montage)
 	else
 	{
 		// 여기로 빠지면 몽타주가 재생되지 않고, BT의 Attack 태스크도 완료 델리게이트를 못 받아서 InProgress로 멈춰있게 됨
-		UE_LOG(LogTemp, Error, TEXT("[임시 디버그] %s PlayAttackMontage 실패 - AnimInstance=%s, Montage=%s"),
-			*GetName(),
-			AnimInstance ? TEXT("Valid") : TEXT("NULL"),
-			Montage ? *Montage->GetName() : TEXT("NULL"));
 	}
 }
 
@@ -331,22 +442,13 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	// 포효 등으로 무적 상태면 데미지 무시
 	if (HasCCState(ECPMonsterCCState::Invulnerable))
 	{
-		// [임시 디버그] 무적 상태에서 들어온 데미지가 실제로 무시되는지 확인용
-		UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s TakeDamage 무시됨(무적) - DamageAmount=%.1f, CurrentCCState=%d, CurrentHealth=%.1f"),
-			*GetName(), DamageAmount, static_cast<uint8>(CurrentCCState), StatComponent ? StatComponent->CurrentHealth : -1.f);
 		return 0.f;
 	}
 
 	if (StatComponent)
 	{
-		const float HealthBefore = StatComponent->CurrentHealth;
 		StatComponent->CurrentHealth -= DamageAmount;
 		StatComponent->OnMonsterHealthChanged.Broadcast(StatComponent->CurrentHealth, StatComponent->MaxHealth);
-
-		// [임시 디버그] 무적이 아닐 때 실제로 얼마나 깎이는지, bIsDead/bPendingDeath 상태 확인용
-		UE_LOG(LogTemp, Warning,
-			TEXT("[임시 디버그] %s TakeDamage 적용됨 - DamageAmount=%.1f, HealthBefore=%.1f, HealthAfter=%.1f, bIsDead=%d, bPendingDeath=%d"),
-			*GetName(), DamageAmount, HealthBefore, StatComponent->CurrentHealth, bIsDead, bPendingDeath);
 
 		// 체력이 0 이하여도 바로 죽이지 않고, 공격자가 TakeDamage 직후 별도로 거는 ApplyKnockback이
 		// 먼저 재생될 시간(KnockbackDuration)을 준 다음에 실제 Dead()를 호출함
@@ -453,8 +555,6 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 void ACPMonsterBase::NotifyAttackActionEnd(UAnimMontage* Montage, bool bInterrupted)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[임시 디버그] %s NotifyAttackActionEnd 호출됨 - bInterrupted=%d"), *GetName(), bInterrupted);
-
 	RemoveCCState(ECPMonsterCCState::Attacking);
 
 	OnAttackFinished.ExecuteIfBound();
@@ -480,6 +580,15 @@ void ACPMonsterBase::CancelAIAttack()
 
 void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 {
+	// 보스는 몸집이 커서 일반 몹들한테 밀리기 시작하면 플레이어한테 접근을 아예 못 하는 문제가
+	// 있었음(몹이 많이 몰린 라운드일수록 심함) - 보스는 여기서 밀리지 않고, 대신 일반 몹들이 각자
+	// 자기 SeparateFromOtherMonsters()에서 보스와의 거리를 재서 알아서 밀려나므로(보스 캡슐이 커서
+	// MinDistance도 큼) 보스가 무리를 뚫고 들어가는 것처럼 보임
+	if (MonsterType == ECPMonsterType::Boss)
+	{
+		return;
+	}
+
 	const float MyRadius = GetAICollisionRadius();
 	if (MyRadius <= 0.f)
 	{
@@ -573,14 +682,37 @@ float ACPMonsterBase::GetAIAttackInterval()
 	return StatComponent ? StatComponent->DefaultStat.AttackInterval : 1.0f;
 }
 
-float ACPMonsterBase::GetAICollisionRadius()
+namespace
 {
-	return StatComponent ? StatComponent->DefaultStat.CollisionRadius : 0.0f;
+	/** 캡슐 Radius/HalfHeight는 SKM 실측 크기 기반 고정값 - 기획자가 DataTable에서 임의로 바꾸지
+	 *  못하게 일부러 코드에 하드코딩함(스폰 위치/공격 판정/RVO가 전부 이 값에 엮여있어서 값이
+	 *  틀어지면 여러 시스템이 동시에 깨짐) */
+	void GetDefaultCollisionSize(ECPMonsterType InType, float& OutRadius, float& OutHalfHeight)
+	{
+		switch (InType)
+		{
+		case ECPMonsterType::Normal: OutRadius = 61.f;  OutHalfHeight = 76.f;  break;
+		case ECPMonsterType::Ranged: OutRadius = 59.f;  OutHalfHeight = 79.f;  break;
+		case ECPMonsterType::Tanker: OutRadius = 95.f;  OutHalfHeight = 95.f;  break;
+		case ECPMonsterType::Bomb:   OutRadius = 95.f;  OutHalfHeight = 95.f;  break;
+		case ECPMonsterType::Boss:   OutRadius = 293.f; OutHalfHeight = 304.f; break;
+		default:                     OutRadius = 0.f;   OutHalfHeight = 0.f;   break;
+		}
+	}
 }
 
-float ACPMonsterBase::GetAICollisionHalfHeight()
+float ACPMonsterBase::GetAICollisionRadius() const
 {
-	return StatComponent ? StatComponent->DefaultStat.CollisionHalfHeight : 0.0f;
+	float Radius, HalfHeight;
+	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
+	return Radius;
+}
+
+float ACPMonsterBase::GetAICollisionHalfHeight() const
+{
+	float Radius, HalfHeight;
+	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
+	return HalfHeight;
 }
 
 float ACPMonsterBase::GetAIAttackRange()
@@ -595,7 +727,15 @@ float ACPMonsterBase::GetAITurnSpeed()
 
 float ACPMonsterBase::GetAIMoveAcceptableRadius()
 {
-	return StatComponent ? StatComponent->DefaultStat.MoveAcceptableRadius : 0.0f;
+	const float DataValue = StatComponent ? StatComponent->DefaultStat.MoveAcceptableRadius : 0.0f;
+
+	// MoveTo(AcceptableRadius)와 AttackInRange 데코레이터 둘 다 "자기 반경 + 타겟 반경"을 똑같이
+	// 더해서 도달/판정 거리를 계산하므로, 이 값끼리만 비교해도 됨. 이 값이 AttackRange 이상이면
+	// MoveTo가 실제 공격 사거리 안에 들어오기도 전에 "도착"으로 판단해 멈춰버리고, 이후 AttackInRange가
+	// 계속 false라 보스가 제자리에 멈춰 선 채 아무것도 안 하는 상태가 됨(DataTable 값 실수로 실제
+	// 발생했던 버그) - 데이터가 잘못 들어와도 항상 AttackRange보다 여유 있게 작도록 코드에서 방어함
+	constexpr float SafetyMargin = 20.f;
+	return FMath::Min(DataValue, FMath::Max(0.f, GetAIAttackRange() - SafetyMargin));
 }
 
 // 몬스터 간 분리

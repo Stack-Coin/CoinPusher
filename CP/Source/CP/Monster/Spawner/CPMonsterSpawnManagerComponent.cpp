@@ -6,6 +6,7 @@
 #include "Monster/CPMonsterBase.h"
 #include "Monster/Boss/CPMonsterBoss.h"
 #include "Monster/Bomb/CPMonsterBomb.h"
+#include "Monster/Pool/CPMonsterPoolSubsystem.h"
 #include "Player/CPPlayerCharacter.h"
 #include "Player/CPTopDownPlayerController.h"
 #include "UI/CPInGameWidget.h"
@@ -106,7 +107,20 @@ void UCPMonsterSpawnManagerComponent::ApplyRoundInfo(int32 InRound)
 	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(InRound);
 
 	const int32 ResolvedSpawnerCount = RoundInfo ? RoundInfo->SpawnerCount : SpawnerCount;
-	const float ResolvedSpawnerRadius = RoundInfo ? RoundInfo->SpawnerRadius : SpawnerRadius;
+	const float RawSpawnerRadius = RoundInfo ? RoundInfo->SpawnerRadius : SpawnerRadius;
+
+	// ponytail: 아레나 NavMesh(8각형) 기준 안전 상한. 스포너 10개가 8각형과 각도가 안 맞아 최악의 경우
+	// 변 중점(아포뎀)까지만 보장되고, 거기서 보스 콜리전 반경(293)+여유를 뺀 값. NavMesh 재작업(2026-09)
+	// 이후 1400으로 낮춤. DT_RoundInfo의 SpawnerRadius가 이걸 넘으면 스포너가 NavMesh 밖에 놓여
+	// 보스/라운드몹이 안 보이는 버그가 재현됨. 맵 크기나 NavMesh 형태가 바뀌면 이 상수도 다시 계산해야 함.
+	constexpr float MaxSafeSpawnerRadius = 1400.f;
+	const float ResolvedSpawnerRadius = FMath::Min(RawSpawnerRadius, MaxSafeSpawnerRadius);
+
+	if (RawSpawnerRadius > MaxSafeSpawnerRadius)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] Round %d - SpawnerRadius(%.1f)가 안전 상한(%.1f)을 넘어 클램프합니다. NavMesh 밖 스폰(보스/라운드몹 미표시) 방지용 - DT_RoundInfo 값을 낮추는 걸 권장."),
+			InRound, RawSpawnerRadius, MaxSafeSpawnerRadius);
+	}
 
 	if (!RoundInfo)
 	{
@@ -127,6 +141,52 @@ void UCPMonsterSpawnManagerComponent::ApplyRoundInfo(int32 InRound)
 	WaveAliveMonsterCount = 0;
 
 	CreateSpawnerRing(ResolvedSpawnerCount, ResolvedSpawnerRadius);
+
+	WarmUpMonsterPools(InRound, RoundInfo);
+}
+
+void UCPMonsterSpawnManagerComponent::WarmUpMonsterPools(int32 InRound, const FCPMonsterRoundInfoRow* InRoundInfo) const
+{
+	UCPMonsterPoolSubsystem* Pool = GetWorld() ? GetWorld()->GetSubsystem<UCPMonsterPoolSubsystem>() : nullptr;
+	if (!Pool || !WaveInfoTable)
+	{
+		return;
+	}
+
+	TArray<FCPMonsterWaveInfoRow*> AllRows;
+	WaveInfoTable->GetAllRows<FCPMonsterWaveInfoRow>(TEXT("UCPMonsterSpawnManagerComponent::WarmUpMonsterPools"), AllRows);
+
+	TMap<ECPMonsterType, int32> ExpectedMaxByType;
+	for (const FCPMonsterWaveInfoRow* Row : AllRows)
+	{
+		if (!Row || Row->Round != InRound)
+		{
+			continue;
+		}
+
+		// CountPerSpawnPoint(라운드 수) x MonstersPerSpawn(스폰 1회당 마릿수) x 스포너 수 = 이 행이
+		// 만들어낼 수 있는 실제 최대 동시 마릿수 - MonstersPerSpawn을 빠뜨리면 풀이 턱없이 작게 예열돼서
+		// (예: MonstersPerSpawn=60인데 5마리만 예열) 나머지는 전부 매번 새로 SpawnActor가 떨어짐
+		const int32 RowMaxAlive = Row->CountPerSpawnPoint * FMath::Max(1, Row->MonstersPerSpawn) * Row->SpawnerIndices.Num();
+		int32& Existing = ExpectedMaxByType.FindOrAdd(Row->MonsterType);
+		Existing = FMath::Max(Existing, RowMaxAlive);
+	}
+
+	// 보스는 위 WaveInfo 루프에 안 잡히는 경우(마지막 웨이브 행에 보스 타입이 없을 수 있음)를 대비해
+	// RoundInfoTable 기준으로 최소 1마리는 보장
+	if (InRoundInfo)
+	{
+		int32& BossCount = ExpectedMaxByType.FindOrAdd(InRoundInfo->BossMonsterType);
+		BossCount = FMath::Max(BossCount, 1);
+	}
+
+	for (const TPair<ECPMonsterType, int32>& Pair : ExpectedMaxByType)
+	{
+		if (TSubclassOf<ACPMonsterBase> MonsterClass = MonsterClassByType.FindRef(Pair.Key))
+		{
+			Pool->WarmUp(Pair.Key, MonsterClass, Pair.Value);
+		}
+	}
 }
 
 void UCPMonsterSpawnManagerComponent::CreateSpawnerRing(int32 InSpawnerCount, float InSpawnerRadius)
@@ -243,6 +303,7 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 	{
 		FCPActiveSpawnJob Job;
 		Job.MonsterClass = MonsterClassByType.FindRef(Entry->MonsterType);
+		Job.MonsterType = Entry->MonsterType;
 		Job.CountPerSpawnPoint = Entry->CountPerSpawnPoint;
 		Job.MonstersPerSpawn = Entry->MonstersPerSpawn;
 		Job.SpawnRowSpacingY = Entry->SpawnRowSpacingY;
@@ -355,13 +416,10 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		return;
 	}
 
-	if (!IsSpawnerLocationValid(BossSpawner->GetActorLocation()))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - BossSpawnerIndex %d 위치가 네브메시 밖으로 판단됐습니다."), RoundInfo->BossSpawnerIndex);
-		StopRoundMobSpawning();
-		CurrentPhase = ECPWavePhase::Finished;
-		return;
-	}
+	// 스포너 위치가 NavMesh 밖이어도 여기서 막지 않음 - 바로 아래 SpawnMonsterRow가
+	// bAllowFallbackOutsideNavMesh=true로 넓은 범위 재탐색/오너 위치 기준 보정까지 자체적으로
+	// 처리함. 여기서 미리 걸러버리면 그 resilient 로직이 실행될 기회조차 없이 보스 스폰 자체가
+	// 스킵되는 모순이 생김(바로 아래 주석 "보스는 절대 스폰이 스킵되면 안 되므로"와 충돌)
 
 	TSubclassOf<ACPMonsterBase> BossClass = MonsterClassByType.FindRef(RoundInfo->BossMonsterType);
 	if (!IsValid(BossClass))
@@ -372,7 +430,8 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		return;
 	}
 
-	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, 1, 0.f, CurrentRound, GetWaveCount());
+	// 보스는 절대 스폰이 스킵되면 안 되므로 NavMesh 투영 실패해도 강제로 스폰(bAllowFallbackOutsideNavMesh=true)
+	const TArray<ACPMonsterBase*> SpawnedBossRow = BossSpawner->SpawnMonsterRow(BossClass, RoundInfo->BossMonsterType, 1, 0.f, CurrentRound, GetWaveCount(), /*bAllowFallbackOutsideNavMesh=*/true);
 	ACPMonsterBase* SpawnedBoss = SpawnedBossRow.IsValidIndex(0) ? SpawnedBossRow[0] : nullptr;
 	if (SpawnedBoss)
 	{
@@ -385,8 +444,8 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 		// RoundInfoTable의 보스 전용 값(포효 임계치/슬램 쿨타임/포효 지속시간 등)을 스폰된 인스턴스에 적용
 		if (ACPMonsterBoss* Boss = Cast<ACPMonsterBoss>(SpawnedBoss))
 		{
-			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown, RoundInfo->RoarDuration,
-				RoundInfo->AddBossMaxHealth, RoundInfo->AddBossMoveSpeed, RoundInfo->AddBossAttackPower);
+			Boss->ApplyBossWaveStat(RoundInfo->RoarHealthPercentThreshold, RoundInfo->SlamCooldown, RoundInfo->SlamRadius, RoundInfo->RoarDuration,
+				RoundInfo->AddBossMaxHealth, RoundInfo->AddBossMoveSpeed, RoundInfo->AddBossAttackPower, RoundInfo->AddBossAttackRange);
 
 			// 보스 공격이 플레이어에게 명중할 때마다 CoinPusher의 활성 코인을 몬스터 코인으로 전환
 			Boss->OnBossAttackedPlayer.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBossAttackedPlayer);
@@ -452,12 +511,15 @@ bool UCPMonsterSpawnManagerComponent::IsSpawnerLocationValid(const FVector& InLo
 	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 	if (!NavSys)
 	{
-		// 네브메시가 아예 없는(빌드 안 된) 테스트 레벨에서는 검증을 생략하고 항상 유효 처리
+		// 검증할 방법이 없는 상태(NavMesh 시스템 자체가 없음)를 "유효함"으로 속이지 않고 그대로
+		// 무효 처리함 - 예전엔 여기서 true를 반환해 검증 안 된 위치에도 스포너/몬스터가 배치됐음.
+		// 주의: 이 레벨에 NavMesh가 아예 빌드되어 있지 않으면 스포너가 전부 무효 판정을 받아
+		// 웨이브가 하나도 스폰되지 않게 됨 - 테스트용 빈 레벨이라면 NavMesh부터 빌드해야 함
 		if (OutProjectedLocation)
 		{
 			*OutProjectedLocation = InLocation;
 		}
-		return true;
+		return false;
 	}
 
 	FNavLocation OutNavLocation;
@@ -519,19 +581,23 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 		return;
 	}
 
-	for (ACPMonsterSpawner* Spawner : Job.TargetSpawners)
+	// 이번 틱에 처리할 스포너 개수를 예산(MaxMonstersPerJobTick)으로 제한 - 스포너 수 x MonstersPerSpawn이
+	// 예산을 넘으면(대규모 웨이브) 한 프레임에 몰아서 스폰하지 않고 NextSpawnerCursor로 이어서 다음
+	// 틱(SpawnInterval 후)에 계속 처리함
+	const int32 MonstersPerSpawner = FMath::Max(1, Job.MonstersPerSpawn);
+	const int32 MaxSpawnersThisTick = FMath::Max(1, MaxMonstersPerJobTick / MonstersPerSpawner);
+	const int32 SpawnerEndIndex = FMath::Min(Job.TargetSpawners.Num(), Job.NextSpawnerCursor + MaxSpawnersThisTick);
+
+	for (int32 SpawnerIndex = Job.NextSpawnerCursor; SpawnerIndex < SpawnerEndIndex; ++SpawnerIndex)
 	{
+		ACPMonsterSpawner* Spawner = Job.TargetSpawners[SpawnerIndex];
 		if (IsValid(Spawner))
 		{
 			// TargetSpawners는 StartWave() 시점에 한 번만 검증됨 - 스포너가 플레이어에 붙어 따라다니므로
-			// 그 사이 플레이어가 이동해 NavMesh 밖으로 밀려났을 수 있어 스폰 직전에 다시 확인함
-			if (!IsSpawnerLocationValid(Spawner->GetActorLocation()))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleSpawnJobTick(%d) - 스포너가 NavMesh 밖으로 이동해 이번 틱 스폰을 건너뜁니다."), JobIndex);
-				continue;
-			}
-
-			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, CurrentWaveIndex + 1);
+			// 그 사이 NavMesh 밖으로 밀려났을 수 있음. 이 함수 진입 전에 이미 상한(MaxAliveMonsterCount)
+			// 체크를 통과한 상태라 스폰 기회를 잃지 않도록, 보스/보상 몬스터와 같은 resilient
+			// 체인(bAllowFallbackOutsideNavMesh=true)에 맡김 - 여기서 미리 걸러 스킵하지 않음
+			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonsterType, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, CurrentWaveIndex + 1, /*bAllowFallbackOutsideNavMesh=*/true);
 			for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 			{
 				if (IsValid(SpawnedMonster))
@@ -551,6 +617,13 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 		}
 	}
 
+	Job.NextSpawnerCursor = SpawnerEndIndex;
+	if (Job.NextSpawnerCursor < Job.TargetSpawners.Num())
+	{
+		return; // 이번 라운드 아직 안 끝남(예산 초과분은 다음 틱에 커서 이어서 계속) - 다음 틱을 기다림
+	}
+
+	Job.NextSpawnerCursor = 0;
 	++Job.SpawnedCount;
 
 	if (Job.SpawnedCount < Job.CountPerSpawnPoint)
@@ -610,6 +683,7 @@ void UCPMonsterSpawnManagerComponent::StartRoundMobSpawning()
 
 		FCPActiveSpawnJob Job;
 		Job.MonsterClass = MonsterClassByType.FindRef(Entry->MonsterType);
+		Job.MonsterType = Entry->MonsterType;
 		Job.CountPerSpawnPoint = Entry->CountPerSpawnPoint;
 		Job.MonstersPerSpawn = Entry->MonstersPerSpawn;
 		Job.SpawnRowSpacingY = Entry->SpawnRowSpacingY;
@@ -667,21 +741,25 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 		return;
 	}
 
-	for (ACPMonsterSpawner* Spawner : Job.TargetSpawners)
+	// HandleSpawnJobTick과 동일한 이유 - 한 프레임에 스포너 수 x MonstersPerSpawn만큼 몰아서 스폰하지
+	// 않고 예산(MaxMonstersPerJobTick)만큼만 처리한 뒤 커서를 남겨서 다음 틱에 이어감
+	const int32 MonstersPerSpawner = FMath::Max(1, Job.MonstersPerSpawn);
+	const int32 MaxSpawnersThisTick = FMath::Max(1, MaxMonstersPerJobTick / MonstersPerSpawner);
+	const int32 SpawnerEndIndex = FMath::Min(Job.TargetSpawners.Num(), Job.NextSpawnerCursor + MaxSpawnersThisTick);
+
+	for (int32 SpawnerIndex = Job.NextSpawnerCursor; SpawnerIndex < SpawnerEndIndex; ++SpawnerIndex)
 	{
+		ACPMonsterSpawner* Spawner = Job.TargetSpawners[SpawnerIndex];
 		if (IsValid(Spawner))
 		{
 			// TargetSpawners는 StartRoundMobSpawning() 시점에 한 번만 검증됨 - 스포너가 플레이어에 붙어
-			// 따라다니므로 그 사이 플레이어가 이동해 NavMesh 밖으로 밀려났을 수 있어 스폰 직전에 다시 확인함
-			if (!IsSpawnerLocationValid(Spawner->GetActorLocation()))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleRoundMobSpawnTick(%d) - 스포너가 NavMesh 밖으로 이동해 이번 틱 스폰을 건너뜁니다."), JobIndex);
-				continue;
-			}
+			// 따라다니므로 그 사이 NavMesh 밖으로 밀려났을 수 있음. 이 함수 진입 전에 이미 상한
+			// (MaxAliveMonsterCount) 체크를 통과한 상태라 스폰 기회를 잃지 않도록, 보스/보상 몬스터와
+			// 같은 resilient 체인(bAllowFallbackOutsideNavMesh=true)에 맡김
 
 			// 보스 페이즈 잡몹은 전멸 판정에 관여하지 않으므로 WaveAliveMonsterCount는 건드리지 않고,
 			// TotalAliveMonsterCount(마릿수 상한 체크용)만 늘림
-			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, GetWaveCount());
+			const TArray<ACPMonsterBase*> SpawnedMonsters = Spawner->SpawnMonsterRow(Job.MonsterClass, Job.MonsterType, Job.MonstersPerSpawn, Job.SpawnRowSpacingY, CurrentRound, GetWaveCount(), /*bAllowFallbackOutsideNavMesh=*/true);
 			for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 			{
 				if (IsValid(SpawnedMonster))
@@ -699,6 +777,13 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 		}
 	}
 
+	Job.NextSpawnerCursor = SpawnerEndIndex;
+	if (Job.NextSpawnerCursor < Job.TargetSpawners.Num())
+	{
+		return; // 이번 라운드 아직 안 끝남(예산 초과분은 다음 틱에 커서 이어서 계속)
+	}
+
+	Job.NextSpawnerCursor = 0;
 	++Job.SpawnedCount;
 
 	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleRoundMobSpawnTick(%d) - SpawnedCount=%d/%d"),
@@ -736,6 +821,13 @@ void UCPMonsterSpawnManagerComponent::HandleAnyMonsterDied()
 	TotalAliveMonsterCount = FMath::Max(0, TotalAliveMonsterCount - 1);
 }
 
+void UCPMonsterSpawnManagerComponent::HandleRewardMonsterDied()
+{
+	// 보상 몬스터만 죽을 때 호출됨(SpawnRandomRewardMonster에서만 구독) - MaxRewardMonsterCount
+	// 상한 체크에 쓰는 ActiveRewardMonsterCount만 줄임
+	ActiveRewardMonsterCount = FMath::Max(0, ActiveRewardMonsterCount - 1);
+}
+
 void UCPMonsterSpawnManagerComponent::HandleBossDied()
 {
 	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleBossDied() 진입 (Round %d, WorldTime %.2f)"),
@@ -744,17 +836,8 @@ void UCPMonsterSpawnManagerComponent::HandleBossDied()
 	// 보스 페이즈 동안 계속 돌던 RoundMob 스폰 타이머를 멈춤
 	StopRoundMobSpawning();
 
-	// 기획서: 보스 사망시 나머지 일반 몬스터도 즉시 제거
-	TArray<AActor*> RemainingMonsters;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBase::StaticClass(), RemainingMonsters);
-
-	for (AActor* Actor : RemainingMonsters)
-	{
-		if (IsValid(Actor) && Actor != ActiveBoss.Get())
-		{
-			Actor->Destroy();
-		}
-	}
+	// 보스와 동시에 스폰된 마지막 웨이브 몹은 보스가 죽어도 그대로 남아서 플레이어가 직접 잡아야 함 -
+	// 그냥 놔둠(별도 정리 없음)
 
 	ActiveBoss = nullptr;
 
@@ -896,6 +979,12 @@ void UCPMonsterSpawnManagerComponent::HandleDropZoneItemDropped(FName ItemID)
 
 void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 {
+	if (MaxRewardMonsterCount > 0 && ActiveRewardMonsterCount >= MaxRewardMonsterCount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 스킵 - MaxRewardMonsterCount(%d) 도달."), MaxRewardMonsterCount);
+		return;
+	}
+
 	// 보스를 제외한 타입 중 무작위로 하나를 고름 - DropZone에 몬스터 코인이 떨어진 데 대한 보상
 	TArray<ECPMonsterType> Candidates;
 	for (const TPair<ECPMonsterType, TSubclassOf<ACPMonsterBase>>& Pair : MonsterClassByType)
@@ -915,24 +1004,27 @@ void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 	const ECPMonsterType ChosenType = Candidates[FMath::RandRange(0, Candidates.Num() - 1)];
 	const TSubclassOf<ACPMonsterBase> ChosenClass = MonsterClassByType.FindRef(ChosenType);
 
-	// 유효한(네브메시 위) 스포너 중 무작위로 하나를 고름
-	TArray<ACPMonsterSpawner*> ValidSpawners;
+	// 보스와 동일하게 여기서 네브메시 유효성을 미리 걸러 스폰 자체를 막지 않음 - 스포너 존재
+	// 여부만 보고 고른 뒤, 아래 SpawnMonsterRow의 bAllowFallbackOutsideNavMesh=true가 넓은 범위
+	// 재탐색/오너 위치 기준 재탐색까지 다 해서 항상 스폰되게 보장함
+	TArray<ACPMonsterSpawner*> AvailableSpawners;
 	for (const TPair<int32, TObjectPtr<ACPMonsterSpawner>>& Pair : SpawnersByIndex)
 	{
-		if (IsValid(Pair.Value) && IsSpawnerLocationValid(Pair.Value->GetActorLocation()))
+		if (IsValid(Pair.Value))
 		{
-			ValidSpawners.Add(Pair.Value);
+			AvailableSpawners.Add(Pair.Value);
 		}
 	}
 
-	if (ValidSpawners.IsEmpty())
+	if (AvailableSpawners.IsEmpty())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 실패 - 유효한 스포너가 없습니다."));
+		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 실패 - 스포너가 하나도 없습니다."));
 		return;
 	}
 
-	ACPMonsterSpawner* ChosenSpawner = ValidSpawners[FMath::RandRange(0, ValidSpawners.Num() - 1)];
-	const TArray<ACPMonsterBase*> SpawnedMonsters = ChosenSpawner->SpawnMonsterRow(ChosenClass, 1, 0.f, CurrentRound, CurrentWaveIndex + 1);
+	ACPMonsterSpawner* ChosenSpawner = AvailableSpawners[FMath::RandRange(0, AvailableSpawners.Num() - 1)];
+	// 보스처럼 절대 스킵되면 안 되므로 bAllowFallbackOutsideNavMesh=true
+	const TArray<ACPMonsterBase*> SpawnedMonsters = ChosenSpawner->SpawnMonsterRow(ChosenClass, ChosenType, 1, 0.f, CurrentRound, CurrentWaveIndex + 1, /*bAllowFallbackOutsideNavMesh=*/true);
 
 	for (ACPMonsterBase* SpawnedMonster : SpawnedMonsters)
 	{
@@ -941,10 +1033,13 @@ void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 			continue;
 		}
 
-		// 보스처럼 MaxAliveMonsterCount 상한과 무관하게 항상 스폰을 보장함(사용자 확인 완료) - 그래서
-		// 위쪽에 상한 체크가 없음. 전멸 판정(WaveAliveMonsterCount)에도 관여하지 않고 TotalAliveMonsterCount만 늘림
+		// MaxAliveMonsterCount(전체 상한)와는 무관하게 스폰됨 - 대신 MaxRewardMonsterCount(보상 몬스터
+		// 전용 상한)로 위에서 따로 체크함. 전멸 판정(WaveAliveMonsterCount)에도 관여하지 않고
+		// TotalAliveMonsterCount/ActiveRewardMonsterCount만 늘림
 		++TotalAliveMonsterCount;
+		++ActiveRewardMonsterCount;
 		SpawnedMonster->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleAnyMonsterDied);
+		SpawnedMonster->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleRewardMonsterDied);
 
 		// 보상 몬스터가 하필 자폭형이면, 그 녀석이 플레이어에 닿아 터질 때도 똑같이 몬스터 코인을 스폰함
 		// (다음 보상 몬스터로 이어질 수 있음 - 의도된 동작)

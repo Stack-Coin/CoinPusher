@@ -32,3 +32,14 @@ EBTNodeResult::Type UCPBTTaskNode_Roar::ExecuteTask(UBehaviorTreeComponent& Owne
 
 	return EBTNodeResult::InProgress;
 }
+
+EBTNodeResult::Type UCPBTTaskNode_Roar::AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+{
+	AAIController* AIController = OwnerComp.GetAIOwner();
+	if (ACPMonsterBoss* Boss = AIController ? Cast<ACPMonsterBoss>(AIController->GetPawn()) : nullptr)
+	{
+		Boss->CancelRoar();
+	}
+
+	return EBTNodeResult::Aborted;
+}

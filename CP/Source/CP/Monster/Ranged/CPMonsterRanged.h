@@ -20,6 +20,7 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void AttackHitCheck() override;
 	virtual float GetSpawnHeightOffset() const override;
+	virtual bool ShouldUseFixedSpawnHeight() const override { return true; }
 
 private:
 	void Fire();
