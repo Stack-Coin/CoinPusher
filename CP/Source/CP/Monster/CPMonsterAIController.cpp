@@ -8,7 +8,6 @@
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "Task/CPAI.h"
-#include "Nexus/CPNexus.h"
 
 ACPMonsterAIController::ACPMonsterAIController()
 {
@@ -32,11 +31,6 @@ void ACPMonsterAIController::RunAI()
 	if (UseBlackboard(MonsterBB, BBComp))
 	{
 		Blackboard->SetValueAsVector(BBKEY_SPAWNPOS, GetPawn()->GetActorLocation());
-
-		if (ACPNexus* ClosestNexus = ACPNexus::FindClosestLivingNexus(this, GetPawn()->GetActorLocation()))
-		{
-			Blackboard->SetValueAsObject(BBKEY_NEXUS, ClosestNexus);
-		}
 
 		bool bResult = RunBehaviorTree(MonsterBT);
 		ensure(bResult);
