@@ -61,6 +61,8 @@ void ACPMonsterProjectile::BeginPlay()
 	{
 		SetLifeSpan(Range / ProjectileSpeed);
 	}
+
+	UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
 }
 
 void ACPMonsterProjectile::OnProjectileHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
