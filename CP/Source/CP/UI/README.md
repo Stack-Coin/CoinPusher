@@ -263,10 +263,16 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   Start" 안내 텍스트는 WBP에 고정 배치. `OnAnyKeyPressed`에 바인딩된
   `HandleSelectedControllerKeyPressed(PressedKey)`가 `PressedKey.IsGamepadKey()`를 선택된 컨트롤러
   종류와 비교해서, **일치하지 않는 입력은 무시**하고(예: 게임패드를 선택했는데 키보드를 누르면
-  아무 반응 없음) 일치할 때만 `NextLevelName`(EditAnywhere)으로 `UGameplayStatics::OpenLevel()`을
-  호출 - `UCPControllerTypeSubsystem`이 GameInstance에 붙어 있어 레벨이 바뀌어도 선택 정보가 남으므로
-  별도 파라미터 전달 없이 다음 레벨에서 그대로 조회 가능. 부모의 `NextWidgetClass`는 설정하지 않음
-  (다음 화면이 아니라 다음 레벨로 이동하므로)
+  아무 반응 없음) 일치할 때만 부모의 `SwitchToNextWidget()`을 직접 호출해 `NextWidgetClass`(WBP
+  Class Defaults에서 `UCPCutsceneWidget` 상속 WBP로 지정)로 전환한다. 부모의
+  `ScheduleSwitchToNextWidget()`은 빈 오버라이드로 막아뒀는데, 안 막으면 부모 `HandleAnyKeyPressed`가
+  컨트롤러 종류를 가리지 않고 매 입력마다 자동으로 전환을 호출해버려 "일치하는 입력만 처리"
+  규칙이 깨지기 때문
+- `UCPCutsceneWidget` : `UCPGameExplanationWidget` 다음, 인게임 레벨 진입 전에 뜨는 컷신 화면.
+  `UCPPressAnyKeyWidget`을 그대로 상속해 컨트롤러 종류 구분 없이 아무 입력이나 감지되면(=스킵)
+  바로 `NextLevelName`(EditAnywhere)으로 `UGameplayStatics::OpenLevel()`을 호출한다. 부모의
+  `NextWidgetClass`는 설정하지 않음(다음 화면이 아니라 다음 레벨로 이동하므로) - 시작화면→설명화면→
+  컷신→인게임 순서에서 마지막 구간만 담당
 
 ### 게임 종료 화면
 

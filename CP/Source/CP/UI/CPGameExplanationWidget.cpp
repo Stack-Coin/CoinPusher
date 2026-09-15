@@ -4,7 +4,6 @@
 #include "GameMode/CPControllerTypeSubsystem.h"
 #include "Components/Image.h"
 #include "Engine/GameInstance.h"
-#include "Kismet/GameplayStatics.h"
 #include "InputCoreTypes.h"
 
 void UCPGameExplanationWidget::NativeConstruct()
@@ -35,6 +34,12 @@ void UCPGameExplanationWidget::NativeConstruct()
 	OnAnyKeyPressed.AddDynamic(this, &UCPGameExplanationWidget::HandleSelectedControllerKeyPressed);
 }
 
+void UCPGameExplanationWidget::ScheduleSwitchToNextWidget()
+{
+	// 아무 것도 하지 않음 - 부모가 매 입력마다 자동으로 부르지만, 이 위젯은 컨트롤러 종류가
+	// 일치하는 입력에서만 전환해야 하므로 HandleSelectedControllerKeyPressed가 직접 처리한다
+}
+
 void UCPGameExplanationWidget::HandleSelectedControllerKeyPressed(FKey PressedKey)
 {
 	if (bHasRequestedLevelChange)
@@ -57,12 +62,7 @@ void UCPGameExplanationWidget::HandleSelectedControllerKeyPressed(FKey PressedKe
 		return;
 	}
 
-	if (NextLevelName.IsNone())
-	{
-		return;
-	}
-
 	bHasRequestedLevelChange = true;
 
-	UGameplayStatics::OpenLevel(this, NextLevelName);
+	SwitchToNextWidget();
 }
