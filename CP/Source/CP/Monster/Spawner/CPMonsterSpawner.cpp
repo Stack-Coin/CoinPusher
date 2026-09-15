@@ -196,7 +196,7 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 			{
 				// 검증 안 된(NavMesh 밖) 위치에는 스폰하지 않고 이 마리만 건너뜀 - AI가 NavMesh 밖에서
 				// 먹통이 되는 문제를 근본적으로 막기 위함(원래 위치를 검증된 것처럼 속이지 않음)
-				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawner] SpawnMonsterRow - NavMesh 투영 실패로 스폰을 건너뜁니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
+
 				continue;
 			}
 
@@ -207,7 +207,7 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 			if (ProjectToNavMesh(SpawnTransform.GetLocation(), SpawnNavAgentProps, ResolvedLocation, WideProjectionExtentXY, WideProjectionExtentZ)
 				&& IsLocationReachableFromArenaCenter(ResolvedLocation, SpawnNavAgentProps))
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawner] SpawnMonsterRow - 기본 범위 NavMesh 투영 실패, 넓은 범위 재탐색으로 보정했습니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
+
 			}
 			else
 			{
@@ -220,14 +220,14 @@ TArray<ACPMonsterBase*> ACPMonsterSpawner::SpawnMonsterRow(TSubclassOf<ACPMonste
 				if (ProjectToNavMesh(OwnerLocation, SpawnNavAgentProps, ResolvedLocation, WideProjectionExtentXY, WideProjectionExtentZ)
 					&& IsLocationReachableFromArenaCenter(ResolvedLocation, SpawnNavAgentProps))
 				{
-					UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawner] SpawnMonsterRow - 넓은 범위 재탐색도 실패, 오너 위치 기준으로 보정했습니다 (오너 위치 %s)."), *OwnerLocation.ToString());
+
 				}
 				else
 				{
 					// 3) 그마저도 실패하면(NavMesh 시스템 자체가 없거나 레벨에 전혀 안 빌드됨) 최후의 수단으로
 					// 원래 위치에 강제 스폰 - 게임 진행이 막히는 것보다는 낫지만, 레벨의 NavMesh 커버리지가
 					// 심각하게 잘못됐다는 뜻이므로 Error로 남김
-					UE_LOG(LogTemp, Error, TEXT("[CPMonsterSpawner] SpawnMonsterRow - CRITICAL: 오너 위치 기준 재탐색도 실패해 NavMesh 밖에 강제 스폰합니다 (위치 %s)."), *SpawnTransform.GetLocation().ToString());
+
 					ResolvedLocation = SpawnTransform.GetLocation();
 				}
 			}

@@ -105,6 +105,16 @@ void ACPMonsterBase::Tick(float DeltaSeconds)
 		UpdateTickThrottle();
 		SeparateFromOtherMonsters(DeltaSeconds);
 	}
+
+	if (HasCCState(ECPMonsterCCState::Knockback))
+	{
+		if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Knockback] %s Mode=%d Velocity=%s Location=%s"),
+				*GetName(), (int32)MoveComp->MovementMode.GetValue(), *MoveComp->Velocity.ToString(),
+				*GetActorLocation().ToString());
+		}
+	}
 }
 
 void ACPMonsterBase::UpdateTickThrottle()
@@ -368,7 +378,7 @@ void ACPMonsterBase::Dead()
 
 		if (SpawnActor)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Spawn Success: %s"), *SpawnActor->GetName());
+
 		}
 	}
 
@@ -486,8 +496,19 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 
 void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[Knockback] %s ApplyKnockback IN Direction=%s Distance=%.2f bIsDead=%s Instigator=%s"),
+		*GetName(), *Direction.ToString(), Distance, bIsDead ? TEXT("true") : TEXT("false"),
+		InstigatorActor ? *InstigatorActor->GetName() : TEXT("null"));
+
 	if (bIsDead)
 	{
+		return;
+	}
+
+	if (Distance <= 0.f)
+	{
+		// Distance<=0인 중복/무효 호출은 무시함 - 그대로 진행하면 LaunchCharacter(ZeroVector, bXYOverride=true)가
+		// 진행 중인 넉백의 수평 속도를 0으로 덮어써버림(Z는 안 건드려서 중력만 남고 수평만 죽는 버그)
 		return;
 	}
 
@@ -496,6 +517,7 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 	if (!FlatDirection.Normalize())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[Knockback] %s ApplyKnockback ABORT - FlatDirection normalize failed (Direction was near-vertical)"), *GetName());
 		return;
 	}
 
@@ -506,11 +528,10 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 	// Distance(밀려나는 거리)를 KnockbackDuration(밀려나는 데 걸리는 시간) 안에 이동하도록 속도로 환산
 	const float Speed = Distance / KnockbackDuration;
-
-	// Test
-	//const float Speed = 1000.f / KnockbackDuration;
-
 	const FVector LaunchVelocity = FlatDirection * Speed;
+
+	UE_LOG(LogTemp, Warning, TEXT("[Knockback] %s bWasFlying=%s LaunchVelocity=%s (before LaunchCharacter)"),
+		*GetName(), bWasFlying ? TEXT("true") : TEXT("false"), *LaunchVelocity.ToString());
 
 	// RVO 끄기
 	if (MoveComp)

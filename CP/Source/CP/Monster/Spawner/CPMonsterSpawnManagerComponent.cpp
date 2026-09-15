@@ -122,14 +122,12 @@ void UCPMonsterSpawnManagerComponent::ApplyRoundInfo(int32 InRound)
 
 	if (RawSpawnerRadius > MaxSafeSpawnerRadius)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] Round %d - SpawnerRadius(%.1f)가 안전 상한(%.1f)을 넘어 클램프합니다. NavMesh 밖 스폰(보스/라운드몹 미표시) 방지용 - DT_RoundInfo 값을 낮추는 걸 권장."),
-			InRound, RawSpawnerRadius, MaxSafeSpawnerRadius);
+
 	}
 
 	if (!RoundInfo)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] RoundInfoTable has no row for Round %d - falling back to component default SpawnerCount(%d)/SpawnerRadius(%.1f)."),
-			InRound, ResolvedSpawnerCount, ResolvedSpawnerRadius);
+
 	}
 
 	if (UWorld* World = GetWorld())
@@ -247,7 +245,7 @@ void UCPMonsterSpawnManagerComponent::CreateSpawnerRing(int32 InSpawnerCount, fl
 		FVector ProjectedLocation = SpawnLocation;
 		if (!IsSpawnerLocationValid(SpawnLocation, &ProjectedLocation))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] CreateSpawnerRing - SpawnerIndex %d 위치가 NavMesh 투영 범위 밖입니다. 원래 위치로 배치합니다 (NavMesh 커버리지 확인 필요)."), Index);
+
 		}
 		SpawnLocation = ProjectedLocation;
 
@@ -280,8 +278,7 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 		// bIsWaveBeforeLastWave 분기에서 한 웨이브 앞서 걸러지므로 여기 도달할 일이 없음 - 즉 이
 		// Round/Wave에 해당하는 행 자체가 데이터에 없다는 뜻(오타/누락). 안전하게 보스 페이즈로
 		// 넘어가되 경고를 남김
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] StartWave(%d) - WaveInfo에 Round %d, Wave %d 행이 없습니다(데이터 누락/오타로 보임). 곧바로 BeginRoundWait()로 전환합니다."),
-			WaveNumber, CurrentRound, WaveNumber);
+
 		BeginRoundWait();
 		return;
 	}
@@ -296,8 +293,7 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 	const int32 LastWaveNumber = GetWaveCount();
 	bIsWaveBeforeLastWave = (LastWaveNumber <= 0) || (WaveNumber + 1 >= LastWaveNumber);
 
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] StartWave(%d) 진입 (Round %d, bIsWaveBeforeLastWave=%s, WaveAliveMonsterCount=%d)"),
-		WaveNumber, CurrentRound, bIsWaveBeforeLastWave ? TEXT("true") : TEXT("false"), WaveAliveMonsterCount);
+
 
 	ActiveJobs.Reset();
 	WaveSpawnTotalSeconds = 0.f;
@@ -316,7 +312,7 @@ void UCPMonsterSpawnManagerComponent::StartWave(int32 InWaveIndex)
 
 		if (!IsValid(Job.MonsterClass) || Job.TargetSpawners.IsEmpty())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] Skipping empty/invalid SpawnWaveEntryRow (Round %d, Wave %d)."), CurrentRound, WaveNumber);
+
 			continue;
 		}
 
@@ -368,12 +364,11 @@ void UCPMonsterSpawnManagerComponent::DebugSkipToLastWave()
 {
 	if (CurrentPhase == ECPWavePhase::RoundWait || CurrentPhase == ECPWavePhase::Finished || ActiveBoss.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] DebugSkipToLastWave() - 이미 RoundWait/Finished거나 보스가 살아있어(ActiveBoss=%s) 무시함 (CurrentPhase=%d)"),
-			ActiveBoss.IsValid() ? TEXT("Valid") : TEXT("Invalid"), (int32)CurrentPhase);
+
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] DebugSkipToLastWave() - Round %d 마지막 웨이브(보스 페이즈)로 강제 점프"), CurrentRound);
+
 
 	// 남아있는 웨이브 스폰 Job 타이머부터 정리 - 안 하면 옛 웨이브 스폰이 보스 페이즈 중에도 계속 흘러들어옴
 	for (FCPActiveSpawnJob& Job : ActiveJobs)
@@ -410,16 +405,14 @@ void UCPMonsterSpawnManagerComponent::BeginRoundWait()
 {
 	// 마지막 웨이브 직전 웨이브 전멸 확인 시 호출됨 - RoundEndWaitTime만큼 기다렸다가 BeginBossPhase()에서
 	// RoundMob과 보스를 동시에 등장시킴
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] BeginRoundWait() 진입 - 마지막 웨이브 직전 웨이브 전멸 확인됨 (Round %d, WorldTime %.2f)"),
-		CurrentRound, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.f);
+
 
 	CurrentPhase = ECPWavePhase::RoundWait;
 
 	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
 	const float BossWaitTime = RoundInfo ? RoundInfo->RoundEndWaitTime : 0.f;
 
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] BeginRoundWait() - %.2f초 뒤에 RoundMob과 보스를 함께 등장시킵니다 (RoundInfo %s)."),
-		BossWaitTime, RoundInfo ? TEXT("찾음") : TEXT("못 찾음(nullptr)"));
+
 
 	// SetTimer()는 Rate가 0 이하면 조용히 아무것도 안 하므로(콜백이 영영 안 불림), 0 이하일 땐 직접 호출
 	if (BossWaitTime > 0.f)
@@ -442,13 +435,12 @@ void UCPMonsterSpawnManagerComponent::BeginBossPhase()
 
 void UCPMonsterSpawnManagerComponent::SpawnBoss()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss() 진입 (Round %d, WorldTime %.2f)"),
-		CurrentRound, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.f);
+
 
 	const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
 	if (!RoundInfo)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - RoundInfoTable에 Round %d 행이 없습니다."), CurrentRound);
+
 		StopRoundMobSpawning();
 		CurrentPhase = ECPWavePhase::Finished;
 		return;
@@ -457,7 +449,7 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 	ACPMonsterSpawner* BossSpawner = SpawnersByIndex.FindRef(RoundInfo->BossSpawnerIndex);
 	if (!IsValid(BossSpawner))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - BossSpawnerIndex %d에 해당하는 스포너가 없습니다 (SpawnerCount 범위를 벗어남)."), RoundInfo->BossSpawnerIndex);
+
 		StopRoundMobSpawning();
 		CurrentPhase = ECPWavePhase::Finished;
 		return;
@@ -471,7 +463,7 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 	TSubclassOf<ACPMonsterBase> BossClass = MonsterClassByType.FindRef(RoundInfo->BossMonsterType);
 	if (!IsValid(BossClass))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - BossMonsterType(%d)에 해당하는 몬스터 클래스가 MonsterClassByType에 연결되어 있지 않습니다."), (int32)RoundInfo->BossMonsterType);
+
 		StopRoundMobSpawning();
 		CurrentPhase = ECPWavePhase::Finished;
 		return;
@@ -514,7 +506,7 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnBoss 실패 - SpawnMonsterRow가 액터를 생성하지 못했습니다."));
+
 		StopRoundMobSpawning();
 		CurrentPhase = ECPWavePhase::Finished;
 	}
@@ -530,14 +522,13 @@ TArray<TObjectPtr<ACPMonsterSpawner>> UCPMonsterSpawnManagerComponent::ResolveVa
 		ACPMonsterSpawner* Spawner = SpawnersByIndex.FindRef(Index);
 		if (!IsValid(Spawner))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnerIndex %d - 현재 스포너 범위(0~%d)를 벗어나 무시합니다."),
-				Index, SpawnersByIndex.Num() - 1);
+
 			continue;
 		}
 
 		if (!IsSpawnerLocationValid(Spawner->GetActorLocation()))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnerIndex %d - 맵/네브메시 밖으로 판단되어 이번 웨이브에서 제외합니다."), Index);
+
 			continue;
 		}
 
@@ -624,7 +615,7 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 	const int32 MaxAliveMonsterCount = GetMaxAliveMonsterCount();
 	if (MaxAliveMonsterCount > 0 && TotalAliveMonsterCount >= MaxAliveMonsterCount)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleSpawnJobTick(%d) - MaxAliveMonsterCount(%d) 도달, 이번 틱 스폰을 건너뜁니다."), JobIndex, MaxAliveMonsterCount);
+
 		return;
 	}
 
@@ -692,7 +683,7 @@ void UCPMonsterSpawnManagerComponent::HandleSpawnJobTick(int32 JobIndex)
 	// 아직 살아있는 몹이 있다면 HandleWaveMonsterDied()가 나중에 전멸을 감지해서 처리함
 	if (bIsWaveBeforeLastWave)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleSpawnJobTick() - 마지막 웨이브 직전 웨이브 완료, 전멸 시 BeginRoundWait() 호출 (WaveAliveMonsterCount=%d)"), WaveAliveMonsterCount);
+
 		if (WaveAliveMonsterCount == 0)
 		{
 			BeginRoundWait();
@@ -718,8 +709,7 @@ void UCPMonsterSpawnManagerComponent::StartRoundMobSpawning()
 	TArray<FCPMonsterWaveInfoRow*> Entries;
 	GetWaveEntries(CurrentRound, GetWaveCount(), Entries);
 
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] StartRoundMobSpawning() 진입 (Round %d, WaveInfo 마지막 웨이브=%d, 엔트리 %d개)"),
-		CurrentRound, GetWaveCount(), Entries.Num());
+
 
 	for (const FCPMonsterWaveInfoRow* Entry : Entries)
 	{
@@ -738,14 +728,13 @@ void UCPMonsterSpawnManagerComponent::StartRoundMobSpawning()
 
 		if (!IsValid(Job.MonsterClass) || Job.TargetSpawners.IsEmpty())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] StartRoundMobSpawning - Skipping empty/invalid entry (Round %d)."), CurrentRound);
+
 			continue;
 		}
 
 		const int32 JobIndex = RoundMobJobs.Add(Job);
 
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] StartRoundMobSpawning() - Job[%d] 등록 (MonsterType=%d, CountPerSpawnPoint=%d, SpawnInterval=%.2f, TargetSpawners=%d개)"),
-			JobIndex, (int32)Entry->MonsterType, Job.CountPerSpawnPoint, Entry->SpawnInterval, Job.TargetSpawners.Num());
+
 
 		FTimerDelegate TimerDelegate;
 		TimerDelegate.BindUFunction(this, FName("HandleRoundMobSpawnTick"), JobIndex);
@@ -757,7 +746,7 @@ void UCPMonsterSpawnManagerComponent::StopRoundMobSpawning()
 {
 	if (!RoundMobJobs.IsEmpty())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] StopRoundMobSpawning() - Job %d개 정리"), RoundMobJobs.Num());
+
 	}
 
 	if (UWorld* World = GetWorld())
@@ -784,7 +773,7 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 	const int32 MaxAliveMonsterCount = GetMaxAliveMonsterCount();
 	if (MaxAliveMonsterCount > 0 && TotalAliveMonsterCount >= MaxAliveMonsterCount)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleRoundMobSpawnTick(%d) - MaxAliveMonsterCount(%d) 도달, 이번 틱 스폰을 건너뜁니다."), JobIndex, MaxAliveMonsterCount);
+
 		return;
 	}
 
@@ -833,8 +822,7 @@ void UCPMonsterSpawnManagerComponent::HandleRoundMobSpawnTick(int32 JobIndex)
 	Job.NextSpawnerCursor = 0;
 	++Job.SpawnedCount;
 
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleRoundMobSpawnTick(%d) - SpawnedCount=%d/%d"),
-		JobIndex, Job.SpawnedCount, Job.CountPerSpawnPoint);
+
 
 	if (Job.SpawnedCount >= Job.CountPerSpawnPoint)
 	{
@@ -850,13 +838,12 @@ void UCPMonsterSpawnManagerComponent::HandleWaveMonsterDied()
 {
 	WaveAliveMonsterCount = FMath::Max(0, WaveAliveMonsterCount - 1);
 
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleWaveMonsterDied() - 남은 WaveAliveMonsterCount=%d (bIsWaveBeforeLastWave=%s, CurrentPhase=%d, SpawningComplete=%s)"),
-		WaveAliveMonsterCount, bIsWaveBeforeLastWave ? TEXT("true") : TEXT("false"), (int32)CurrentPhase, IsWaveSpawningComplete() ? TEXT("true") : TEXT("false"));
+
 
 	// 마지막 웨이브 직전 웨이브의 스폰이 끝난 상태에서 전멸(0)이 되면 여기서 BeginRoundWait()를 호출함
 	if (bIsWaveBeforeLastWave && WaveAliveMonsterCount == 0 && CurrentPhase == ECPWavePhase::Spawning && IsWaveSpawningComplete())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleWaveMonsterDied() - 전멸 확인, BeginRoundWait() 호출"));
+
 		BeginRoundWait();
 	}
 }
@@ -877,8 +864,7 @@ void UCPMonsterSpawnManagerComponent::HandleRewardMonsterDied()
 
 void UCPMonsterSpawnManagerComponent::HandleBossDied()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleBossDied() 진입 (Round %d, WorldTime %.2f)"),
-		CurrentRound, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.f);
+
 
 	// 보스 페이즈 동안 계속 돌던 RoundMob 스폰 타이머를 멈춤
 	StopRoundMobSpawning();
@@ -902,7 +888,7 @@ void UCPMonsterSpawnManagerComponent::HandleBossDied()
 		const FCPMonsterRoundInfoRow* RoundInfo = FindRoundInfoRow(CurrentRound);
 		const float NextRoundDelay = RoundInfo ? RoundInfo->NextRoundStartDelay : 0.f;
 
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] HandleBossDied() - 다음 라운드 시작을 %.2f초 뒤로 예약합니다."), NextRoundDelay);
+
 
 		// RoundWaitTimer를 재사용(BeginRoundWait()의 보스 대기와 같은 변수) - SetTimer()는 Rate가
 		// 0 이하면 조용히 아무것도 안 하므로 그 경우 직접 호출
@@ -1041,7 +1027,7 @@ void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 	const int32 MaxRewardMonsterCount = GetMaxRewardMonsterCount();
 	if (MaxRewardMonsterCount > 0 && ActiveRewardMonsterCount >= MaxRewardMonsterCount)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 스킵 - MaxRewardMonsterCount(%d) 도달."), MaxRewardMonsterCount);
+
 		return;
 	}
 
@@ -1057,7 +1043,7 @@ void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 
 	if (Candidates.IsEmpty())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 실패 - MonsterClassByType에 보스 이외의 유효한 클래스가 없습니다."));
+
 		return;
 	}
 
@@ -1078,7 +1064,7 @@ void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 
 	if (AvailableSpawners.IsEmpty())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster 실패 - 스포너가 하나도 없습니다."));
+
 		return;
 	}
 
@@ -1108,7 +1094,7 @@ void UCPMonsterSpawnManagerComponent::SpawnRandomRewardMonster()
 			Bomb->OnBombExplodedOnPlayer.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBombExplodedOnPlayer);
 		}
 
-		UE_LOG(LogTemp, Warning, TEXT("[CPMonsterSpawnManagerComponent] SpawnRandomRewardMonster() - MonsterType=%d 스폰 (DropZone 몬스터 코인 보상)"), (int32)ChosenType);
+
 	}
 }
 
