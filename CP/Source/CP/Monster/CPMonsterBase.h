@@ -12,6 +12,10 @@
 #include "Debug/CPDebugTypes.h"
 #include "CPMonsterBase.generated.h"
 
+class UTimelineComponent;
+class UCurveFloat;
+class UMaterialInstanceDynamic;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMonsterDied);
 
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
@@ -83,6 +87,12 @@ protected:
 	virtual float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 	// 넉백 함수 // 협업용
 	virtual void ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor) override;
+
+	/** 피격 시 메시를 HitFlashColor로 잠깐 물들이는 연출 - TakeDamage에서 호출 (ACPPlayerCharacter와 동일한 방식) */
+	void PlayHitFlash();
+
+	UFUNCTION()
+	void HandleHitFlashUpdate(float Value);
 
 public:
 	/** 특정 CC 상태(들)가 하나라도 걸려있는지 */
@@ -210,6 +220,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCPDebugCollisionShapeComponent> DebugHitboxShape;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UTimelineComponent> HitFlashTimeline;
+
 	/** If true, AttackHitCheck draws its sweep shape. Driven by the F1 debug widget's MonsterAttackRange checkbox */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
 	bool bDrawDebugAttackRange = false;
@@ -226,6 +239,24 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat")
 	TObjectPtr<UCPMonsterStatComponent> StatComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|HitFlash")
+	TObjectPtr<UCurveFloat> HitFlashCurve;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|HitFlash", meta = (ClampMin = 0.01))
+	float HitFlashSpeed = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|HitFlash")
+	FLinearColor HitFlashColor = FLinearColor::White;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|HitFlash")
+	FName HitFlashAmountParameterName = TEXT("FlashAmount");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|HitFlash")
+	FName HitFlashColorParameterName = TEXT("FlashColor");
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> HitFlashMIDs;
 
 protected:
 	/** Coin pickup spawned in the field on death (ACPCoinItem - walk-over auto-collect, distinct from the
