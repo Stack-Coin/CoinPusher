@@ -406,21 +406,7 @@ void ACPMonsterBase::Dead()
 	{
 		FVector Location = GetActorLocation();
 		Location.X += 100.f;
-
-		FHitResult GroundHit;
-		const FVector TraceStart = Location + FVector(0.f, 0.f, 500.f);
-		const FVector TraceEnd = Location - FVector(0.f, 0.f, 1000.f);
-		FCollisionQueryParams TraceParams(NAME_None, false, this);
-		if (GetWorld()->LineTraceSingleByChannel(GroundHit, TraceStart, TraceEnd, ECC_WorldStatic, TraceParams))
-		{
-			// CoinItem의 루트가 반지름 50짜리 CollisionSphere라 표면에 그대로 놓으면 구 절반이 파묻힘 -> 노멀 방향으로 반지름만큼 띄움
-			constexpr float CoinCollisionRadius = 50.f;
-			Location = GroundHit.Location + GroundHit.Normal * CoinCollisionRadius;
-		}
-		else if (ShouldUseFixedSpawnHeight())
-		{
-			Location.Z -= 100.f;
-		}
+		Location.Z = 25.f;
 
 		FRotator Rotation = GetActorRotation();
 
