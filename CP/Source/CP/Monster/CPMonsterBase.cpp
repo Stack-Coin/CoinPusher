@@ -18,6 +18,10 @@
 #include "Debug/CPDebugCollisionSubsystem.h"
 #include "AIController.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "Components/TimelineComponent.h"
+#include "Curves/CurveFloat.h"
+#include "Components/MeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 // Sets default values
 ACPMonsterBase::ACPMonsterBase()
@@ -34,6 +38,13 @@ ACPMonsterBase::ACPMonsterBase()
 	DebugHitboxShape->Category = ECPDebugCollisionCategory::EnemyHitbox;
 	DebugHitboxShape->ShapeColor = FColor::Orange;
 	DebugHitboxShape->SetTargetComponent(GetCapsuleComponent());
+
+	HitFlashTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("HitFlashTimeline"));
+
+	UCurveFloat* DefaultHitFlashCurve = CreateDefaultSubobject<UCurveFloat>(TEXT("HitFlashDefaultCurve"));
+	DefaultHitFlashCurve->FloatCurve.AddKey(0.0f, 1.0f);
+	DefaultHitFlashCurve->FloatCurve.AddKey(1.0f, 0.0f);
+	HitFlashCurve = DefaultHitFlashCurve;
 }
 
 // Called when the game starts or when spawned
@@ -94,6 +105,28 @@ void ACPMonsterBase::BeginPlay()
 	// 되돌릴 원래 값을 지금(BP 기본값이 반영된 시점) 캐시해둠
 	DefaultCapsuleCollisionEnabled = GetCapsuleComponent()->GetCollisionEnabled();
 	DefaultMeshCollisionEnabled = GetMesh()->GetCollisionEnabled();
+
+	TArray<UMeshComponent*> MonsterMeshComponents;
+	GetComponents<UMeshComponent>(MonsterMeshComponents);
+	for (UMeshComponent* MonsterMeshComponent : MonsterMeshComponents)
+	{
+		for (int32 MaterialIndex = 0; MaterialIndex < MonsterMeshComponent->GetNumMaterials(); ++MaterialIndex)
+		{
+			if (UMaterialInstanceDynamic* MID = MonsterMeshComponent->CreateAndSetMaterialInstanceDynamic(MaterialIndex))
+			{
+				HitFlashMIDs.Add(MID);
+			}
+		}
+	}
+
+	if (HitFlashTimeline && HitFlashCurve)
+	{
+		FOnTimelineFloat HitFlashUpdateEvent;
+		HitFlashUpdateEvent.BindUFunction(this, FName("HandleHitFlashUpdate"));
+		HitFlashTimeline->AddInterpFloat(HitFlashCurve, HitFlashUpdateEvent);
+		HitFlashTimeline->SetLooping(false);
+		HitFlashTimeline->SetPlayRate(HitFlashSpeed);
+	}
 }
 
 void ACPMonsterBase::Tick(float DeltaSeconds)
@@ -205,6 +238,12 @@ void ACPMonsterBase::OnReturnedToPool()
 	}
 
 	GetWorldTimerManager().ClearTimer(KnockbackRestoreHandle);
+
+	if (HitFlashTimeline)
+	{
+		HitFlashTimeline->Stop();
+	}
+	HandleHitFlashUpdate(0.0f);
 }
 
 void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
@@ -468,6 +507,8 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 		return 0.f;
 	}
 
+	PlayHitFlash();
+
 	if (StatComponent)
 	{
 		StatComponent->CurrentHealth -= DamageAmount;
@@ -492,6 +533,36 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	}
 
 	return DamageAmount;
+}
+
+void ACPMonsterBase::PlayHitFlash()
+{
+	if (!HitFlashTimeline)
+	{
+		return;
+	}
+
+	for (UMaterialInstanceDynamic* MID : HitFlashMIDs)
+	{
+		if (MID)
+		{
+			MID->SetVectorParameterValue(HitFlashColorParameterName, HitFlashColor);
+		}
+	}
+
+	HitFlashTimeline->SetPlayRate(HitFlashSpeed);
+	HitFlashTimeline->PlayFromStart();
+}
+
+void ACPMonsterBase::HandleHitFlashUpdate(float Value)
+{
+	for (UMaterialInstanceDynamic* MID : HitFlashMIDs)
+	{
+		if (MID)
+		{
+			MID->SetScalarParameterValue(HitFlashAmountParameterName, Value);
+		}
+	}
 }
 
 void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor)
