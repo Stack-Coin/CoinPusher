@@ -94,6 +94,10 @@ protected:
 	UFUNCTION()
 	void HandleHitFlashUpdate(float Value);
 
+	/** 사망 시 메시 Material의 Disolve 파라미터를 -1~1로 서서히 올려 Burn Out(디졸브) 연출 - Dead()에서 호출 */
+	UFUNCTION()
+	void HandleBurnOutUpdate(float Value);
+
 public:
 	/** 특정 CC 상태(들)가 하나라도 걸려있는지 */
 	bool HasCCState(ECPMonsterCCState State) const { return EnumHasAnyFlags(CurrentCCState, State); }
@@ -223,6 +227,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UTimelineComponent> HitFlashTimeline;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UTimelineComponent> BurnOutTimeline;
+
 	/** If true, AttackHitCheck draws its sweep shape. Driven by the F1 debug widget's MonsterAttackRange checkbox */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
 	bool bDrawDebugAttackRange = false;
@@ -257,6 +264,15 @@ protected:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> HitFlashMIDs;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|BurnOut")
+	TObjectPtr<UCurveFloat> BurnOutCurve;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|BurnOut", meta = (ClampMin = 0.01))
+	float BurnOutSpeed = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|BurnOut")
+	FName DisolveParameterName = TEXT("Disolve");
 
 protected:
 	/** Coin pickup spawned in the field on death (ACPCoinItem - walk-over auto-collect, distinct from the

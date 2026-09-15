@@ -45,6 +45,13 @@ ACPMonsterBase::ACPMonsterBase()
 	DefaultHitFlashCurve->FloatCurve.AddKey(0.0f, 1.0f);
 	DefaultHitFlashCurve->FloatCurve.AddKey(1.0f, 0.0f);
 	HitFlashCurve = DefaultHitFlashCurve;
+
+	BurnOutTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("BurnOutTimeline"));
+
+	UCurveFloat* DefaultBurnOutCurve = CreateDefaultSubobject<UCurveFloat>(TEXT("BurnOutDefaultCurve"));
+	DefaultBurnOutCurve->FloatCurve.AddKey(0.0f, -1.0f);
+	DefaultBurnOutCurve->FloatCurve.AddKey(1.0f, 1.0f);
+	BurnOutCurve = DefaultBurnOutCurve;
 }
 
 // Called when the game starts or when spawned
@@ -126,6 +133,15 @@ void ACPMonsterBase::BeginPlay()
 		HitFlashTimeline->AddInterpFloat(HitFlashCurve, HitFlashUpdateEvent);
 		HitFlashTimeline->SetLooping(false);
 		HitFlashTimeline->SetPlayRate(HitFlashSpeed);
+	}
+
+	if (BurnOutTimeline && BurnOutCurve)
+	{
+		FOnTimelineFloat BurnOutUpdateEvent;
+		BurnOutUpdateEvent.BindUFunction(this, FName("HandleBurnOutUpdate"));
+		BurnOutTimeline->AddInterpFloat(BurnOutCurve, BurnOutUpdateEvent);
+		BurnOutTimeline->SetLooping(false);
+		BurnOutTimeline->SetPlayRate(BurnOutSpeed);
 	}
 }
 
@@ -244,6 +260,12 @@ void ACPMonsterBase::OnReturnedToPool()
 		HitFlashTimeline->Stop();
 	}
 	HandleHitFlashUpdate(0.0f);
+
+	if (BurnOutTimeline)
+	{
+		BurnOutTimeline->Stop();
+	}
+	HandleBurnOutUpdate(-1.0f);
 }
 
 void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
@@ -384,6 +406,11 @@ void ACPMonsterBase::Dead()
 
 	bIsDead = true;
 	AddCCState(ECPMonsterCCState::Dead);
+
+	if (BurnOutTimeline && BurnOutCurve)
+	{
+		BurnOutTimeline->PlayFromStart();
+	}
 
 	// 사망 후에는 다른 액터와 전혀 부딪히지 않도록 콜리전을 완전히 끔
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -554,6 +581,17 @@ void ACPMonsterBase::PlayHitFlash()
 
 	HitFlashTimeline->SetPlayRate(HitFlashSpeed);
 	HitFlashTimeline->PlayFromStart();
+}
+
+void ACPMonsterBase::HandleBurnOutUpdate(float Value)
+{
+	for (UMaterialInstanceDynamic* MID : HitFlashMIDs)
+	{
+		if (MID)
+		{
+			MID->SetScalarParameterValue(DisolveParameterName, Value);
+		}
+	}
 }
 
 void ACPMonsterBase::HandleHitFlashUpdate(float Value)
