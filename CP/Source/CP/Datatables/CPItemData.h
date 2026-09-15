@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -11,6 +11,7 @@ class AActor;
 class UTexture2D;
 class UStaticMesh;
 class UMaterialInterface;
+class ACPWeaponBase;
 
 /** 아이템 마스터 데이터 한 행. UCPItemDataTableGameInstance::ItemDataTable의 Row Struct로 쓰인다 */
 USTRUCT(BlueprintType)
@@ -100,4 +101,8 @@ struct FItemData : public FTableRowBase
 	 *  파라미터에 이 값을 넣어준다. 비어있으면(nullptr) Billboard(ImageMesh)를 숨긴다 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data")
 	TObjectPtr<UTexture2D> ItemImage = nullptr;
+
+	/** 이 아이템이 무기일 때 장착할 무기 액터 클래스. 무기 아이템이 아니면 비워둔다 (nullptr) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Data")
+	TSubclassOf<ACPWeaponBase> WeaponClass;
 };
