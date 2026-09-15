@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -81,7 +81,17 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* PlayerInvincibleCheckBox;
 
+	/** Toggles RVO avoidance on every ACPMonsterBoss currently in the level (see ACPMonsterBoss::SetDebugUseRVOAvoidance) -
+	 *  기획 검토용: 체크 해제하면 보스가 몬스터 무리 앞에서 멈칫하지 않고 그대로 뚫고 감 */
 	/** Toggles auto-attack for the local player (see ACPPlayerCharacter::SetAutoAttackEnabled) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UCheckBox* BossRVOAvoidanceCheckBox;
+
+	/** Calls ACPPlayerCharacter::GetMonsterSpawnManager()->DebugSkipToLastWave() - jumps the current round
+	 *  straight to the boss phase (RoundMob + Boss appear immediately, skipping remaining waves) */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	UButton* SkipToLastWaveButton;
+
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	UCheckBox* AutoAttackCheckBox;
 
@@ -187,6 +197,17 @@ protected:
 	/** Casts UGameplayStatics::GetPlayerPawn(GetWorld(), 0) to ACPPlayerCharacter and calls
 	 *  SetDebugInvincible(bEnabled) on it, if valid */
 	void SetPlayerDebugInvincible(bool bEnabled);
+
+	UFUNCTION()
+	void HandleBossRVOAvoidanceCheckChanged(bool bIsChecked);
+
+	/** Bound to SkipToLastWaveButton - forwards to the local player's UCPMonsterSpawnManagerComponent */
+	UFUNCTION()
+	void HandleSkipToLastWaveClicked();
+
+	/** Finds every ACPMonsterBoss in the level (GetAllActorsOfClass) and applies bEnabled via
+	 *  SetDebugUseRVOAvoidance - a boss spawned after this is toggled keeps its own BP default */
+	void SetBossDebugRVOAvoidance(bool bEnabled);
 
 	UFUNCTION()
 	void HandleAutoAttackCheckChanged(bool bIsChecked);

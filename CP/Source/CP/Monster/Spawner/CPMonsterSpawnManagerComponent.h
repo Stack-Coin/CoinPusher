@@ -160,6 +160,9 @@ protected:
 	/** 현재 라운드의 RoundInfo에서 MaxAliveMonsterCount를 읽어옴 (행이 없으면 0=무제한) */
 	int32 GetMaxAliveMonsterCount() const;
 
+	/** 현재 라운드의 RoundInfo에서 MaxRewardMonsterCount를 읽어옴 (행이 없으면 DefaultMaxRewardMonsterCount 사용) */
+	int32 GetMaxRewardMonsterCount() const;
+
 	/** GetOwner()(=Player)에서 연결된 CoinPusher를 가져옴 (없으면 nullptr) - Boss/Bomb의 CoinPusher 연동
 	 *  핸들러들과 DropZone 델리게이트 바인딩(BeginPlay)이 공통으로 사용 */
 	ACPCoinPusher* GetCoinPusher() const;
@@ -198,6 +201,12 @@ protected:
 	void SpawnRandomRewardMonster();
 
 public:
+	/** 디버그 위젯 전용 - 지금 살아있는 웨이브 몹을 전부 즉시 죽이고, 남은 웨이브 타이머/스폰 Job을
+	 *  모두 정리한 뒤 BeginRoundWait()를 태움(정상 흐름과 동일하게 RoundEndWaitTime만큼 기다렸다가
+	 *  RoundMob+보스 동시 등장). 이미 RoundWait 이후 단계면(보스가 이미 살아있거나 대기 중) 아무것도
+	 *  안 하고 경고만 남김 */
+	void DebugSkipToLastWave();
+
 	// ----- UI 표시용 getter -----
 	ECPWavePhase GetCurrentPhase() const { return CurrentPhase; }
 	int32 GetCurrentWaveIndex() const { return CurrentWaveIndex; }
@@ -268,10 +277,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 1))
 	int32 MonsterCoinSpawnCountOnBombExplode = 1;
 
-	/** 보상 몬스터(SpawnRandomRewardMonster) 동시 생존 상한 - MaxAliveMonsterCount와는 별개로 관리됨.
-	 *  0이면 무제한(GetMaxAliveMonsterCount()와 같은 컨벤션) */
+	/** RoundInfoTable에 현재 라운드 행이 없을 때만 쓰이는 폴백값 - 정상적으로는 FCPMonsterRoundInfoRow::
+	 *  MaxRewardMonsterCount(GetMaxRewardMonsterCount())가 우선 적용됨. 0이면 무제한
+	 *  (GetMaxAliveMonsterCount()와 같은 컨벤션) */
 	UPROPERTY(EditAnywhere, Category = "CoinPusher Rewards", meta = (ClampMin = 0))
-	int32 MaxRewardMonsterCount = 5;
+	int32 DefaultMaxRewardMonsterCount = 99;
 
 private:
 	UPROPERTY()

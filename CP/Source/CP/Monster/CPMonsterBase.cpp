@@ -48,24 +48,6 @@ void ACPMonsterBase::BeginPlay()
 
 	GetCharacterMovement()->MaxWalkSpeed = GetAIMoveSpeed();
 
-	GetCapsuleComponent()->SetCapsuleRadius(GetAICollisionRadius());
-
-	// DataTable에 Half Height 값이 채워져 있으면 그걸로 캡슐 높이도 맞춤 (0이면 아직 데이터가
-	// 안 채워진 것으로 보고 BP에 세팅된 기존 캡슐 Half Height를 그대로 둠)
-	if (GetAICollisionHalfHeight() > 0.f)
-	{
-		GetCapsuleComponent()->SetCapsuleHalfHeight(GetAICollisionHalfHeight());
-	}
-
-	// 몬스터 타입마다 캡슐 Half Height가 달라서, 메쉬가 고정 오프셋으로 붙어있으면 캡슐 바닥과
-	// 안 맞아 스폰 시 붕 뜨거나 파묻힌 것처럼 보일 수 있음 - 메쉬 Z를 캡슐 크기에 맞춰 정렬
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-	{
-		FVector MeshRelativeLocation = MeshComp->GetRelativeLocation();
-		MeshRelativeLocation.Z = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		MeshComp->SetRelativeLocation(MeshRelativeLocation);
-	}
-
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
 		// RVO 회피 반경 배율은 몬스터마다 다르게 줄 이유가 없어서 코드 상수로 고정함. 가중치만
@@ -73,7 +55,7 @@ void ACPMonsterBase::BeginPlay()
 		// 오버라이드로 값을 올릴 수 있게 함 (0~1 사이 값이어야 함)
 		constexpr float RVOAvoidanceRadiusMultiplier = 3.f;
 
-		MoveComp->bUseRVOAvoidance = true;
+		MoveComp->bUseRVOAvoidance = ShouldUseRVOAvoidance();
 		MoveComp->AvoidanceConsiderationRadius = GetAICollisionRadius() * RVOAvoidanceRadiusMultiplier;
 		MoveComp->AvoidanceWeight = GetAIAvoidanceWeight();
 
@@ -85,6 +67,21 @@ void ACPMonsterBase::BeginPlay()
 		// Supported Agent를 여러 개 등록해뒀다면 이 값 기준으로 알맞은 NavMesh를 골라 씀
 		MoveComp->NavAgentProps.AgentRadius = GetAICollisionRadius();
 		MoveComp->NavAgentProps.AgentHeight = GetAICollisionHalfHeight() * 2.f;
+	}
+
+	// 물리 블록용 오브젝트 채널을 Pawn(플레이어와 공용)에서 전용 채널로 분리 - Boss가 이 채널에
+	// 대한 자기 응답만 Ignore로 바꾸면(CPMonsterBoss 생성자) 몬스터끼리는 그대로 서로 블록하면서
+	// 보스만 몬스터를 물리적으로 뚫고 플레이어까지 도달할 수 있음. 캡슐뿐 아니라 스켈레탈 메시도
+	// 같이 바꿔야 함 - 메시는 CharacterMesh 프로파일이라 ObjectType이 여전히 Pawn으로 남아있으면,
+	// CollisionEnabled=QueryOnly라도 무브먼트 스윕에는 걸려서 Boss가 메시한테 막힘(Pawn 채널
+	// 응답은 Player를 막아야 해서 그대로 둬야 하기 때문에 캡슐 쪽 Ignore와 안 맞물림)
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCollisionObjectType(ECC_GameTraceChannel8);
+	}
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetCollisionObjectType(ECC_GameTraceChannel8);
 	}
 
 	if (UCPDebugCollisionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UCPDebugCollisionSubsystem>() : nullptr)
@@ -107,6 +104,16 @@ void ACPMonsterBase::Tick(float DeltaSeconds)
 	{
 		UpdateTickThrottle();
 		SeparateFromOtherMonsters(DeltaSeconds);
+	}
+
+	if (HasCCState(ECPMonsterCCState::Knockback))
+	{
+		if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Knockback] %s Mode=%d Velocity=%s Location=%s"),
+				*GetName(), (int32)MoveComp->MovementMode.GetValue(), *MoveComp->Velocity.ToString(),
+				*GetActorLocation().ToString());
+		}
 	}
 }
 
@@ -176,7 +183,14 @@ void ACPMonsterBase::OnReturnedToPool()
 
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
-		PooledMovementMode = MoveComp->MovementMode;
+		// Dead()가 먼저 DisableMovement()를 호출해 MovementMode를 None으로 만들어버리므로, 여기서
+		// 그 순간 값을 그대로 캐시하면 한 번이라도 죽었다 풀로 돌아온 개체는 재사용(OnAcquiredFromPool)
+		// 때마다 계속 None으로 복구돼 영원히 못 움직임. None이면 덮어쓰지 않고 마지막으로 유효했던 값
+		// (최초 WarmUp 시점의 Walking 등)을 그대로 유지함
+		if (MoveComp->MovementMode != MOVE_None)
+		{
+			PooledMovementMode = MoveComp->MovementMode;
+		}
 		MoveComp->DisableMovement();
 
 		// SetActorTickEnabled(false)는 액터 자신의 Tick()만 끌 뿐 컴포넌트의 PrimaryComponentTick은
@@ -223,6 +237,15 @@ void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
 		MoveComp->PrimaryComponentTick.TickInterval = 0.f; // 풀에 들어가기 전 거리 스로틀로 늘어나 있었을 수 있음
 		SetActorLocationAndRotation(NewTransform.GetLocation(), NewTransform.GetRotation());
 		MoveComp->SetMovementMode(PooledMovementMode);
+
+		// 방어 로직: 위 캐시가 무슨 이유로든 여전히 None이면(이번에 고친 경로 외의 다른 경로로 또
+		// None이 새어들어와도) 활성 개체가 영구히 못 움직이는 상태로 풀리지 않도록 강제 복구함.
+		// 비행형(ShouldUseFixedSpawnHeight)은 DefaultLandMovementMode(Walking)로 떨어지면 지면으로
+		// 끌려 내려가버리므로 Flying으로, 그 외는 지상 기본 모드로 분기함
+		if (MoveComp->MovementMode == MOVE_None)
+		{
+			MoveComp->SetMovementMode(ShouldUseFixedSpawnHeight() ? MOVE_Flying : MoveComp->DefaultLandMovementMode.GetValue());
+		}
 
 		if (bWasConstrainedToPlane)
 		{
@@ -355,7 +378,7 @@ void ACPMonsterBase::Dead()
 
 		if (SpawnActor)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Spawn Success: %s"), *SpawnActor->GetName());
+
 		}
 	}
 
@@ -473,8 +496,19 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 
 void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AActor* InstigatorActor)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[Knockback] %s ApplyKnockback IN Direction=%s Distance=%.2f bIsDead=%s Instigator=%s"),
+		*GetName(), *Direction.ToString(), Distance, bIsDead ? TEXT("true") : TEXT("false"),
+		InstigatorActor ? *InstigatorActor->GetName() : TEXT("null"));
+
 	if (bIsDead)
 	{
+		return;
+	}
+
+	if (Distance <= 0.f)
+	{
+		// Distance<=0인 중복/무효 호출은 무시함 - 그대로 진행하면 LaunchCharacter(ZeroVector, bXYOverride=true)가
+		// 진행 중인 넉백의 수평 속도를 0으로 덮어써버림(Z는 안 건드려서 중력만 남고 수평만 죽는 버그)
 		return;
 	}
 
@@ -483,6 +517,7 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 	if (!FlatDirection.Normalize())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[Knockback] %s ApplyKnockback ABORT - FlatDirection normalize failed (Direction was near-vertical)"), *GetName());
 		return;
 	}
 
@@ -493,11 +528,10 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 
 	// Distance(밀려나는 거리)를 KnockbackDuration(밀려나는 데 걸리는 시간) 안에 이동하도록 속도로 환산
 	const float Speed = Distance / KnockbackDuration;
-
-	// Test
-	//const float Speed = 1000.f / KnockbackDuration;
-
 	const FVector LaunchVelocity = FlatDirection * Speed;
+
+	UE_LOG(LogTemp, Warning, TEXT("[Knockback] %s bWasFlying=%s LaunchVelocity=%s (before LaunchCharacter)"),
+		*GetName(), bWasFlying ? TEXT("true") : TEXT("false"), *LaunchVelocity.ToString());
 
 	// RVO 끄기
 	if (MoveComp)
@@ -531,7 +565,7 @@ void ACPMonsterBase::ApplyKnockback(const FVector& Direction, float Distance, AA
 		{
 			if (UCharacterMovementComponent* InnerMoveComp = StrongThis->GetCharacterMovement())
 			{
-				InnerMoveComp->bUseRVOAvoidance = true;
+				InnerMoveComp->bUseRVOAvoidance = StrongThis->ShouldUseRVOAvoidance();
 				if (bWasFlying)
 				{
 					InnerMoveComp->SetMovementMode(MOVE_Flying);
@@ -607,7 +641,7 @@ void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 		Overlaps,
 		GetActorLocation(),
 		FQuat::Identity,
-		FCollisionObjectQueryParams(ECC_Pawn),
+		FCollisionObjectQueryParams(ECC_GameTraceChannel8),
 		FCollisionShape::MakeSphere(SearchRadius),
 		Params
 	);
@@ -618,7 +652,7 @@ void ACPMonsterBase::SeparateFromOtherMonsters(float DeltaSeconds)
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
 		ACPMonsterBase* Other = Cast<ACPMonsterBase>(Overlap.GetActor());
-		if (!Other || Other == this || Other->bIsDead)
+		if (!Other || Other == this || Other->bIsDead || Other->GetMonsterType() == ECPMonsterType::Boss)
 		{
 			continue;
 		}
@@ -682,37 +716,14 @@ float ACPMonsterBase::GetAIAttackInterval()
 	return StatComponent ? StatComponent->DefaultStat.AttackInterval : 1.0f;
 }
 
-namespace
-{
-	/** 캡슐 Radius/HalfHeight는 SKM 실측 크기 기반 고정값 - 기획자가 DataTable에서 임의로 바꾸지
-	 *  못하게 일부러 코드에 하드코딩함(스폰 위치/공격 판정/RVO가 전부 이 값에 엮여있어서 값이
-	 *  틀어지면 여러 시스템이 동시에 깨짐) */
-	void GetDefaultCollisionSize(ECPMonsterType InType, float& OutRadius, float& OutHalfHeight)
-	{
-		switch (InType)
-		{
-		case ECPMonsterType::Normal: OutRadius = 61.f;  OutHalfHeight = 76.f;  break;
-		case ECPMonsterType::Ranged: OutRadius = 59.f;  OutHalfHeight = 79.f;  break;
-		case ECPMonsterType::Tanker: OutRadius = 95.f;  OutHalfHeight = 95.f;  break;
-		case ECPMonsterType::Bomb:   OutRadius = 95.f;  OutHalfHeight = 95.f;  break;
-		case ECPMonsterType::Boss:   OutRadius = 293.f; OutHalfHeight = 304.f; break;
-		default:                     OutRadius = 0.f;   OutHalfHeight = 0.f;   break;
-		}
-	}
-}
-
 float ACPMonsterBase::GetAICollisionRadius() const
 {
-	float Radius, HalfHeight;
-	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
-	return Radius;
+	return GetCapsuleComponent()->GetScaledCapsuleRadius();
 }
 
 float ACPMonsterBase::GetAICollisionHalfHeight() const
 {
-	float Radius, HalfHeight;
-	GetDefaultCollisionSize(MonsterType, Radius, HalfHeight);
-	return HalfHeight;
+	return GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 }
 
 float ACPMonsterBase::GetAIAttackRange()

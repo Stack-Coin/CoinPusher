@@ -18,6 +18,18 @@ class UCPMonsterAIInterface : public UInterface
 
 DECLARE_DELEGATE(FAICharacterAttackFinished);
 
+/** BT Task가 명시적으로 세팅하는 몬스터 AI 상태 - ABP가 애니메이션 분기에 사용.
+ *  Speed 등으로 추론하지 않고, 각 BT Task(MoveTo/Attack/Roar)가 시작/종료 시점에 직접 SetAIState함 */
+UENUM(BlueprintType)
+enum class ECPMonsterAIState : uint8
+{
+	Idle,
+	Move,
+	Attack,
+	Roar,
+	Dead
+};
+
 /**
  *
  */
@@ -27,6 +39,11 @@ class CP_API ICPMonsterAIInterface
 
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
+	/** BT Task(MoveTo/Attack 등)가 시작/종료 시점에 호출해 현재 AI 상태를 명시적으로 세팅함.
+	 *  Dead 상태는 ACPMonsterBase가 bIsDead로 자동 override하므로 Task가 직접 세팅할 필요 없음 */
+	virtual void SetAIState(ECPMonsterAIState NewState) = 0;
+	virtual ECPMonsterAIState GetAIState() const = 0;
+
 	// Wave별
 	virtual float GetAIMaxHealth() = 0;
 	virtual float GetAICurrentHealth() = 0;

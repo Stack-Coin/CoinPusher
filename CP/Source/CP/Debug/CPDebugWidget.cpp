@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Debug/CPDebugWidget.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
@@ -13,6 +13,8 @@
 #include "Player/CPPlayerCharacter.h"
 #include "Player/Inventory/CPInventoryComponent.h"
 #include "CoinPusher/CPCoinPusher.h"
+#include "Monster/Boss/CPMonsterBoss.h"
+#include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
 #include "Datatables/CPItemData.h"
 
 void UCPDebugWidget::NativeConstruct()
@@ -66,6 +68,14 @@ void UCPDebugWidget::NativeConstruct()
 	if (PlayerInvincibleCheckBox)
 	{
 		PlayerInvincibleCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandlePlayerInvincibleCheckChanged);
+	}
+	if (BossRVOAvoidanceCheckBox)
+	{
+		BossRVOAvoidanceCheckBox->OnCheckStateChanged.AddDynamic(this, &UCPDebugWidget::HandleBossRVOAvoidanceCheckChanged);
+	}
+	if (SkipToLastWaveButton)
+	{
+		SkipToLastWaveButton->OnClicked.AddDynamic(this, &UCPDebugWidget::HandleSkipToLastWaveClicked);
 	}
 	if (AutoAttackCheckBox)
 	{
@@ -270,6 +280,41 @@ void UCPDebugWidget::SetPlayerDebugInvincible(bool bEnabled)
 	{
 		PlayerCharacter->SetDebugInvincible(bEnabled);
 	}
+}
+
+void UCPDebugWidget::HandleBossRVOAvoidanceCheckChanged(bool bIsChecked)
+{
+	SetBossDebugRVOAvoidance(bIsChecked);
+}
+
+void UCPDebugWidget::SetBossDebugRVOAvoidance(bool bEnabled)
+{
+	TArray<AActor*> Bosses;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBoss::StaticClass(), Bosses);
+
+	UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::SetBossDebugRVOAvoidance(%s) - Boss %d마리 찾음"),
+		bEnabled ? TEXT("true") : TEXT("false"), Bosses.Num());
+
+	for (AActor* Actor : Bosses)
+	{
+		if (ACPMonsterBoss* Boss = Cast<ACPMonsterBoss>(Actor))
+		{
+			Boss->SetDebugUseRVOAvoidance(bEnabled);
+		}
+	}
+}
+
+void UCPDebugWidget::HandleSkipToLastWaveClicked()
+{
+	ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	UCPMonsterSpawnManagerComponent* SpawnManager = PlayerCharacter ? PlayerCharacter->GetMonsterSpawnManager() : nullptr;
+	if (!SpawnManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UCPDebugWidget::HandleSkipToLastWaveClicked - no local ACPPlayerCharacter/MonsterSpawnManager found"));
+		return;
+	}
+
+	SpawnManager->DebugSkipToLastWave();
 }
 
 void UCPDebugWidget::HandleAutoAttackCheckChanged(bool bIsChecked)

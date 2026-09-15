@@ -10,6 +10,7 @@ class USphereComponent;
 class UProjectileMovementComponent;
 class UNiagaraSystem;
 class UNiagaraComponent;
+class USoundBase;
 
 UCLASS(Blueprintable)
 class CP_API ACPMonsterProjectile : public AActor
@@ -56,6 +57,10 @@ protected:
 	// 투사체 콜라이더 반지름
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile", meta = (ClampMin = 0, Units = "cm"))
 	float ProjectileRadius = 25.f;
+
+	// 발사 시점(스폰 시)에 재생할 사운드
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	TObjectPtr<USoundBase> FireSound;
 
 protected:
 	float DamageAmount = 0.f;

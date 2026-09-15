@@ -27,13 +27,18 @@ EBTNodeResult::Type UCPBTTaskNode_Attack::ExecuteTask(UBehaviorTreeComponent& Ow
 
 	FAICharacterAttackFinished OnAttackFinished;
 	OnAttackFinished.BindLambda(
-		[&]()
+		[this, &OwnerComp]()
 		{
+			if (ICPMonsterAIInterface* FinishedAIPawn = Cast<ICPMonsterAIInterface>(OwnerComp.GetAIOwner()->GetPawn()))
+			{
+				FinishedAIPawn->SetAIState(ECPMonsterAIState::Idle);
+			}
 			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 		}
 	);
 
 	AIPawn->SetAIAttackDelegate(OnAttackFinished);
+	AIPawn->SetAIState(ECPMonsterAIState::Attack);
 	AIPawn->AttackByAI();
 
 	return EBTNodeResult::InProgress;
@@ -48,6 +53,7 @@ EBTNodeResult::Type UCPBTTaskNode_Attack::AbortTask(UBehaviorTreeComponent& Owne
 	if (ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(ControllingPawn))
 	{
 		AIPawn->CancelAIAttack();
+		AIPawn->SetAIState(ECPMonsterAIState::Idle);
 	}
 
 	return EBTNodeResult::Aborted;
