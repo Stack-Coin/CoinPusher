@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Monster/Bomb/CPMonsterBomb.h"
 #include "NiagaraComponent.h"
@@ -29,6 +29,15 @@ void ACPMonsterBomb::AttackHitCheck()
 	}
 
 	Explode();
+}
+
+void ACPMonsterBomb::Dead()
+{
+	if (FuseEffect)
+	{
+		FuseEffect->Deactivate();
+	}
+	Super::Dead();
 }
 
 void ACPMonsterBomb::Explode()

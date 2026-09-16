@@ -268,9 +268,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|BurnOut")
 	TObjectPtr<UCurveFloat> BurnOutCurve;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|BurnOut", meta = (ClampMin = 0.01))
-	float BurnOutSpeed = 0.5f;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat|BurnOut")
 	FName DisolveParameterName = TEXT("Disolve");
 

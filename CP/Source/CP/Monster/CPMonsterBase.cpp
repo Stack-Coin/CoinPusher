@@ -141,7 +141,6 @@ void ACPMonsterBase::BeginPlay()
 		BurnOutUpdateEvent.BindUFunction(this, FName("HandleBurnOutUpdate"));
 		BurnOutTimeline->AddInterpFloat(BurnOutCurve, BurnOutUpdateEvent);
 		BurnOutTimeline->SetLooping(false);
-		BurnOutTimeline->SetPlayRate(BurnOutSpeed);
 	}
 }
 
@@ -407,11 +406,6 @@ void ACPMonsterBase::Dead()
 	bIsDead = true;
 	AddCCState(ECPMonsterCCState::Dead);
 
-	if (BurnOutTimeline && BurnOutCurve)
-	{
-		BurnOutTimeline->PlayFromStart();
-	}
-
 	// 사망 후에는 다른 액터와 전혀 부딪히지 않도록 콜리전을 완전히 끔
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -460,6 +454,14 @@ void ACPMonsterBase::Dead()
 		const float Duration = AnimInstance->Montage_Play(DeadMontage);
 		if (Duration > 0.0f)
 		{
+			// BurnOut 이펙트가 사망 몽타주 재생 시간에 맞춰 끝나도록 PlayRate를 몽타주 Duration에 맞춰 보정
+			if (BurnOutTimeline && BurnOutCurve)
+			{
+				const float TimelineLength = BurnOutTimeline->GetTimelineLength();
+				BurnOutTimeline->SetPlayRate(TimelineLength / Duration);
+				BurnOutTimeline->PlayFromStart();
+			}
+
 			FOnMontageEnded EndDelegate;
 			EndDelegate.BindLambda(
 				[this](UAnimMontage*, bool)
