@@ -36,7 +36,7 @@ DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
 ACPPlayerCharacter::ACPPlayerCharacter()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.0f, 96.0f);
@@ -148,6 +148,17 @@ void ACPPlayerCharacter::BeginPlay()
 		HitFlashTimeline->AddInterpFloat(HitFlashCurve, HitFlashUpdateEvent);
 		HitFlashTimeline->SetLooping(false);
 		HitFlashTimeline->SetPlayRate(HitFlashSpeed);
+	}
+}
+
+void ACPPlayerCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (ACPWeaponBase* CurrentWeapon = GetCurrentWeapon())
+	{
+		const bool bIsMoving = GetVelocity().SizeSquared2D() > KINDA_SMALL_NUMBER;
+		CurrentWeapon->SetMovementEffectActive(bIsMoving && !bIsAttackLocked && !bIsDowned);
 	}
 }
 
@@ -267,7 +278,7 @@ void ACPPlayerCharacter::UseSlotEast(const FInputActionValue& Value)
 {
 	if (InventoryComponent)
 	{
-		InventoryComponent->UseSlotItem(0);
+		InventoryComponent->UseSlotItem(3);
 	}
 }
 
@@ -283,7 +294,7 @@ void ACPPlayerCharacter::UseSlotWest(const FInputActionValue& Value)
 {
 	if (InventoryComponent)
 	{
-		InventoryComponent->UseSlotItem(2);
+		InventoryComponent->UseSlotItem(0);
 	}
 }
 

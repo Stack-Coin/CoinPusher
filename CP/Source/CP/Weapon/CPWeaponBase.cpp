@@ -9,6 +9,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 #include "Player/CPStatInterface.h"
 #include "Player/CPStatTypes.h"
 #include "Animation/AnimInstance.h"
@@ -26,6 +27,27 @@ ACPWeaponBase::ACPWeaponBase()
 
 	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WeaponMesh->SetGenerateOverlapEvents(false);
+
+	MovementEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("MovementEffectComponent"));
+	MovementEffectComponent->SetupAttachment(WeaponMesh);
+	MovementEffectComponent->bAutoActivate = false;
+}
+
+void ACPWeaponBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (MovementEffectComponent)
+	{
+		MovementEffectComponent->SetRelativeLocation(MovementEffectLocationOffset);
+		MovementEffectComponent->SetRelativeRotation(MovementEffectRotationOffset);
+		MovementEffectComponent->SetRelativeScale3D(MovementEffectScale);
+
+		if (MovementEffect)
+		{
+			MovementEffectComponent->SetAsset(MovementEffect);
+		}
+	}
 }
 
 void ACPWeaponBase::EquipTo(ACharacter* NewOwner, FName SocketName)
@@ -292,6 +314,25 @@ void ACPWeaponBase::ClearPassiveStatBuff()
 float ACPWeaponBase::GetPassiveStatBuffTimeRemaining() const
 {
 	return GetWorldTimerManager().GetTimerRemaining(PassiveStatBuffTimerHandle);
+}
+
+void ACPWeaponBase::SetMovementEffectActive(bool bActive)
+{
+	if (!MovementEffectComponent || !MovementEffect || bActive == bMovementEffectActive)
+	{
+		return;
+	}
+
+	bMovementEffectActive = bActive;
+
+	if (bActive)
+	{
+		MovementEffectComponent->Activate(true);
+	}
+	else
+	{
+		MovementEffectComponent->Deactivate();
+	}
 }
 
 void ACPWeaponBase::PlayAttackEffect(const FVector& Location, const FRotator& Rotation) const
