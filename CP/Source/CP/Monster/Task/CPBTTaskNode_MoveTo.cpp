@@ -3,6 +3,7 @@
 #include "Monster/Task/CPBTTaskNode_MoveTo.h"
 #include "AIController.h"
 #include "Monster/CPMonsterAIInterface.h"
+#include "Monster/CPMonsterAIController.h"
 
 UCPBTTaskNode_MoveTo::UCPBTTaskNode_MoveTo()
 {
@@ -52,6 +53,18 @@ void UCPBTTaskNode_MoveTo::OnTaskFinished(UBehaviorTreeComponent& OwnerComp, uin
 		if (ICPMonsterAIInterface* AIPawn = Cast<ICPMonsterAIInterface>(AIController->GetPawn()))
 		{
 			AIPawn->SetAIState(ECPMonsterAIState::Idle);
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("[NavStuckDebug] %s MoveTo OnTaskFinished Result=%d"), *GetNameSafe(AIController->GetPawn()), static_cast<int32>(TaskResult));
+
+		// MoveTo 실패(On Fail) 시 NavMesh 이탈이 원인일 수 있으므로 다음 Tick까지 기다리지 않고 즉시 복구 시도
+		if (TaskResult == EBTNodeResult::Failed)
+		{
+			if (ACPMonsterAIController* MonsterAIController = Cast<ACPMonsterAIController>(AIController))
+			{
+				const bool bRecovered = MonsterAIController->TryRecoverFromOffNavMesh();
+				UE_LOG(LogTemp, Warning, TEXT("[NavStuckDebug] %s OnFail recovery=%s"), *GetNameSafe(AIController->GetPawn()), bRecovered ? TEXT("true") : TEXT("false"));
+			}
 		}
 	}
 }
