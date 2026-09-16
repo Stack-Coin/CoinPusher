@@ -35,6 +35,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Spawn")
 	TArray<FName> SpawnableCategories = { FName("Sword"), FName("StatUp") };
 
+	/** SpawnZone 위치 기준으로 스폰 지점을 무작위로 흔드는 반경(cm) - 0이면 흔들지 않고 SpawnZone
+	 *  위치 그대로 스폰한다. 같은 SpawnZone에서 아이템이 연달아 스폰될 때 정확히 같은 좌표에 겹쳐
+	 *  스폰되면 ACPWorldItem::CollisionBody끼리 접촉 노멀이 정의되지 않아 물리적으로 서로 밀어내지
+	 *  못하는 문제가 있어 추가됨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Spawn", meta = (ClampMin = 0, Units = "cm"))
+	float SpawnPositionJitterRadius = 30.0f;
+
 	virtual void BeginPlay() override;
 
 	/** CoinPusher->GetDropZoneDroppedDelegate()에 바인딩 - ItemDataTable에서 ItemID를 조회해 Category가
