@@ -11,7 +11,6 @@ class ACPPlayerCharacter;
 class UCPHorizonGuageBarWidget;
 class UCPTicketCountWidget;
 class UCPCoinCountWidget;
-class UCPInventoryWidget;
 class UCPInGameWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamLevelUp, int32, NewLevel);
@@ -58,10 +57,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPHorizonGuageBarWidget> PlayerHealthBarWidgetClass;
 
-	/** Widget Blueprint (inheriting UCPInventoryWidget) for the player's cross-shaped inventory HUD */
-	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
-	TSubclassOf<UCPInventoryWidget> InventoryWidgetClass;
-
 public:
 
 	/** Constructor */
@@ -83,10 +78,6 @@ protected:
 	 *  player's screen, and binds it directly to PlayerCharacter's OnHealthChanged. Called once per
 	 *  local player from BeginPlay */
 	void SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter, TSubclassOf<UCPHorizonGuageBarWidget> HealthBarWidgetClass);
-
-	/** Creates an inventory widget using InventoryWidgetClass, adds it to PlayerCharacter's owning player's
-	 *  screen. Called once per local player from BeginPlay */
-	void SetupPlayerInventoryWidget(ACPPlayerCharacter* PlayerCharacter);
 
 	/** Binds PlayerCharacter's OnHealthChanged/OnExpChanged/OnLevelChanged/OnTicketChanged directly to
 	 *  its possessing ACPTopDownPlayerController's InGameUI (GetInGameWidget()), and pushes each

@@ -22,7 +22,6 @@ void ACPItemSpawnManager::BeginPlay()
 
 void ACPItemSpawnManager::HandleDropZoneItemDropped(FName ItemID)
 {
-	UE_LOG(LogTemp, Warning, TEXT("Spawnzone"));
 	UDataTable* ItemDataTable = CoinPusher ? CoinPusher->GetItemDataTable() : nullptr;
 	const FItemData* Row = ItemDataTable
 		? ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPItemSpawnManager::HandleDropZoneItemDropped"))
@@ -30,7 +29,7 @@ void ACPItemSpawnManager::HandleDropZoneItemDropped(FName ItemID)
 
 	if (!Row || !Row->WorldSpawnBPClass || !SpawnableCategories.Contains(Row->Category))
 	{
-	
+		UE_LOG(LogTemp, Warning, TEXT("Spawnzone"));
 		return;
 	}
 
@@ -47,7 +46,6 @@ void ACPItemSpawnManager::HandleDropZoneItemDropped(FName ItemID)
 
 	if (ValidZones.Num() == 0)
 	{
-
 		return;
 	}
 

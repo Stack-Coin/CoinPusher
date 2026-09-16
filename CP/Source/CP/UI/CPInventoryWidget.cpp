@@ -4,11 +4,17 @@
 #include "Player/CPPlayerCharacter.h"
 #include "Player/Inventory/CPInventoryComponent.h"
 #include "Datatables/CPItemData.h"
+#include "TimerManager.h"
 
 void UCPInventoryWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
+	GetWorld()->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UCPInventoryWidget::BindToPlayerInventory));
+}
+
+void UCPInventoryWidget::BindToPlayerInventory()
+{
 	if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(GetOwningPlayerPawn()))
 	{
 		if (UCPInventoryComponent* Inventory = PlayerCharacter->GetInventoryComponent())
@@ -23,9 +29,9 @@ void UCPInventoryWidget::NativeConstruct()
 
 void UCPInventoryWidget::RefreshSlots()
 {
-	SetSlotDisplay(EastSlotImage, EastSlotCountText, 0);
+	SetSlotDisplay(EastSlotImage, EastSlotCountText, 2);
 	SetSlotDisplay(NorthSlotImage, NorthSlotCountText, 1);
-	SetSlotDisplay(WestSlotImage, WestSlotCountText, 2);
+	SetSlotDisplay(WestSlotImage, WestSlotCountText, 0);
 	SetSlotDisplay(SouthSlotImage, SouthSlotCountText, 3);
 }
 
