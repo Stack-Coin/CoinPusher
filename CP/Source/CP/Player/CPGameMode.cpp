@@ -11,7 +11,6 @@
 #include "UI/CPHorizonGuageBarWidget.h"
 #include "UI/CPTicketCountWidget.h"
 #include "UI/CPCoinCountWidget.h"
-#include "UI/CPInventoryWidget.h"
 #include "UI/CPInGameWidget.h"
 #include "Player/CPTopDownPlayerController.h"
 #include "TimerManager.h"
@@ -36,7 +35,6 @@ void ACPGameMode::BeginPlay()
 		{
 			SetupPlayerHealthBarWidget(PlayerCharacter, PlayerHealthBarWidgetClass);
 			SetupPlayerWalletWidgets(PlayerCharacter);
-			SetupPlayerInventoryWidget(PlayerCharacter);
 
 			PlayerCharacter->OnPlayerDowned.AddDynamic(this, &ACPGameMode::HandlePlayerDowned);
 
@@ -119,25 +117,6 @@ void ACPGameMode::SetupPlayerHealthBarWidget(ACPPlayerCharacter* PlayerCharacter
 
 	PlayerCharacter->OnHealthChanged.AddDynamic(HealthBarWidget, &UCPHorizonGuageBarWidget::Update);
 	HealthBarWidget->Update(PlayerCharacter->GetStat(ECPStatType::Health), PlayerCharacter->GetMaxHealth());
-}
-
-void ACPGameMode::SetupPlayerInventoryWidget(ACPPlayerCharacter* PlayerCharacter)
-{
-	if (!PlayerCharacter || !InventoryWidgetClass)
-	{
-		return;
-	}
-
-	APlayerController* OwningController = Cast<APlayerController>(PlayerCharacter->GetController());
-	if (!OwningController)
-	{
-		return;
-	}
-
-	if (UCPInventoryWidget* InventoryWidget = CreateWidget<UCPInventoryWidget>(OwningController, InventoryWidgetClass))
-	{
-		InventoryWidget->AddToViewport();
-	}
 }
 
 void ACPGameMode::SetupPlayerInGameWidgetBindings(TWeakObjectPtr<ACPPlayerCharacter> WeakPlayerCharacter)

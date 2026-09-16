@@ -51,7 +51,8 @@ bool UCPInventoryComponent::StoreItem(FName ItemCode, int32 Count)
 		return false;
 	}
 
-	// 이미 같은 아이템을 담은 슬롯이 있으면 그 슬롯 개수만 증가
+	// 이미 같은 아이템을 담은 슬롯(또는 이 아이템 전용으로 예약된, ItemID는 지정돼 있지만 Count가
+	// 0인 슬롯)이 있으면 그 슬롯 개수만 증가
 	for (FCPInventorySlot& Slot : Slots)
 	{
 		if (Slot.ItemID == ItemCode)
@@ -70,9 +71,12 @@ bool UCPInventoryComponent::StoreItem(FName ItemCode, int32 Count)
 		return false;
 	}
 
+	// ItemID가 아예 비어있는(특정 아이템으로 예약되지 않은) 슬롯만 새로 채운다 - 다른 아이템 전용으로
+	// 예약된 슬롯(ItemID는 지정돼 있지만 Count가 0인 상태, IsEmpty()는 true)은 여기서 건드리지 않는다.
+	// 그런 슬롯에 들어갈 자격이 있는 아이템은 위 루프에서 이미 ItemID가 일치해 처리됐어야 한다
 	for (FCPInventorySlot& Slot : Slots)
 	{
-		if (Slot.IsEmpty())
+		if (Slot.ItemID.IsNone())
 		{
 			Slot.ItemID = ItemCode;
 			Slot.Count = Count;
