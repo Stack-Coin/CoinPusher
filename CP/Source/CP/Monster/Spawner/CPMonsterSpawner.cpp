@@ -103,9 +103,16 @@ bool ACPMonsterSpawner::IsLocationReachableFromArenaCenter(const FVector& InLoca
 	}
 
 	const UNavigationPath* Path = NavSys->FindPathToLocationSynchronously(World, InLocation, ArenaCenterLocation);
+	const bool bReachable = Path && Path->IsValid() && !Path->IsPartial();
+	UE_LOG(LogTemp, Warning, TEXT("[NavSpawnDebug] %s IsLocationReachableFromArenaCenter From=%s ArenaCenter=%s Path=%s Valid=%s Partial=%s -> %s"),
+		*GetNameSafe(this), *InLocation.ToString(), *ArenaCenterLocation.ToString(),
+		Path ? TEXT("exists") : TEXT("null"),
+		Path ? (Path->IsValid() ? TEXT("true") : TEXT("false")) : TEXT("n/a"),
+		Path ? (Path->IsPartial() ? TEXT("true") : TEXT("false")) : TEXT("n/a"),
+		bReachable ? TEXT("REACHABLE") : TEXT("UNREACHABLE"));
 
 	// 부분 경로(Partial)는 중간에 끊겨 중심까지 못 이어진 것 - 고립된 NavMesh 조각에 스폰된 경우를 걸러냄
-	return Path && Path->IsValid() && !Path->IsPartial();
+	return bReachable;
 }
 
 bool ACPMonsterSpawner::ProjectToNavMesh(const FVector& InLocation, const FNavAgentProperties& InNavAgentProps, FVector& OutLocation, float InExtentXY, float InExtentZ) const
@@ -123,6 +130,9 @@ bool ACPMonsterSpawner::ProjectToNavMesh(const FVector& InLocation, const FNavAg
 		OutLocation = OutNavLocation.Location;
 		return true;
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[NavSpawnDebug] %s ProjectToNavMesh FAILED at %s (extent %.0f/%.0f, agent radius=%.0f height=%.0f)"),
+		*GetNameSafe(this), *InLocation.ToString(), InExtentXY, InExtentZ, InNavAgentProps.AgentRadius, InNavAgentProps.AgentHeight);
 
 	// 투영 범위 안에 NavMesh가 전혀 없음 - 검증 안 된 위치를 검증된 것처럼 돌려주지 않고 실패로 알림
 	return false;

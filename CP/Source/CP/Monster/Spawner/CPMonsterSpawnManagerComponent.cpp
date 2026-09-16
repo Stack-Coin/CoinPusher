@@ -209,6 +209,7 @@ void UCPMonsterSpawnManagerComponent::CreateSpawnerRing(int32 InSpawnerCount, fl
 
 	const TSubclassOf<ACPMonsterSpawner> ClassToSpawn = SpawnerClass ? SpawnerClass.Get() : ACPMonsterSpawner::StaticClass();
 	const FVector CenterLocation = Owner->GetActorLocation();
+	UE_LOG(LogTemp, Warning, TEXT("[NavSpawnDebug] CreateSpawnerRing ArenaCenterLocation(=player pos) set to %s, SpawnerRadius=%.0f"), *CenterLocation.ToString(), InSpawnerRadius);
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = Owner;
@@ -520,18 +521,20 @@ TArray<TObjectPtr<ACPMonsterSpawner>> UCPMonsterSpawnManagerComponent::ResolveVa
 		ACPMonsterSpawner* Spawner = SpawnersByIndex.FindRef(Index);
 		if (!IsValid(Spawner))
 		{
-
+			UE_LOG(LogTemp, Warning, TEXT("[NavSpawnDebug] ResolveValidSpawners: spawner index %d not found/invalid"), Index);
 			continue;
 		}
 
 		if (!IsSpawnerLocationValid(Spawner->GetActorLocation()))
 		{
-
+			UE_LOG(LogTemp, Warning, TEXT("[NavSpawnDebug] ResolveValidSpawners: spawner index %d at %s rejected by IsSpawnerLocationValid"), Index, *Spawner->GetActorLocation().ToString());
 			continue;
 		}
 
 		Result.Add(Spawner);
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[NavSpawnDebug] ResolveValidSpawners: %d of %d indices resolved to valid spawners"), Result.Num(), InIndices.Num());
 
 	return Result;
 }
@@ -562,6 +565,9 @@ bool UCPMonsterSpawnManagerComponent::IsSpawnerLocationValid(const FVector& InLo
 	constexpr float ProjectionExtentXY = 500.f;
 	constexpr float ProjectionExtentZ = 500.f;
 	const bool bIsValid = NavSys->ProjectPointToNavigation(InLocation, OutNavLocation, FVector(ProjectionExtentXY, ProjectionExtentXY, ProjectionExtentZ));
+
+	UE_LOG(LogTemp, Warning, TEXT("[NavSpawnDebug] IsSpawnerLocationValid at %s (extent %.0f) -> %s"),
+		*InLocation.ToString(), ProjectionExtentXY, bIsValid ? TEXT("VALID") : TEXT("INVALID"));
 
 	if (OutProjectedLocation)
 	{
