@@ -61,6 +61,7 @@ protected:
 	float OrbitRadius = 200.0f;
 	float OrbitSpeedDegPerSec = 90.0f;
 	float SelfSpinSpeedDegPerSec = 180.0f;
+	UPROPERTY(EditAnywhere, Category = "Effect")
 	float HitRadius = 80.0f;
 	float VerticalOffset = 80.0f;
 	float Damage = 15.0f;

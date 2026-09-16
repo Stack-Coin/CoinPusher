@@ -26,8 +26,13 @@ ACPProjectile::ACPProjectile()
 	CollisionComp = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionComp"));
 	CollisionComp->InitSphereRadius(15.0f);
 	CollisionComp->SetCollisionProfileName(TEXT("Projectile"));
-	// Pawns overlap instead of block, so CanPierce can let the projectile continue moving through them
+	// Pawns overlap instead of block, so CanPierce can let the projectile continue moving through them.
+	// Monsters use their own object channel (ECC_GameTraceChannel8, see ACPMonsterBase's constructor), not
+	// ECC_Pawn, so it needs the same override - otherwise it falls back to that channel's project-wide
+	// default response (Block, see DefaultEngine.ini), and a blocking hit always destroys the projectile
+	// in OnProjectileHit regardless of bCanPierce
 	CollisionComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	CollisionComp->SetCollisionResponseToChannel(ECC_GameTraceChannel8, ECR_Overlap);
 	CollisionComp->OnComponentHit.AddDynamic(this, &ACPProjectile::OnProjectileHit);
 	CollisionComp->OnComponentBeginOverlap.AddDynamic(this, &ACPProjectile::OnProjectileOverlap);
 	RootComponent = CollisionComp;

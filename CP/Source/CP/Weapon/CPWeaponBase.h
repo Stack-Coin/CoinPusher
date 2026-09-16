@@ -14,6 +14,7 @@ class UAnimMontage;
 class ICPStatInterface;
 class UCPWeaponPassiveSkillModule;
 class UNiagaraSystem;
+class UNiagaraComponent;
 
 /** Broadcast right when a combo string starts (true), and right when the attack motion is actually over (false):
  *  when the attack montage finishes/blends out if one is assigned, otherwise as soon as the last swing is
@@ -48,6 +49,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<UStaticMeshComponent> WeaponMesh;
 
+	/** Attached to WeaponMesh, positioned via MovementEffectLocationOffset/RotationOffset/Scale below (e.g. at
+	 *  the blade's tip). Plays MovementEffect while SetMovementEffectActive(true) is in effect (see
+	 *  ACPPlayerCharacter::Tick) - not auto-activated, so it stays off whenever no effect is assigned or the
+	 *  wielder isn't moving */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
+	TObjectPtr<UNiagaraComponent> MovementEffectComponent;
+
 	/** Melee or Ranged. Set per weapon Blueprint */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
 	ECPWeaponType WeaponType = ECPWeaponType::Melee;
@@ -74,6 +82,23 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon|Level")
 	int32 WeaponLevel = 1;
+
+	/** Niagara system played by MovementEffectComponent while the wielder is moving without attacking. Unset = no effect */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Movement Effect")
+	TObjectPtr<UNiagaraSystem> MovementEffect;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Movement Effect")
+	FVector MovementEffectLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Movement Effect")
+	FRotator MovementEffectRotationOffset = FRotator::ZeroRotator;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Movement Effect")
+	FVector MovementEffectScale = FVector(1.0f, 1.0f, 1.0f);
+
+	/** Mirrors MovementEffectComponent's actual activation state, so SetMovementEffectActive can no-op on a
+	 *  repeated call instead of restarting the effect every tick */
+	bool bMovementEffectActive = false;
 
 	float PassiveAttackPowerBonus = 0.0f;
 	float PassiveAttackSpeedMultiplier = 1.0f;
@@ -194,7 +219,14 @@ public:
 	void ApplyPassiveStatBuff(float InAttackPowerBonus, float InAttackSpeedMultiplierBonus, float InRangeMultiplierBonus, float InDuration,
 		UNiagaraSystem* InBuffEffect, const FVector& InBuffEffectLocationOffset, const FRotator& InBuffEffectRotationOffset, const FVector& InBuffEffectScale);
 
+	/** Turns MovementEffectComponent on/off. No-ops if MovementEffect isn't assigned or bActive matches the
+	 *  current state already. Called every tick from ACPPlayerCharacter::Tick while this weapon is equipped */
+	UFUNCTION(BlueprintCallable, Category="Weapon|Movement Effect")
+	void SetMovementEffectActive(bool bActive);
+
 protected:
+
+	virtual void BeginPlay() override;
 
 	void ClearPassiveStatBuff();
 

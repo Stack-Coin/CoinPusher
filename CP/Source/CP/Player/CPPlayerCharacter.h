@@ -400,6 +400,10 @@ protected:
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
 
+	/** Drives the equipped weapon's movement-trail effect (see ACPWeaponBase::SetMovementEffectActive):
+	 *  on only while actually moving and not mid-attack (see bIsAttackLocked) */
+	virtual void Tick(float DeltaTime) override;
+
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
