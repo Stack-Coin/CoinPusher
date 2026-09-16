@@ -45,6 +45,13 @@ ACPMonsterBase::ACPMonsterBase()
 	DefaultHitFlashCurve->FloatCurve.AddKey(0.0f, 1.0f);
 	DefaultHitFlashCurve->FloatCurve.AddKey(1.0f, 0.0f);
 	HitFlashCurve = DefaultHitFlashCurve;
+
+	BurnOutTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("BurnOutTimeline"));
+
+	UCurveFloat* DefaultBurnOutCurve = CreateDefaultSubobject<UCurveFloat>(TEXT("BurnOutDefaultCurve"));
+	DefaultBurnOutCurve->FloatCurve.AddKey(0.0f, -1.0f);
+	DefaultBurnOutCurve->FloatCurve.AddKey(1.0f, 1.0f);
+	BurnOutCurve = DefaultBurnOutCurve;
 }
 
 // Called when the game starts or when spawned
@@ -126,6 +133,14 @@ void ACPMonsterBase::BeginPlay()
 		HitFlashTimeline->AddInterpFloat(HitFlashCurve, HitFlashUpdateEvent);
 		HitFlashTimeline->SetLooping(false);
 		HitFlashTimeline->SetPlayRate(HitFlashSpeed);
+	}
+
+	if (BurnOutTimeline && BurnOutCurve)
+	{
+		FOnTimelineFloat BurnOutUpdateEvent;
+		BurnOutUpdateEvent.BindUFunction(this, FName("HandleBurnOutUpdate"));
+		BurnOutTimeline->AddInterpFloat(BurnOutCurve, BurnOutUpdateEvent);
+		BurnOutTimeline->SetLooping(false);
 	}
 }
 
@@ -244,6 +259,12 @@ void ACPMonsterBase::OnReturnedToPool()
 		HitFlashTimeline->Stop();
 	}
 	HandleHitFlashUpdate(0.0f);
+
+	if (BurnOutTimeline)
+	{
+		BurnOutTimeline->Stop();
+	}
+	HandleBurnOutUpdate(-1.0f);
 }
 
 void ACPMonsterBase::OnAcquiredFromPool(const FTransform& NewTransform)
@@ -406,6 +427,8 @@ void ACPMonsterBase::Dead()
 	{
 		FVector Location = GetActorLocation();
 		Location.X += 100.f;
+		Location.Z = 25.f;
+
 		FRotator Rotation = GetActorRotation();
 
 		FActorSpawnParameters SpawnParms;
@@ -431,6 +454,14 @@ void ACPMonsterBase::Dead()
 		const float Duration = AnimInstance->Montage_Play(DeadMontage);
 		if (Duration > 0.0f)
 		{
+			// BurnOut 이펙트가 사망 몽타주 재생 시간에 맞춰 끝나도록 PlayRate를 몽타주 Duration에 맞춰 보정
+			if (BurnOutTimeline && BurnOutCurve)
+			{
+				const float TimelineLength = BurnOutTimeline->GetTimelineLength();
+				BurnOutTimeline->SetPlayRate(TimelineLength / Duration);
+				BurnOutTimeline->PlayFromStart();
+			}
+
 			FOnMontageEnded EndDelegate;
 			EndDelegate.BindLambda(
 				[this](UAnimMontage*, bool)
@@ -552,6 +583,17 @@ void ACPMonsterBase::PlayHitFlash()
 
 	HitFlashTimeline->SetPlayRate(HitFlashSpeed);
 	HitFlashTimeline->PlayFromStart();
+}
+
+void ACPMonsterBase::HandleBurnOutUpdate(float Value)
+{
+	for (UMaterialInstanceDynamic* MID : HitFlashMIDs)
+	{
+		if (MID)
+		{
+			MID->SetScalarParameterValue(DisolveParameterName, Value);
+		}
+	}
 }
 
 void ACPMonsterBase::HandleHitFlashUpdate(float Value)

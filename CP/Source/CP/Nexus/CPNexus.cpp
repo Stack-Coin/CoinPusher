@@ -9,10 +9,6 @@
 #include "Player/CPInteractor.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
-#include "Monster/CPMonsterBase.h"
-#include "Monster/Task/CPAI.h"
-#include "AIController.h"
-#include "BehaviorTree/BlackboardComponent.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
 #include "Player/CPPlayerCharacter.h"
 
@@ -143,30 +139,6 @@ void ACPNexus::Dead()
 
 	HpBar->SetHiddenInGame(true);
 
-	TArray<AActor*> Monsters;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACPMonsterBase::StaticClass(), Monsters);
-
-	for (AActor* Actor : Monsters)
-	{
-		ACPMonsterBase* Monster = Cast<ACPMonsterBase>(Actor);
-		if (!Monster)
-		{
-			continue;
-		}
-
-		AAIController* AIController = Cast<AAIController>(Monster->GetController());
-		UBlackboardComponent* MonsterBlackboard = AIController ? AIController->GetBlackboardComponent() : nullptr;
-		if (!MonsterBlackboard)
-		{
-			continue;
-		}
-
-		if (MonsterBlackboard->GetValueAsObject(BBKEY_NEXUS) == this)
-		{
-			MonsterBlackboard->SetValueAsObject(BBKEY_NEXUS, nullptr);
-		}
-	}
-
 	CollisionSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_GameTraceChannel1, ECR_Ignore);
 
 	if (GlobalRemainingRespawns > 0)
@@ -182,39 +154,6 @@ void ACPNexus::Dead()
 
 		GetWorld()->SpawnActor<ACPNexus>(GetClass(), FTransform(GetActorRotation(), SpawnLocation), SpawnParams);*/
 	}
-}
-
-ACPNexus* ACPNexus::FindClosestLivingNexus(const UObject* WorldContextObject, const FVector& FromLocation)
-{
-	UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull) : nullptr;
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	TArray<AActor*> NexusActors;
-	UGameplayStatics::GetAllActorsOfClass(World, ACPNexus::StaticClass(), NexusActors);
-
-	ACPNexus* ClosestNexus = nullptr;
-	float MinDistance = TNumericLimits<float>::Max();
-
-	for (AActor* Actor : NexusActors)
-	{
-		ACPNexus* Nexus = Cast<ACPNexus>(Actor);
-		if (!Nexus || Nexus->IsDead())
-		{
-			continue;
-		}
-
-		const float Distance = FVector::Distance(FromLocation, Nexus->GetActorLocation());
-		if (Distance < MinDistance)
-		{
-			MinDistance = Distance;
-			ClosestNexus = Nexus;
-		}
-	}
-
-	return ClosestNexus;
 }
 
 float ACPNexus::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)

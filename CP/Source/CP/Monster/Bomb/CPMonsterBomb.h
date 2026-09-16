@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -36,6 +36,8 @@ public:
 	/** AttackMontage의 AnimNotify(CPMonsterAttackAnimNotify)에서 호출됨. 부모의 근접 스윕 판정을
 	 *  그대로 재사용해 데미지를 준 뒤, 곧바로 자폭(Explode)함 - 투사체를 스폰하지 않음 */
 	virtual void AttackHitCheck() override;
+
+	virtual void Dead() override;
 
 	/** 심지 이펙트(FuseEffect)를 꺼서 풀에 있는 동안 불필요하게 시뮬레이션되지 않게 함 */
 	virtual void OnReturnedToPool() override;
