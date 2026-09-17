@@ -48,6 +48,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Passive Coin Convert Area")
 	void MonsterConvertActive(FName ItemID, int32 Num);
 
+	UFUNCTION(BlueprintPure, Category="Passive Coin Convert Area")
+	bool HasConvertibleCoins() const;
+
 public:
 
 	FORCEINLINE UBoxComponent* GetConvertVolume() const { return ConvertVolume; }

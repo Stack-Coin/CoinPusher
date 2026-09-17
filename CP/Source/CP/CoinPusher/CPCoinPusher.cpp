@@ -529,6 +529,39 @@ void ACPCoinPusher::SpawnTower(FName ItemID, int32 SpawnCount)
 	}
 }
 
+bool ACPCoinPusher::CanUseItem(FName ItemID) const
+{
+	if (!ItemDataTable)
+	{
+		return true;
+	}
+
+	const FItemData* Row = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPCoinPusher::CanUseItem"));
+	if (!Row)
+	{
+		return true;
+	}
+
+	switch (Row->CoinType)
+	{
+	case ECPCoinType::Passive:
+	case ECPCoinType::HP:
+		{
+			const ACPPassiveCoinConvertArea* ConvertArea = GetPassiveCoinConvertArea();
+			return ConvertArea && ConvertArea->HasConvertibleCoins();
+		}
+
+	case ECPCoinType::CoinTower:
+		{
+			const ACPCoinTowerSpawner* CoinTowerSpawner = GetCoinTowerSpawner();
+			return CoinTowerSpawner && !CoinTowerSpawner->IsTowerActive();
+		}
+
+	default:
+		return true;
+	}
+}
+
 bool ACPCoinPusher::ValidateItemCoinType(FName ItemID, ECPCoinType ExpectedType) const
 {
 	if (!ItemDataTable)

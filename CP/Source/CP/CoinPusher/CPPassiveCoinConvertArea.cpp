@@ -64,6 +64,14 @@ void ACPPassiveCoinConvertArea::MonsterConvertActive(FName ItemID, int32 Num)
 	ConvertRandomCandidates(MoveTemp(Candidates), Num, ECPCoinType::Monster);
 }
 
+bool ACPPassiveCoinConvertArea::HasConvertibleCoins() const
+{
+	return GatherCandidates([](const ACPCoin& Coin)
+	{
+		return Coin.GetCoinType() == ECPCoinType::Normal;
+	}).Num() > 0;
+}
+
 TArray<ACPCoin*> ACPPassiveCoinConvertArea::GatherCandidates(TFunctionRef<bool(const ACPCoin&)> Predicate) const
 {
 	TArray<ACPCoin*> Candidates;
