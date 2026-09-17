@@ -202,11 +202,12 @@ void ACPMeleeWeapon::ExecuteMeleeHit()
 
 	// Direction/Origin above are locked to CapturedAttackDirection (resolved back in StartAttack) so a moving
 	// cursor during AttackTiming/ComboAttackInterval can't change where this already-started swing's hit
-	// lands - the effect isn't part of that fairness lock, though, and re-aiming mid-swing then having the
-	// effect flash at the stale start-of-attack direction reads as a visual bug. So the effect alone resolves
-	// a fresh direction right here, at the moment the swing's hit judgment actually happens, giving it
-	// whatever direction the player was last aiming (mouse cursor/gamepad stick, or movement direction if
-	// neither - see ACPPlayerCharacter::GetAttackDirection) instead of the swing's locked hit direction
+	// lands - only the hit-scan judgment itself (already run, above) needs that fairness lock. Everything
+	// that fires after the hit is resolved - the attack effect, and any PostHitModules follow-up (e.g. a
+	// delayed explosion) - resolves a fresh direction right here instead, at the moment the swing's hit
+	// judgment actually happens, so it renders/lands wherever the player was last aiming (mouse cursor/
+	// gamepad stick, or movement direction if neither - see ACPPlayerCharacter::GetAttackDirection) instead
+	// of the swing's locked hit direction
 	const FVector EffectDirection = ResolveAimDirection();
 	const FVector EffectBaseLocation = OwnerCharacter ? OwnerCharacter->GetActorLocation() : GetActorLocation();
 	const FVector EffectOrigin = EffectBaseLocation + EffectDirection * (StepData.RangeOffset * GetFinalAttackRangeMultiplier());
@@ -215,10 +216,14 @@ void ACPMeleeWeapon::ExecuteMeleeHit()
 	if (!StepData.PostHitModules.IsEmpty())
 	{
 		// PostHitModuleOffset lets a step's follow-up effect (e.g. an explosion) be placed independently of
-		// the hit-scan shape's own Origin - X forward along Direction, Y to its right, Z world up
-		const FVector RightDirection = FVector::CrossProduct(FVector::UpVector, Direction).GetSafeNormal();
-		const FVector ModuleOrigin = Origin
-			+ Direction * StepData.PostHitModuleOffset.X
+		// the hit-scan shape's own Origin - X forward along EffectDirection, Y to its right, Z world up.
+		// Based on EffectOrigin/EffectDirection (the swing's final aim direction, same as the attack effect
+		// above) rather than the swing's locked hit Direction/Origin, so e.g. a delayed explosion lands where
+		// the player was actually aiming when the hit landed, not where they were aiming when the attack
+		// button was first pressed
+		const FVector RightDirection = FVector::CrossProduct(FVector::UpVector, EffectDirection).GetSafeNormal();
+		const FVector ModuleOrigin = EffectOrigin
+			+ EffectDirection * StepData.PostHitModuleOffset.X
 			+ RightDirection * StepData.PostHitModuleOffset.Y
 			+ FVector::UpVector * StepData.PostHitModuleOffset.Z;
 
@@ -228,7 +233,7 @@ void ACPMeleeWeapon::ExecuteMeleeHit()
 		Context.InstigatorController = InstigatorController;
 		Context.DamageCauser = DamageCauser;
 		Context.Origin = ModuleOrigin;
-		Context.Direction = Direction;
+		Context.Direction = EffectDirection;
 		Context.AttackPower = Damage;
 		Context.ComboIndex = PendingHitComboIndex;
 
