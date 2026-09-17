@@ -6,6 +6,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
 ACPCoinItem::ACPCoinItem()
@@ -76,6 +77,11 @@ void ACPCoinItem::Interact(AActor* Interactor)
 	}
 
 	bCollected = true;
+
+	if (CollectSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, CollectSound, GetActorLocation() + CollectSoundLocationOffset, CollectSoundVolume);
+	}
 
 	PlayerCharacter->HandleFieldCoinCollected(CoinValue);
 

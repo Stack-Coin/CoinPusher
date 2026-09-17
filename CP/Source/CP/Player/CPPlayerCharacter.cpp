@@ -16,9 +16,13 @@
 #include "Player/CPItemEffect.h"
 #include "Weapon/CPWeaponManagerComponent.h"
 #include "Weapon/CPWeaponBase.h"
+#include "Weapon/CPOrbitPassiveSkillModule.h"
 #include "Roulette/CPRoulette.h"
 #include "CoinPusher/CPCoinPusher.h"
 #include "Player/CPGameMode.h"
+#include "Player/CPTopDownPlayerController.h"
+#include "UI/CPInGameWidget.h"
+#include "UI/CPBuffIconWidget.h"
 #include "Datatables/CPItemData.h"
 #include "Engine/DataTable.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
@@ -159,6 +163,52 @@ void ACPPlayerCharacter::Tick(float DeltaTime)
 	{
 		const bool bIsMoving = GetVelocity().SizeSquared2D() > KINDA_SMALL_NUMBER;
 		CurrentWeapon->SetMovementEffectActive(bIsMoving && !bIsAttackLocked && !bIsDowned);
+
+		UpdateAttackBuffIcon(CurrentWeapon);
+		UpdateOrbitBuffIcon(CurrentWeapon);
+	}
+}
+
+void ACPPlayerCharacter::UpdateAttackBuffIcon(ACPWeaponBase* CurrentWeapon)
+{
+	UpdateBuffIcon(AttackBuffIconWidget, AttackBuffIconCode, CurrentWeapon->GetPassiveStatBuffTimeRemaining(), CurrentWeapon->GetPassiveStatBuffDuration());
+}
+
+void ACPPlayerCharacter::UpdateOrbitBuffIcon(ACPWeaponBase* CurrentWeapon)
+{
+	const UCPOrbitPassiveSkillModule* OrbitModule = Cast<UCPOrbitPassiveSkillModule>(CurrentWeapon->GetPassiveSkillModule());
+	const float Remaining = OrbitModule ? OrbitModule->GetActiveDurationRemaining() : 0.0f;
+	const float MaxDuration = OrbitModule ? OrbitModule->GetActiveMaxDuration() : 0.0f;
+
+	UpdateBuffIcon(OrbitBuffIconWidget, OrbitBuffIconCode, Remaining, MaxDuration);
+}
+
+void ACPPlayerCharacter::UpdateBuffIcon(TWeakObjectPtr<UCPBuffIconWidget>& IconRef, FName BuffCode, float Remaining, float MaxDuration)
+{
+	UCPBuffIconWidget* Icon = IconRef.Get();
+
+	if (Remaining <= 0.0f)
+	{
+		if (Icon)
+		{
+			// One last update at <= 0 so the widget removes itself (see UCPBuffIconWidget::UpdateBuff)
+			Icon->UpdateBuff(0.0f, MaxDuration);
+			IconRef = nullptr;
+		}
+		return;
+	}
+
+	if (!Icon)
+	{
+		ACPTopDownPlayerController* PC = Cast<ACPTopDownPlayerController>(GetController());
+		UCPInGameWidget* InGameWidget = PC ? PC->GetInGameWidget() : nullptr;
+		Icon = InGameWidget ? InGameWidget->BuffCreate(BuffCode) : nullptr;
+		IconRef = Icon;
+	}
+
+	if (Icon)
+	{
+		Icon->UpdateBuff(Remaining, MaxDuration);
 	}
 }
 
@@ -179,6 +229,11 @@ void ACPPlayerCharacter::HandleDropZoneItemDropped(FName ItemID)
 	if (ItemID == HealthItemID)
 	{
 		ModifyStat(ECPStatType::Health, HealthGrantAmount);
+
+		if (HealthRecoverSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, HealthRecoverSound, GetActorLocation() + HealthRecoverSoundLocationOffset, HealthRecoverSoundVolume);
+		}
 	}
 
 	// ItemDataTable에서 이 ItemID를 조회해 Category가 CoinCategoryName과 같으면, 그 행에 지정된
@@ -519,6 +574,11 @@ void ACPPlayerCharacter::DoDash()
 	bIsDashing = true;
 	BeginInvincibility();
 
+	// Monster capsules/meshes use their own object channel (ECC_GameTraceChannel8, see ACPMonsterBase's
+	// constructor), not ECC_Pawn - ignore it for the dash's duration so the dash can't be physically blocked
+	// mid-lunge by a monster it's supposed to be able to blow past. Restored to Block in EndDash
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel8, ECR_Ignore);
+
 	const float DashSpeed = DashDuration > 0.0f ? (DashDistance / DashDuration) : DashDistance;
 	LaunchCharacter(DashDirection * DashSpeed, true, true);
 
@@ -732,6 +792,9 @@ void ACPPlayerCharacter::EndDash()
 {
 	bIsDashing = false;
 	EndInvincibilityRequest();
+
+	// Restore the block response to monsters that DoDash() ignored for the dash's duration
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel8, ECR_Block);
 }
 
 void ACPPlayerCharacter::BeginInvincibility()

@@ -290,8 +290,9 @@ void ACPWeaponBase::ApplyPassiveStatBuff(float InAttackPowerBonus, float InAttac
 	PassiveAttackPowerBonus = InAttackPowerBonus;
 	PassiveAttackSpeedMultiplier = 1.0f + InAttackSpeedMultiplierBonus;
 	PassiveRangeMultiplier = 1.0f + InRangeMultiplierBonus;
+	PassiveStatBuffDuration = FMath::Max(InDuration, 0.01f);
 
-	GetWorldTimerManager().SetTimer(PassiveStatBuffTimerHandle, this, &ACPWeaponBase::ClearPassiveStatBuff, FMath::Max(InDuration, 0.01f), false);
+	GetWorldTimerManager().SetTimer(PassiveStatBuffTimerHandle, this, &ACPWeaponBase::ClearPassiveStatBuff, PassiveStatBuffDuration, false);
 
 	PassiveBuffAttackEffect = InBuffEffect;
 	PassiveBuffAttackEffectLocationOffset = InBuffEffectLocationOffset;

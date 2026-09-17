@@ -105,6 +105,10 @@ protected:
 	float PassiveRangeMultiplier = 1.0f;
 	FTimerHandle PassiveStatBuffTimerHandle;
 
+	/** InDuration last passed to ApplyPassiveStatBuff - the "max time" pairing GetPassiveStatBuffTimeRemaining()'s
+	 *  "current time" for a buff icon widget's UpdateBuff(Current, Max) */
+	float PassiveStatBuffDuration = 0.0f;
+
 	/** Ticks down to actually playing AttackEffect/AttackSound, when WeaponData.AttackEffectDelay > 0 */
 	FTimerHandle AttackEffectTimerHandle;
 
@@ -215,9 +219,20 @@ public:
 	UFUNCTION(BlueprintPure, Category="Passive Skill")
 	float GetPassiveStatBuffTimeRemaining() const;
 
+	/** InDuration last passed to ApplyPassiveStatBuff - pair with GetPassiveStatBuffTimeRemaining() to drive
+	 *  a buff icon widget's UpdateBuff(Current, Max) */
+	UFUNCTION(BlueprintPure, Category="Passive Skill")
+	float GetPassiveStatBuffDuration() const { return PassiveStatBuffDuration; }
+
 	UFUNCTION(BlueprintCallable, Category="Passive Skill")
 	void ApplyPassiveStatBuff(float InAttackPowerBonus, float InAttackSpeedMultiplierBonus, float InRangeMultiplierBonus, float InDuration,
 		UNiagaraSystem* InBuffEffect, const FVector& InBuffEffectLocationOffset, const FRotator& InBuffEffectRotationOffset, const FVector& InBuffEffectScale);
+
+	/** Returns the passive skill module assigned to this weapon (e.g. UCPOrbitPassiveSkillModule for a
+	 *  "satellite" weapon), or nullptr if none is assigned. External code (e.g. a buff icon widget connector)
+	 *  can Cast<> this to the concrete module type it expects */
+	UFUNCTION(BlueprintPure, Category="Passive Skill")
+	UCPWeaponPassiveSkillModule* GetPassiveSkillModule() const { return PassiveSkillModule; }
 
 	/** Turns MovementEffectComponent on/off. No-ops if MovementEffect isn't assigned or bActive matches the
 	 *  current state already. Called every tick from ACPPlayerCharacter::Tick while this weapon is equipped */
