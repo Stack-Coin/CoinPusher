@@ -253,7 +253,7 @@ protected:
 
 	/** Score 보유량이 이 개수만큼 늘어날 때마다 티켓 1개 획득 (see AddScore) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Wallet", meta = (ClampMin = 1))
-	int32 ScorePerTicket = 10;
+	int32 ScorePerTicket = 30;
 
 	/** After an attack's motion actually ends (attack montage finished, or the last combo swing was
 	 *  dispatched if no montage is assigned - see ACPWeaponBase::OnAttackStateChanged), how long to keep
@@ -422,6 +422,12 @@ protected:
 	//�귿
 	TObjectPtr<ACPRoulette> Roulette;
 
+	/** AddTicket()으로 한 번에 여러 장이 지급됐을 때, 그만큼 Roulette를 자동으로 순차 회전시키기 위해
+	 *  남은 횟수. Roulette::bIsRolling 가드 때문에 한 번에 하나만 돌 수 있으므로, 스핀 하나가 끝날
+	 *  때마다(HandleRouletteAutoRollFinished) 1개씩 소모하며 TryStartNextAutoRoll()로 다음 스핀을 이어간다 */
+	UPROPERTY(Transient)
+	int32 PendingAutoRollCount = 0;
+
 	/** 레벨에 배치된 ACPCoinPusher 참조. PostInitializeComponents()에서 자동으로 찾아 채워지며,
 	 *  InventoryComponent가 자신의 BeginPlay()에서(=이 캐릭터의 나머지 BeginPlay 로직보다도 먼저 실행됨)
 	 *  GetOwner()를 통해 이 값을 읽어 CoinPusher의 LinkedRoulette에 접근해야 하므로, (RollRoulette()의
@@ -547,6 +553,23 @@ protected:
 
 	/** Called for RollRoulette input */
 	void RollRoulette(const FInputActionValue& Value);
+
+	/** Roulette 액터를 찾아 캐싱하고, 최초로 찾은 시점에 OnPickedUp을 구독한다
+	 *  (HandleRouletteAutoRollFinished) - RollRoulette()의 수동 회전과 TryStartNextAutoRoll()의
+	 *  자동 연속 회전 양쪽에서 공용으로 사용한다. 레벨에 Roulette가 없으면 nullptr 반환 */
+	ACPRoulette* GetOrFindRoulette();
+
+	/** PendingAutoRollCount가 남아있고 bIsDowned가 아니며 Roulette가 이미 돌고 있지 않다면, 티켓
+	 *  1개를 소모해 다음 스핀을 시도한다. Roulette가 아직 스핀 중이면 아무것도 하지 않고 그 스핀이
+	 *  끝날 때(HandleRouletteAutoRollFinished) 다시 호출되기를 기다린다. Roll() 자체가 실패하면
+	 *  (추첨 후보가 하나도 없는 등 데이터 문제) 소모한 티켓을 돌려주고 남은 대기 수를 비워, 같은
+	 *  이유로 계속 실패하는 무한 재시도를 막는다 */
+	void TryStartNextAutoRoll();
+
+	/** Roulette::OnPickedUp에 구독되어 스핀 하나가 끝날 때마다 호출됨(수동/자동 회전 공통) - 남은
+	 *  PendingAutoRollCount가 있으면 TryStartNextAutoRoll()로 다음 스핀을 이어간다 */
+	UFUNCTION()
+	void HandleRouletteAutoRollFinished(FName ItemID, int32 Count);
 
 	void UseSlotEast(const FInputActionValue& Value);
 
@@ -734,6 +757,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Wallet")
 	void HandleFieldCoinCollected(int32 Amount);
 
+	/** TicketCount에 Amount만큼 더하고, 그만큼 Roulette를 자동으로 순차 회전시킨다. Roulette는
+	 *  bIsRolling 가드로 한 번에 하나만 돌 수 있으므로 Amount번을 한꺼번에 Roll()하지 않고,
+	 *  PendingAutoRollCount에 Amount를 누적해 TryStartNextAutoRoll()이 스핀이 끝날 때마다
+	 *  (HandleRouletteAutoRollFinished) 하나씩 이어서 돌리게 한다 */
 	UFUNCTION(BlueprintCallable, Category="Wallet")
 	void AddTicket(int32 Amount = 1);
 

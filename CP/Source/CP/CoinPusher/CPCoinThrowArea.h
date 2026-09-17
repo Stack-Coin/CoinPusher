@@ -10,7 +10,7 @@ class UBoxComponent;
 
 /**
  *  레벨/CoinPusher가 소유하는 트리거 볼륨 - ActiveThrow()를 호출하면 이 영역과 겹쳐 있는 모든 타입의
- *  Coin에게 월드 기준 X(앞)/Z(위) 방향 속도를 부여해 날려보낸다 (액터 자신의 회전과는 무관).
+ *  Coin과 Item에게 월드 기준 X(앞)/Z(위) 방향 속도를 부여해 날려보낸다 (액터 자신의 회전과는 무관).
  *  볼륨 자체는 Overlap만 감지하고(OverlapAllDynamic) 아무것도 물리적으로 막지 않는다.
  */
 UCLASS(abstract)
@@ -50,8 +50,8 @@ protected:
 
 public:
 
-	//이 영역과 겹쳐 있는 모든 Coin에게 월드 X(앞)/Z(위) 방향 속도를 부여해 날린다. ActorToExclude가 지정되면
-	//(예: 스케일 연출 중인 자기 자신) 그 액터는 겹쳐 있어도 힘을 받지 않고 건너뛴다
+	//이 영역과 겹쳐 있는 모든 Coin/Item에게 월드 X(앞)/Z(위) 방향 속도를 부여해 날린다. ActorToExclude가
+	//지정되면(예: 스케일 연출 중인 자기 자신) 그 액터는 겹쳐 있어도 힘을 받지 않고 건너뛴다
 	UFUNCTION(BlueprintCallable, Category="Coin Throw Area")
 	void ActiveThrow(AActor* ActorToExclude = nullptr);
 

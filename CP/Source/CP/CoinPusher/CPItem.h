@@ -77,6 +77,22 @@ protected:
 	/** If true, this item has already been collected and is awaiting destruction */
 	bool bCollected = false;
 
+	/** Launch() 이후 이 시간(초) 동안은 bIsLaunched가 true로 유지되어 추가 Launch() 호출을 무시한다 -
+	 *  ACPCoin::LaunchCooldown과 동일한 목적으로, CoinThrowArea 등이 같은 아이템을 중복으로 발사해
+	 *  속도가 비정상적으로 누적되는 것을 막기 위함 */
+	UPROPERTY(EditAnywhere, Category="Item", meta = (ClampMin = 0))
+	float LaunchCooldown = 1.0f;
+
+	/** Launch()로 날아가고 있는 중이면 true. LaunchCooldown 경과 후 자동으로 다시 false로 돌아와
+	 *  재발사 가능해진다 (ACPCoin::bIsLaunched와 동일) */
+	bool bIsLaunched = false;
+
+	/** bIsLaunched를 다시 false로 되돌리는 타이머 핸들 */
+	FTimerHandle LaunchCooldownTimerHandle;
+
+	/** LaunchCooldownTimerHandle 만료 시 호출되어 bIsLaunched를 다시 false로 되돌림 (재발사 가능 상태로 복귀) */
+	void ClearLaunchedState();
+
 	/** 이 아이템이 코인 푸셔 안에서 무엇이든 처음 부딪혔을 때(=들어간 순간) 재생할 사운드 */
 	UPROPERTY(EditAnywhere, Category="Sound")
 	TObjectPtr<USoundBase> EnterSound;
@@ -165,6 +181,12 @@ public:
 	 *  already collected, so a duplicate call can't double up */
 	UFUNCTION(BlueprintCallable, Category="Item")
 	bool Collect();
+
+	/** 발사 실행 - CollisionSphere에 LaunchVelocity를 물리 속도로 부여한다. 이미 발사되어 날아가고
+	 *  있는 중이면(LaunchCooldown 이내) 무시한다. ACPCoin::Launch()와 동일한 동작이라, CPCoinThrowArea가
+	 *  Coin과 동일하게 Item도 발사할 수 있다 */
+	UFUNCTION(BlueprintCallable, Category="Item")
+	void Launch(const FVector& LaunchVelocity);
 
 	// ~begin ICPCoinPusherItem interface
 

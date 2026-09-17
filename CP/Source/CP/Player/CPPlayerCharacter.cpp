@@ -346,14 +346,9 @@ void ACPPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 {
-	if (!Roulette)
+	if (!GetOrFindRoulette())
 	{
-		ACPRoulette* LevelRoulette = Cast<ACPRoulette>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPRoulette::StaticClass()));
-		if (!LevelRoulette)
-		{
-			return;
-		}
-		Roulette = LevelRoulette;
+		return;
 	}
 	if (bIsDowned)
 	{
@@ -370,11 +365,71 @@ void ACPPlayerCharacter::RollRoulette(const FInputActionValue& Value)
 
 	int32 PlayerLevel = GetPlayerLevel();
 
-	// Roll()이 실패하면(이미 회전 중 등) 소모한 티켓을 돌려준다
+	// Roll()이 실패하면(이미 회전 중 등) 소모한 티켓을 돌려준다 - AddTicket()을 쓰면 자동 연속 회전
+	// 큐에 다시 쌓여 즉시 재시도하게 되므로, 여기서는 TicketCount만 직접 복구한다
 	if (!Roulette->Roll(PlayerLevel))
 	{
-		AddTicket(1);
+		++TicketCount;
+		OnTicketChanged.Broadcast(TicketCount);
 	}
+}
+
+ACPRoulette* ACPPlayerCharacter::GetOrFindRoulette()
+{
+	if (!Roulette)
+	{
+		ACPRoulette* LevelRoulette = Cast<ACPRoulette>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPRoulette::StaticClass()));
+		if (!LevelRoulette)
+		{
+			return nullptr;
+		}
+
+		Roulette = LevelRoulette;
+
+		// 스핀 하나가 끝날 때마다(수동/자동 공통) 다음 자동 회전을 이어갈 수 있도록 구독
+		Roulette->OnPickedUp.AddUniqueDynamic(this, &ACPPlayerCharacter::HandleRouletteAutoRollFinished);
+	}
+
+	return Roulette;
+}
+
+void ACPPlayerCharacter::TryStartNextAutoRoll()
+{
+	if (PendingAutoRollCount <= 0 || bIsDowned)
+	{
+		return;
+	}
+
+	ACPRoulette* RouletteActor = GetOrFindRoulette();
+	if (!RouletteActor || RouletteActor->IsRolling())
+	{
+		// 룰렛이 아직 없거나 이미 다른 스핀이 진행 중 - 그 스핀이 끝나면(HandleRouletteAutoRollFinished) 다시 시도된다
+		return;
+	}
+
+	if (!TrySpendTicket(1))
+	{
+		// 티켓이 부족해 더 이상 자동으로 돌릴 수 없으므로 남은 대기 수를 비운다
+		PendingAutoRollCount = 0;
+		return;
+	}
+
+	--PendingAutoRollCount;
+
+	if (!RouletteActor->Roll(GetPlayerLevel()))
+	{
+		// Roll() 자체가 실패(추첨 후보 없음 등 데이터 문제) - 같은 이유로 계속 실패할 자동 재시도가
+		// 무한 루프에 빠지지 않도록 남은 대기 수를 먼저 비운 뒤, 소모한 티켓만 직접 돌려준다
+		// (AddTicket()을 쓰면 다시 큐에 쌓여 즉시 재시도하게 됨)
+		PendingAutoRollCount = 0;
+		++TicketCount;
+		OnTicketChanged.Broadcast(TicketCount);
+	}
+}
+
+void ACPPlayerCharacter::HandleRouletteAutoRollFinished(FName ItemID, int32 Count)
+{
+	TryStartNextAutoRoll();
 }
 
 void ACPPlayerCharacter::UseSlotEast(const FInputActionValue& Value)
@@ -1089,6 +1144,12 @@ void ACPPlayerCharacter::AddTicket(int32 Amount)
 	TicketCount += Amount;
 
 	OnTicketChanged.Broadcast(TicketCount);
+
+	// Amount만큼 Roulette를 자동으로 순차 회전 - Roulette::bIsRolling 가드 때문에 한 번에 하나만
+	// 돌 수 있으므로, 대기 수만 누적해두고 스핀이 끝날 때마다(HandleRouletteAutoRollFinished)
+	// TryStartNextAutoRoll()이 하나씩 이어서 돌린다
+	PendingAutoRollCount += Amount;
+	TryStartNextAutoRoll();
 }
 
 bool ACPPlayerCharacter::TrySpendTicket(int32 Amount)

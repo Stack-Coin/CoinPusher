@@ -209,6 +209,25 @@ void ACPItem::SetItemId(FName NewItemId)
 	ApplyItemData();
 }
 
+void ACPItem::Launch(const FVector& LaunchVelocity)
+{
+	// 이미 발사되어 날아가고 있는 중이면 무시 (ACPCoin::Launch()와 동일한 가드)
+	if (bIsLaunched)
+	{
+		return;
+	}
+
+	bIsLaunched = true;
+	CollisionSphere->SetPhysicsLinearVelocity(LaunchVelocity);
+
+	GetWorldTimerManager().SetTimer(LaunchCooldownTimerHandle, this, &ACPItem::ClearLaunchedState, LaunchCooldown, false);
+}
+
+void ACPItem::ClearLaunchedState()
+{
+	bIsLaunched = false;
+}
+
 bool ACPItem::Collect()
 {
 	// only process this once

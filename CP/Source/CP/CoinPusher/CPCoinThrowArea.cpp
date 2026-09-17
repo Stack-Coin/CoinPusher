@@ -3,6 +3,7 @@
 
 #include "CPCoinThrowArea.h"
 #include "CPCoin.h"
+#include "CPItem.h"
 #include "Components/BoxComponent.h"
 
 ACPCoinThrowArea::ACPCoinThrowArea()
@@ -23,8 +24,10 @@ void ACPCoinThrowArea::ActiveThrow(AActor* ActorToExclude)
 		return;
 	}
 
+	// Coin뿐 아니라 Item도 동일하게 날려보내야 하므로 클래스 필터 없이 겹친 모든 액터를 가져와
+	// Coin/Item 각각으로 캐스트해본다
 	TArray<AActor*> OverlappingActors;
-	ThrowVolume->GetOverlappingActors(OverlappingActors, ACPCoin::StaticClass());
+	ThrowVolume->GetOverlappingActors(OverlappingActors);
 
 	for (AActor* OverlappingActor : OverlappingActors)
 	{
@@ -34,15 +37,24 @@ void ACPCoinThrowArea::ActiveThrow(AActor* ActorToExclude)
 		}
 
 		ACPCoin* Coin = Cast<ACPCoin>(OverlappingActor);
-		if (!Coin)
+		ACPItem* Item = Coin ? nullptr : Cast<ACPItem>(OverlappingActor);
+		if (!Coin && !Item)
 		{
 			continue;
 		}
 
 		const float UpPower = bIsRandomize ? FMath::FRandRange(MinUpPower, MaxUpPower) : MaxUpPower;
 		const float ForwardPower = bIsRandomize ? FMath::FRandRange(MinForwardPower, MaxForwardPower) : MaxForwardPower;
+		const FVector LaunchVelocity(ForwardPower, 0.0f, UpPower);
 
-		// 위/앞 방향은 이 액터(또는 코인)의 회전과 무관하게 항상 월드 Z/X축을 기준으로 함
-		Coin->Launch(FVector(ForwardPower, 0.0f, UpPower));
+		// 위/앞 방향은 이 액터(또는 코인/아이템)의 회전과 무관하게 항상 월드 Z/X축을 기준으로 함
+		if (Coin)
+		{
+			Coin->Launch(LaunchVelocity);
+		}
+		else
+		{
+			Item->Launch(LaunchVelocity);
+		}
 	}
 }
