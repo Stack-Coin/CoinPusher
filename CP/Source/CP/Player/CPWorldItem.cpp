@@ -8,6 +8,7 @@
 #include "Debug/CPDebugCollisionShapeComponent.h"
 #include "NiagaraComponent.h"
 #include "TimerManager.h"
+#include "Kismet/GameplayStatics.h"
 
 ACPWorldItem::ACPWorldItem()
 {
@@ -142,6 +143,8 @@ void ACPWorldItem::Interact(AActor* Interactor)
 	bCollected = true;
 
 	Inventory->AddOwnedItem(ItemData);
+
+	UGameplayStatics::PlaySoundAtLocation(this, PickupSound, GetActorLocation() + PickupSoundLocationOffset, PickupSoundVolume);
 
 	Destroy();
 }
