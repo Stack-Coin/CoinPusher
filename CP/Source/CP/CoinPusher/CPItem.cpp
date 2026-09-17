@@ -68,11 +68,12 @@ void ACPItem::ArmEnterSound()
 	bEnterSoundArmed = true;
 }
 
-void ACPItem::SetEnterSound(USoundBase* NewEnterSound)
+void ACPItem::SetEnterSound(USoundBase* NewEnterSound, float NewEnterSoundVolume)
 {
 	if (!EnterSound)
 	{
 		EnterSound = NewEnterSound;
+		EnterSoundVolume = NewEnterSoundVolume;
 	}
 }
 
@@ -87,7 +88,7 @@ void ACPItem::HandleCollisionHit(UPrimitiveComponent* HitComponent, AActor* Othe
 
 	if (EnterSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, EnterSound, GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, EnterSound, GetActorLocation(), EnterSoundVolume);
 	}
 }
 

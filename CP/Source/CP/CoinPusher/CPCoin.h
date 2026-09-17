@@ -196,6 +196,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Coin|Big")
 	TObjectPtr<USoundBase> BigCoinHitSound;
 
+	UPROPERTY(EditAnywhere, Category="Coin|Big", meta = (ClampMin = 0))
+	float BigCoinHitSoundVolume = 1.0f;
+
 	//이 코인을 스폰한 CoinPusher (Big 코인이 부딪혔을 때 ActiveWaveThrow()를 호출할 대상).
 	//ChildActorComponent로 스폰된 Dispenser가 낳은 Coin은 Owner 체인(GetOwner())이 신뢰할 수 없어서
 	//(UChildActorComponent가 스폰한 액터에 Owner를 설정해주지 않음) Owner 체인 탐색 대신, 스폰한

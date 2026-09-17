@@ -101,6 +101,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Sound")
 	TArray<TObjectPtr<USoundBase>> ItemDropSounds;
 
+	UPROPERTY(EditAnywhere, Category="Sound", meta = (ClampMin = 0))
+	float ItemDropSoundVolume = 1.0f;
+
 public:
 
 	//Coin ���� �� BroadCast

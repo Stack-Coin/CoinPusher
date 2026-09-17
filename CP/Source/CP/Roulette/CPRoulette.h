@@ -69,6 +69,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Sound")
 	TObjectPtr<USoundBase> RollSound;
 
+	UPROPERTY(EditAnywhere, Category="Sound", meta = (ClampMin = 0))
+	float RollSoundVolume = 1.0f;
+
 	/** 스핀이 시작되어 결과가 결정되기 전까지 true. 두 플레이어가 하나의 룰렛을 공유하므로,
 	 *  한 플레이어가 돌리는 동안 다른 플레이어가 다시 Roll()을 호출하지 못하도록 막는 잠금 상태 */
 	UPROPERTY(Transient)

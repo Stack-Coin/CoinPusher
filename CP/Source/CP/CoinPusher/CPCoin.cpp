@@ -351,7 +351,7 @@ void ACPCoin::HandleMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActo
 
 		if (BigCoinHitSound)
 		{
-			UGameplayStatics::PlaySoundAtLocation(this, BigCoinHitSound, GetActorLocation());
+			UGameplayStatics::PlaySoundAtLocation(this, BigCoinHitSound, GetActorLocation(), BigCoinHitSoundVolume);
 		}
 	}
 }

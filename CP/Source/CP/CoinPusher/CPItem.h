@@ -81,6 +81,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Sound")
 	TObjectPtr<USoundBase> EnterSound;
 
+	UPROPERTY(EditAnywhere, Category="Sound", meta = (ClampMin = 0))
+	float EnterSoundVolume = 1.0f;
+
 	/** 스폰(BeginPlay) 후 이 시간(초)이 지나야 EnterSound 트리거가 활성화된다 - 스폰 직후 디스펜서 등과의
 	 *  초기 접촉으로 곧바로 오발동하는 것을 방지 (ACPCoin::BigWaveThrowArmDelay와 동일한 목적) */
 	UPROPERTY(EditAnywhere, Category="Sound", meta = (ClampMin = 0))
@@ -155,7 +158,7 @@ public:
 	 *  ACPDispenser::SpawnFromItemData()가 스폰 직후 CoinPusher의 공용 ItemEnterSound를 넘겨줄 때 사용.
 	 *  이미 값이 있으면(아이템 BP가 개별 지정) 덮어쓰지 않는다 */
 	UFUNCTION(BlueprintCallable, Category="Item")
-	void SetEnterSound(USoundBase* NewEnterSound);
+	void SetEnterSound(USoundBase* NewEnterSound, float NewEnterSoundVolume = 1.0f);
 
 	/** Called by ACPDropZone once it has already recorded this item (RecordCollectedItem) - plays the BP
 	 *  collection effect and destroys this actor. Returns false (and does nothing else) if this item was
