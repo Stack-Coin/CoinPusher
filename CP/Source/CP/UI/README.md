@@ -274,6 +274,60 @@ BP의 Bind Event(또는 C++의 `AddDynamic`)로 연결해두면, 이후로는 �
   `NextWidgetClass`는 설정하지 않음(다음 화면이 아니라 다음 레벨로 이동하므로) - 시작화면→설명화면→
   컷신→인게임 순서에서 마지막 구간만 담당
 
+### 영상 컷신 (Sequence_Index 기반 재생)
+
+`UCPCutsceneWidget`(위)이 "아무 입력에나 바로 스킵"하는 단순 컷신 화면이라면, `UCPVideoCutSceneUIWidget`
+은 데이터 테이블에 등록된 여러 영상/텍스트 조합을 순서대로 재생하며 입력마다 한 시퀀스씩 진행하는
+컷신 화면이다. 둘 다 `UCPPressAnyKeyWidget`을 상속하지만 서로 대체 관계이고 같이 쓰지 않음 - WBP의
+부모 클래스로 원하는 쪽을 고르면 됨.
+
+- `FCPCutSceneData`(`Datatables/CPCutSceneData.h`) : 컷신 한 시퀀스의 Row Struct.
+  `Video`(`TObjectPtr<UFileMediaSource>`)/`TextFont`(`FSlateFontInfo`)/`FontSize`(float)/
+  `bItalic`(bool)/`Text`(`FText`)/`ScriptBoxImage`(`TObjectPtr<UTexture2D>`, 스크립트창 배경
+  이미지)/`Sequence_Index`(int32, 재생 순서)로 구성. `Video`/`TextFont`/`FontSize`/`Text`/
+  `ScriptBoxImage`는 각각 독립적으로 비워둘 수 있으며, 비어있으면(`TextFont`는 `HasValidFont()`가
+  false, `FontSize`는 0 이하) 그 필드만 직전 시퀀스 값을 그대로 유지한다(예: 텍스트만 바뀌고
+  영상은 계속 재생 중이어야 하는 행이면 `Video`를 비워둠). `FontSize`는 `TextFont`와 별개로
+  취급되어 폰트 자체는 그대로 두고 크기만 바꾸는 행을 만들 수 있다. `bItalic`은 bool이라
+  "지정 안 함" 상태가 없어 유지되지 않고 매 시퀀스마다 그 값 그대로(true/false) 적용된다. `Text`에
+  `\n`을 입력해두면 `ApplyCutSceneRow`가 실제 개행 문자로 치환해서 적용한다(DataTable 에디터
+  셀에서는 Enter로 실제 개행을 넣기 번거로워 이 방식을 지원). `ApplyCutSceneRow`는 호출될 때마다(=
+  시퀀스가 진행될 때마다) `LogUI` 카테고리로 진행 상황(몇 번째/전체, CutSceneID, Sequence_Index)을
+  로그로 남긴다.
+
+  > **영상이 안 나올 때 확인할 로그(`LogUI`)**: (1) `NativeConstruct`에서 `CutSceneDataTable`/
+  > `MediaPlayer`/`MediaTexture` 중 빠진 게 있으면 Warning으로 바로 알려줌, (2)
+  > `BuildSortedCutScenes`가 실제로 몇 개의 시퀀스를 읽어왔는지, (3) `ApplyCutSceneRow`가
+  > `Row.Video`마다 `MediaPlayer->OpenSource()`를 호출한 결과(성공/실패), (4) `MediaPlayer`의
+  > `OnMediaOpened`/`OnMediaOpenFailed`/`OnPlaybackResumed` 이벤트 - `OpenSource()`의 반환값은
+  > "요청이 접수됐는지"일 뿐이라, 실제로 영상이 열리고 재생까지 됐는지는 이 세 이벤트 로그로
+  > 확인해야 한다(`OnMediaOpened`는 찍히는데 `OnPlaybackResumed`가 안 찍히면 `PlayOnOpen`이
+  > 꺼져 있거나 자동재생이 막힌 상태일 수 있음)
+- `UCPVideoCutSceneUIWidget` : `CutSceneDataTable`(Row Struct는 `FCPCutSceneData`)의 모든 행을
+  `NativeConstruct`에서 `Sequence_Index` 오름차순으로 정렬해 캐싱(`SortedCutScenes`)하고, 첫 번째
+  시퀀스를 바로 적용한다. `OnAnyKeyPressed`에 바인딩된 `HandleAdvanceSequenceInput`이 입력마다
+  다음 인덱스로 진행시키며(`ApplyCutSceneRow`), 마지막 시퀀스 이후 추가 입력이 들어오면
+  `HandleSequenceExhausted()`가 `NextLevelName`(EditAnywhere)으로 `UGameplayStatics::OpenLevel()`을
+  호출해 다음 레벨을 불러온다(`UCPCutsceneWidget`과 동일한 레벨 전환 방식 - 부모의
+  `NextWidgetClass`/`SwitchToNextWidget()`은 쓰지 않음). `UCPGameExplanationWidget`과 마찬가지로
+  부모의 `ScheduleSwitchToNextWidget()`을 빈 오버라이드로 막아뒀는데, 안 막으면 매 입력마다 부모가
+  자동으로 `NextWidgetClass`로 전환해버려 "시퀀스를 모두 소진했을 때만 전환" 규칙이 깨지기 때문이다.
+  - 구성 요소(전부 `BindWidgetOptional`): `VideoImage`(영상 재생 화면), `ScriptBackgroundImage`
+    (대사창 배경 - Row의 `ScriptBoxImage`로 매 시퀀스마다 `SetBrushFromTexture()` 갱신),
+    `ScriptText`(대사/설명 텍스트), `ButtonImage`(계속 진행 안내용 버튼 이미지)
+  - `MediaPlayer`(`TObjectPtr<UMediaPlayer>`, EditAnywhere) : `ApplyCutSceneRow`가 `Row.Video`가
+    있을 때마다 `OpenSource()`로 넘겨 실제 재생을 담당하는 Media Player 에셋 (Content Browser에서
+    미리 만들어 지정해야 함)
+  - `MediaTexture`(`TObjectPtr<UMediaTexture>`, EditAnywhere, 선택 사항) : `VideoImage`와 함께
+    지정해두면 `NativeConstruct`가 `VideoImage->SetBrushResourceObject()`로 자동 연결해준다 -
+    WBP에서 `VideoImage`의 Brush를 이미 그 Media Texture로 지정해뒀다면 지정하지 않아도 됨
+  - `ItalicSkewAmount`(float, EditAnywhere, 기본 0.1, -5~5) : `Row.bItalic`이 true인 시퀀스에서
+    `ScriptText`에 적용할 기울기 강도(`FSlateFontInfo::SkewAmount`) - 실제 이탤릭 서체가 아니라
+    폰트를 비스듬히 기울이는 방식(Faux Italic)이라 폰트 자체를 바꾸지 않고도 적용 가능
+  - `NextLevelName`(FName, EditAnywhere) : 모든 시퀀스를 다 재생한 뒤 `HandleSequenceExhausted()`가
+    `UGameplayStatics::OpenLevel()`로 불러올 다음 레벨. 비어있으면(`NAME_None`) 다 재생해도 아무
+    전환도 일어나지 않음
+
 ### 게임 종료 화면
 
 - `UCPGameOverWidget` : `RestartLevel()` — 현재 레벨을 다시 로드 (재시작 버튼 등에서 호출)

@@ -16,6 +16,10 @@
   DataTable Row Struct. 한 행 = 버프 하나, `UI/CPBuffIconWidget.h`의
   `UCPBuffIconWidget::PlayerBuffDataTable`이 참조하는 테이블의 Row Struct로 쓰임 (아래
   "FCPPlayerBuffData" 참고)
+- `FCPCutSceneData`(`Source/CP/Datatables/CPCutSceneData.h`) : 컷신 시퀀스 마스터 데이터의 DataTable
+  Row Struct. 한 행 = 컷신 진행 중 영상/텍스트 조합 하나, `UI/CPVideoCutSceneUIWidget.h`의
+  `UCPVideoCutSceneUIWidget::CutSceneDataTable`이 참조하는 테이블의 Row Struct로 쓰임 (아래
+  "FCPCutSceneData" 참고)
 
 ## 클래스별 상세
 
@@ -62,6 +66,27 @@
   `UCPBuffIconWidget::SetBuffCode(BuffCode)`가 `BuffCode`(=Row Name)로 이 행을 찾아
   `BackgroundImage`에 적용함 - `UI/README.md`의 "버프 아이콘" 참고
 
+### FCPCutSceneData
+- `CutSceneID`(FName) : 식별용 컷신 ID (참조용/가독성용 - 실제 재생 순서는 아래 `Sequence_Index` 기준이라
+  Row Name과 맞출 필요는 없음)
+- `Video`(`TObjectPtr<UFileMediaSource>`) : 이 시퀀스에서 재생할 영상. 비어있으면(nullptr) 직전
+  시퀀스에서 재생 중이던 영상을 그대로 이어서 보여줌
+- `TextFont`(`FSlateFontInfo`) : 이 시퀀스의 `Text`에 적용할 폰트. 유효한 폰트가 지정되지 않았으면
+  (`HasValidFont()`가 false) 직전 시퀀스에서 쓰던 폰트를 그대로 유지
+- `FontSize`(float) : 이 시퀀스의 `Text`에 적용할 폰트 크기. `TextFont`(폰트 자체)는 그대로 두고
+  크기만 바꾸고 싶을 때 사용 - 0 이하면 "지정 안 함"으로 취급해 직전 시퀀스에서 쓰던 크기를 그대로 유지
+- `bItalic`(bool) : 이 시퀀스의 `Text`를 이탤릭(기울임)으로 표시할지 여부. bool이라 "지정 안 함"
+  상태가 없어 다른 필드와 달리 이전 값을 유지하지 않고 매 시퀀스마다 그 값 그대로(true/false) 적용됨
+  - `UI/CPVideoCutSceneUIWidget.h`의 `ItalicSkewAmount`(EditAnywhere)가 실제 기울기 강도를 결정
+- `Text`(FText) : 이 시퀀스에서 보여줄 대사/설명 텍스트. 비어있으면 직전 시퀀스의 텍스트를 그대로 유지.
+  줄바꿈하고 싶은 위치에 `\n`을 입력하면 `UI/CPVideoCutSceneUIWidget.h`의 `UCPVideoCutSceneUIWidget`이
+  실제 개행 문자로 바꿔서 적용해줌
+- `ScriptBoxImage`(`TObjectPtr<UTexture2D>`) : 대사/설명 텍스트 뒤에 깔리는 스크립트창 배경 이미지.
+  비어있으면(nullptr) 직전 시퀀스에서 쓰던 스크립트창 이미지를 그대로 유지
+- `Sequence_Index`(int32) : 재생 순서. `UI/CPVideoCutSceneUIWidget.h`의 `UCPVideoCutSceneUIWidget`이
+  DataTable의 모든 행을 이 값 오름차순으로 정렬해 순서대로 재생함(Row Name이나 DataTable 등록 순서와
+  무관) - `UI/README.md`의 "영상 컷신" 참고
+
 ### UCPItemDataTableGameInstance
 - `ItemDataTable`(`TObjectPtr<UDataTable>`, EditDefaultsOnly) + `GetItemDataTable()` getter
 - `UCLASS(abstract)` — BP 자식을 만들어 `ItemDataTable`에 실제 DataTable 에셋을 지정한 뒤, Project
@@ -98,3 +123,12 @@
    선택해 별도 DataTable 에셋을 만들고, 행마다 `BuffID`(=Row Name과 동일하게)/`BuffImage`를 등록한
    뒤, `UCPBuffIconWidget`을 상속하는 WBP의 `PlayerBuffDataTable`에 그 DataTable을 연결
    (`UI/README.md`의 "버프 아이콘" 참고)
+5. 영상 컷신을 쓰려면 Row Structure로 `Cp Cut Scene Data`(`FCPCutSceneData`)를 선택해 별도 DataTable
+   에셋을 만들고, 행마다 `Sequence_Index`(재생 순서)와 그 시퀀스에서 바뀌어야 할 `Video`/`TextFont`/
+   `FontSize`/`Text`/`ScriptBoxImage`만 채움(안 바뀌는 필드는 비워두면 직전 값 유지 - `FontSize`는
+   0 이하가 "안 바뀜"). `bItalic`은 다른 필드와 달리 유지되지 않으므로 이탤릭을 켠 행 다음에
+   끄고 싶은 행이 있으면 반드시 false로 명시. Video는 File Media Source 에셋(재생할
+   영상 파일을 Content 브라우저로 임포트하면 자동 생성됨)을 지정. `UCPVideoCutSceneUIWidget`을
+   상속하는 WBP의 `CutSceneDataTable`에 그 DataTable을 연결하고, `MediaPlayer`에는 Content 브라우저
+   에서 미리 만들어둔 Media Player 에셋을 지정 (`UI/README.md`의 "영상 컷신" 참고). 실제 영상 디코딩을
+   위해 Project Settings > Plugins에서 Electra Player가 켜져 있어야 함(`CP.uproject`에 이미 등록)

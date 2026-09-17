@@ -18,6 +18,6 @@ void UCPCutsceneWidget::HandleAnyKeyPressedForSkip(FKey PressedKey)
 	}
 
 	bHasRequestedLevelChange = true;
-
-	UGameplayStatics::OpenLevel(this, NextLevelName);
+	SwitchToNextWidget();
+	//UGameplayStatics::OpenLevel(this, NextLevelName);
 }
