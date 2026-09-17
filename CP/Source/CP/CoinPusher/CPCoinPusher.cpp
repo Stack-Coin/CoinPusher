@@ -28,7 +28,8 @@
 
 ACPCoinPusher::ACPCoinPusher()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	// StartCameraShake() 중 Tick()으로 ViewCaptureBoom을 매틱 흔들어야 해서 켜야 함
+	PrimaryActorTick.bCanEverTick = true;
 
 	// 코인이 놓이는 바닥. RootComponent로 지정해 실제 충돌의 기준이 되도록 함.
 	Floor = CreateDefaultSubobject<UBoxComponent>(TEXT("Floor"));
@@ -36,7 +37,9 @@ ACPCoinPusher::ACPCoinPusher()
 	RootComponent = Floor;
 
 	Floor->SetBoxExtent(FVector(150.0f, 150.0f, 10.0f));
-	Floor->SetCollisionProfileName(FName("BlockAllDynamic"));
+	// BlockAllDynamic이 아니라 CoinPusherBoundary 프로파일 사용 - 물리 반응(Block)은 동일하지만, 대왕 코인이
+	// 이 경계에 부딪힌 것과 다른 코인/메쉬에 부딪힌 것을 ObjectType으로 구분하기 위함 (ACPCoin::HandleMeshHit 참고)
+	Floor->SetCollisionProfileName(FName("CoinPusherBoundary"));
 
 	// 추가 비주얼 메시 (콜리전 없음, Floor에 부착). 용도는 BP에서 자유롭게 확장
 	ExtraBoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ExtraBoxMesh"));
@@ -50,22 +53,22 @@ ACPCoinPusher::ACPCoinPusher()
 	LeftWall = CreateDefaultSubobject<UBoxComponent>(TEXT("LeftWall"));
 	LeftWall->SetupAttachment(Floor);
 	LeftWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
-	LeftWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+	LeftWall->SetCollisionProfileName(FName("CoinPusherBoundary"));
 
 	RightWall = CreateDefaultSubobject<UBoxComponent>(TEXT("RightWall"));
 	RightWall->SetupAttachment(Floor);
 	RightWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
-	RightWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+	RightWall->SetCollisionProfileName(FName("CoinPusherBoundary"));
 
 	BackWall = CreateDefaultSubobject<UBoxComponent>(TEXT("BackWall"));
 	BackWall->SetupAttachment(Floor);
 	BackWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
-	BackWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+	BackWall->SetCollisionProfileName(FName("CoinPusherBoundary"));
 
 	FrontWall = CreateDefaultSubobject<UBoxComponent>(TEXT("FrontWall"));
 	FrontWall->SetupAttachment(Floor);
 	FrontWall->SetBoxExtent(FVector(150.0f, 10.0f, 100.0f));
-	FrontWall->SetCollisionProfileName(FName("BlockAllDynamic"));
+	FrontWall->SetCollisionProfileName(FName("CoinPusherBoundary"));
 
 	PusherComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("PusherComponent"));
 	PusherComponent->SetupAttachment(Floor);
@@ -167,6 +170,12 @@ void ACPCoinPusher::BeginPlay()
 	Super::BeginPlay();
 
 	CurrentHealth = MaxHealth;
+
+	// StartCameraShake()가 끝난 뒤(또는 흔들리는 동안) 복귀할 기준 위치로 캐싱
+	if (ViewCaptureBoom)
+	{
+		BaseBoomRelativeLocation = ViewCaptureBoom->GetRelativeLocation();
+	}
 
 	//게임 시작 시 초기 코인 생성 (ACPCoinGridSpawner는 스스로 스폰하지 않고 이렇게 호출해줘야 동작함)
 	if (ACPCoinGridSpawner* GridCoinSpawner = GetCoinGridSpawner())
@@ -578,4 +587,49 @@ void ACPCoinPusher::HandleWaveThrowTick()
 	{
 		GetWorldTimerManager().ClearTimer(WaveThrowTimerHandle);
 	}
+}
+
+void ACPCoinPusher::StartCameraShake()
+{
+	if (!ViewCaptureBoom)
+	{
+		return;
+	}
+
+	bIsCameraShaking = true;
+	CameraShakeElapsedTime = 0.0f;
+
+	// 노이즈 위상을 매번 랜덤하게 시드 - 그러지 않으면 같은 Amplitude/Frequency일 때 항상 같은 패턴으로
+	// 흔들려서 반복 재생 시 부자연스러움 (엔진 UPerlinNoiseCameraShakePattern과 동일한 관례)
+	HorizontalCameraShakeNoiseOffset = static_cast<float>(FMath::RandHelper(255));
+	VerticalCameraShakeNoiseOffset = static_cast<float>(FMath::RandHelper(255));
+}
+
+void ACPCoinPusher::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (!bIsCameraShaking || !ViewCaptureBoom)
+	{
+		return;
+	}
+
+	CameraShakeElapsedTime += DeltaTime;
+	if (CameraShakeElapsedTime >= CameraShakeDuration)
+	{
+		bIsCameraShaking = false;
+		ViewCaptureBoom->SetRelativeLocation(BaseBoomRelativeLocation);
+		return;
+	}
+
+	// 끝나기 CameraShakeFadeOutDuration초 전부터 진폭이 0으로 선형 감쇠되는 배율
+	const float TimeRemaining = CameraShakeDuration - CameraShakeElapsedTime;
+	const float FadeAlpha = (CameraShakeFadeOutDuration > 0.0f)
+		? FMath::Clamp(TimeRemaining / CameraShakeFadeOutDuration, 0.0f, 1.0f)
+		: 1.0f;
+
+	const float OffsetY = HorizontalCameraShake.Update(DeltaTime, FadeAlpha, 1.0f, HorizontalCameraShakeNoiseOffset);
+	const float OffsetZ = VerticalCameraShake.Update(DeltaTime, FadeAlpha, 1.0f, VerticalCameraShakeNoiseOffset);
+
+	ViewCaptureBoom->SetRelativeLocation(BaseBoomRelativeLocation + FVector(0.0f, OffsetY, OffsetZ));
 }

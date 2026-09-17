@@ -16,6 +16,7 @@ class UChildActorComponent;
 class UPrimitiveComponent;
 class ACPCoinThrowArea;
 class ACPCoinPusher;
+class USoundBase;
 
 //CoinType별로 지정할 수 있는 Mesh/Material/PhysicsMaterial. 비워두면(nullptr) 해당 항목은 바꾸지 않는다
 USTRUCT(BlueprintType)
@@ -136,6 +137,16 @@ protected:
 	//않도록 한 번만 트리거되게 막는 가드
 	bool bHasTriggeredBigWaveThrow = false;
 
+	//Big 코인이 CoinPusherBoundary(Floor/Wall)가 아닌 대상(다른 코인, 푸셔 메쉬 등)과 처음 부딪혔을 때
+	//true로 설정 - BigCoinHitSound/카메라 쉐이크가 중복 재생되지 않도록 막는 가드. bHasTriggeredBigWaveThrow와
+	//별개로 관리됨 - ActiveWaveThrow는 대상을 가리지 않고 첫 충돌에 반응해야 하지만, 사운드/쉐이크는
+	//경계에 부딪힌 것은 인정하지 않아야 하기 때문
+	bool bHasPlayedBigCoinHitEffects = false;
+
+	//Big 코인이 처음 부딪혀 ActiveWaveThrow()가 트리거되는 순간(HandleMeshHit) 같이 재생할 사운드
+	UPROPERTY(EditAnywhere, Category="Coin|Big")
+	TObjectPtr<USoundBase> BigCoinHitSound;
+
 	//이 코인을 스폰한 CoinPusher (Big 코인이 부딪혔을 때 ActiveWaveThrow()를 호출할 대상).
 	//ChildActorComponent로 스폰된 Dispenser가 낳은 Coin은 Owner 체인(GetOwner())이 신뢰할 수 없어서
 	//(UChildActorComponent가 스폰한 액터에 Owner를 설정해주지 않음) Owner 체인 탐색 대신, 스폰한
@@ -214,7 +225,10 @@ protected:
 	void ArmBigWaveThrow();
 
 	//Mesh->OnComponentHit에 바인딩 - Big 코인이 무엇과든 처음 부딪히면(단, bBigWaveThrowArmed가 true인 이후)
-	//OwningCoinPusher의 ActiveWaveThrow()를 1회 실행시킨다
+	//OwningCoinPusher의 ActiveWaveThrow()를 1회 실행시킨다. 추가로, CoinPusherBoundary(Floor/Wall)가
+	//아닌 대상과 처음 부딪히면(다른 코인, 푸셔 메쉬 등) BigCoinHitSound 재생 + OwningCoinPusher의
+	//StartCameraShake()도 1회 실행시킨다 - 이 둘은 서로 독립적인 가드(bHasTriggeredBigWaveThrow /
+	//bHasPlayedBigCoinHitEffects)로 관리되어, 첫 충돌이 경계였어도 이후 코인/메쉬에 부딪히면 사운드/쉐이크는 재생된다
 	UFUNCTION()
 	void HandleMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
