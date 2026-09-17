@@ -13,6 +13,10 @@ class ACPMonsterBase;
 class ACPCoinPusher;
 class UCPInGameWidget;
 
+/** 보스가 스폰됐을 때(SpawnBoss) / 죽었을 때(HandleBossDied) 각각 1회 Broadcast - BGM 등 보스 페이즈에
+ *  반응해야 하는 다른 시스템(예: ACPGameMode)이 파라미터 없이 구독할 수 있도록 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCPBossPhaseEvent);
+
 USTRUCT()
 struct FCPActiveSpawnJob
 {
@@ -201,6 +205,14 @@ protected:
 	void SpawnRandomRewardMonster();
 
 public:
+	/** 보스가 스폰된 직후(SpawnBoss) 1회 Broadcast */
+	UPROPERTY(BlueprintAssignable, Category="Boss")
+	FOnCPBossPhaseEvent OnBossAppeared;
+
+	/** 보스가 죽은 직후(HandleBossDied) 1회 Broadcast - 승리/다음 라운드 여부와 무관하게 항상 호출됨 */
+	UPROPERTY(BlueprintAssignable, Category="Boss")
+	FOnCPBossPhaseEvent OnBossDefeated;
+
 	/** 디버그 위젯 전용 - 지금 살아있는 웨이브 몹을 전부 즉시 죽이고, 남은 웨이브 타이머/스폰 Job을
 	 *  모두 정리한 뒤 BeginRoundWait()를 태움(정상 흐름과 동일하게 RoundEndWaitTime만큼 기다렸다가
 	 *  RoundMob+보스 동시 등장). 이미 RoundWait 이후 단계면(보스가 이미 살아있거나 대기 중) 아무것도

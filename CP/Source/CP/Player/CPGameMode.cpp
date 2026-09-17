@@ -13,6 +13,8 @@
 #include "UI/CPCoinCountWidget.h"
 #include "UI/CPInGameWidget.h"
 #include "Player/CPTopDownPlayerController.h"
+#include "Monster/Spawner/CPMonsterSpawnManagerComponent.h"
+#include "Components/AudioComponent.h"
 #include "TimerManager.h"
 
 ACPGameMode::ACPGameMode()
@@ -29,14 +31,28 @@ void ACPGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
+	StartBgm();
+
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 	{
+		if (ACPTopDownPlayerController* TopDownPC = Cast<ACPTopDownPlayerController>(PC))
+		{
+			TopDownPC->OnGamePauseStateChanged.AddDynamic(this, &ACPGameMode::HandleGamePauseStateChanged);
+			TopDownPC->OnGameEnded.AddDynamic(this, &ACPGameMode::HandleGameEnded);
+		}
+
 		if (ACPPlayerCharacter* PlayerCharacter = Cast<ACPPlayerCharacter>(PC->GetPawn()))
 		{
 			SetupPlayerHealthBarWidget(PlayerCharacter, PlayerHealthBarWidgetClass);
 			SetupPlayerWalletWidgets(PlayerCharacter);
 
 			PlayerCharacter->OnPlayerDowned.AddDynamic(this, &ACPGameMode::HandlePlayerDowned);
+
+			if (UCPMonsterSpawnManagerComponent* SpawnManager = PlayerCharacter->GetMonsterSpawnManager())
+			{
+				SpawnManager->OnBossAppeared.AddDynamic(this, &ACPGameMode::HandleBossAppeared);
+				SpawnManager->OnBossDefeated.AddDynamic(this, &ACPGameMode::HandleBossDefeated);
+			}
 
 			// InGameUI는 컨트롤러 자신의 BeginPlay에서 만들어지는데, 액터 간 BeginPlay 순서는
 			// 보장되지 않으므로 한 틱 미뤄서 항상 준비된 뒤에 바인딩한다
@@ -154,6 +170,68 @@ void ACPGameMode::HandlePlayerDowned()
 			TopDownPC->ShowEndingResult(false);
 		}
 	}
+}
+
+void ACPGameMode::StartBgm()
+{
+	if (!MainBgmSound)
+	{
+		return;
+	}
+
+	// bAutoDestroy=false - 이후 UpdateBgmPlayback()이 SetSound()로 곡만 바꿔가며 같은 컴포넌트를 재사용
+	BgmComponent = UGameplayStatics::SpawnSound2D(this, MainBgmSound, 1.f, 1.f, 0.f, nullptr, false, false);
+}
+
+void ACPGameMode::UpdateBgmPlayback()
+{
+	if (!BgmComponent)
+	{
+		return;
+	}
+
+	if (bHasGameEnded || bIsBgmPaused)
+	{
+		BgmComponent->Stop();
+		return;
+	}
+
+	USoundBase* DesiredSound = bIsBossActive ? BossBgmSound : MainBgmSound;
+	if (!DesiredSound)
+	{
+		BgmComponent->Stop();
+		return;
+	}
+
+	if (BgmComponent->Sound != DesiredSound || !BgmComponent->IsPlaying())
+	{
+		BgmComponent->SetSound(DesiredSound);
+		BgmComponent->Play();
+	}
+}
+
+void ACPGameMode::HandleGamePauseStateChanged(bool bIsPaused)
+{
+	bIsBgmPaused = bIsPaused;
+	UpdateBgmPlayback();
+}
+
+void ACPGameMode::HandleBossAppeared()
+{
+	bIsBossActive = true;
+	UpdateBgmPlayback();
+}
+
+void ACPGameMode::HandleBossDefeated()
+{
+	bIsBossActive = false;
+	UpdateBgmPlayback();
+}
+
+void ACPGameMode::HandleGameEnded(bool bIsClear)
+{
+	bHasGameEnded = true;
+	UpdateBgmPlayback();
 }
 
 float ACPGameMode::GetRequiredTeamExperience() const

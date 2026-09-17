@@ -12,6 +12,8 @@ class UCPHorizonGuageBarWidget;
 class UCPTicketCountWidget;
 class UCPCoinCountWidget;
 class UCPInGameWidget;
+class USoundBase;
+class UAudioComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPTeamLevelUp, int32, NewLevel);
 
@@ -57,6 +59,29 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Local Multiplayer|UI")
 	TSubclassOf<UCPHorizonGuageBarWidget> PlayerHealthBarWidgetClass;
 
+	//***** BGM *****
+	/** 평상시 재생되는 인게임 BGM */
+	UPROPERTY(EditAnywhere, Category="BGM")
+	TObjectPtr<USoundBase> MainBgmSound;
+
+	/** 보스 출현 중(SpawnBoss ~ HandleBossDied) 재생되는 BGM */
+	UPROPERTY(EditAnywhere, Category="BGM")
+	TObjectPtr<USoundBase> BossBgmSound;
+
+	/** MainBgmSound/BossBgmSound를 재생하는 단일 컴포넌트 - UpdateBgmPlayback()이 상황에 맞는 곡으로
+	 *  SetSound() 후 Play()함. BeginPlay에서 SpawnSound2D로 생성 */
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> BgmComponent;
+
+	/** 일시정지 메뉴가 열려있는 동안 true - true면 어떤 곡도 재생하지 않는다 */
+	bool bIsBgmPaused = false;
+
+	/** 보스가 살아있는 동안(SpawnBoss ~ HandleBossDied) true - true면 MainBgmSound 대신 BossBgmSound를 재생 */
+	bool bIsBossActive = false;
+
+	/** 게임이 끝난(승/패 Ending이 뜬) 후 true - true면 이후 영구히 아무 곡도 재생하지 않는다 */
+	bool bHasGameEnded = false;
+
 public:
 
 	/** Constructor */
@@ -93,6 +118,30 @@ protected:
 	 *  ACPTopDownPlayerController::ShowEndingResult) */
 	UFUNCTION()
 	void HandlePlayerDowned();
+
+	/** BeginPlay에서 BgmComponent를 생성하고 MainBgmSound 재생을 시작 */
+	void StartBgm();
+
+	/** bIsBgmPaused/bIsBossActive/bHasGameEnded를 종합해 지금 재생돼야 할 곡(없음/Main/Boss)을 판단하고,
+	 *  BgmComponent 상태가 다르면 맞춰준다 - 아래 4개 핸들러가 플래그를 바꾼 직후 항상 이 함수를 호출하므로
+	 *  Pause 중 보스가 죽는 등 상태가 겹쳐도 항상 올바른 곡(혹은 무음)으로 수렴한다 */
+	void UpdateBgmPlayback();
+
+	/** ACPTopDownPlayerController::OnGamePauseStateChanged에 바인딩됨(BeginPlay) */
+	UFUNCTION()
+	void HandleGamePauseStateChanged(bool bIsPaused);
+
+	/** UCPMonsterSpawnManagerComponent::OnBossAppeared에 바인딩됨(BeginPlay) */
+	UFUNCTION()
+	void HandleBossAppeared();
+
+	/** UCPMonsterSpawnManagerComponent::OnBossDefeated에 바인딩됨(BeginPlay) */
+	UFUNCTION()
+	void HandleBossDefeated();
+
+	/** ACPTopDownPlayerController::OnGameEnded에 바인딩됨(BeginPlay) */
+	UFUNCTION()
+	void HandleGameEnded(bool bIsClear);
 
 public:
 
