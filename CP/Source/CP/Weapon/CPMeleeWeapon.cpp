@@ -37,9 +37,13 @@ void ACPMeleeWeapon::HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCate
 
 void ACPMeleeWeapon::ExecuteAttack(int32 ComboIndex)
 {
-	PendingHitComboIndex = ComboIndex;
+	if (GetWorldTimerManager().IsTimerActive(MeleeHitTimerHandle))
+	{
+		GetWorldTimerManager().ClearTimer(MeleeHitTimerHandle);
+		ExecuteMeleeHit();
+	}
 
-	GetWorldTimerManager().ClearTimer(MeleeHitTimerHandle);
+	PendingHitComboIndex = ComboIndex;
 
 	const float AttackTiming = GetComboStepData(ComboIndex).AttackTiming;
 	if (AttackTiming > 0.0f)
