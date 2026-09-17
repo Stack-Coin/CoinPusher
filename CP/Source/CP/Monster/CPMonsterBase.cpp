@@ -539,6 +539,7 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	}
 
 	PlayHitFlash();
+	PlayHitSound();
 
 	if (StatComponent)
 	{
@@ -564,6 +565,11 @@ float ACPMonsterBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageE
 	}
 
 	return DamageAmount;
+}
+
+void ACPMonsterBase::PlayHitSound()
+{
+	UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation(), HitSoundVolume);
 }
 
 void ACPMonsterBase::PlayHitFlash()

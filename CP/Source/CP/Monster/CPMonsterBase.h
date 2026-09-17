@@ -15,6 +15,7 @@
 class UTimelineComponent;
 class UCurveFloat;
 class UMaterialInstanceDynamic;
+class USoundBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMonsterDied);
 
@@ -90,6 +91,17 @@ protected:
 
 	/** 피격 시 메시를 HitFlashColor로 잠깐 물들이는 연출 - TakeDamage에서 호출 (ACPPlayerCharacter와 동일한 방식) */
 	void PlayHitFlash();
+
+	/** 피격 사운드 재생 - TakeDamage에서 호출. Boss 포함 모든 몬스터가 각자 BP에서 HitSound 값만 다르게 채움 */
+	void PlayHitSound();
+
+	/** 피격 시 재생할 사운드 - BP마다(Boss 포함) 개별 지정 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	TObjectPtr<USoundBase> HitSound;
+
+	/** HitSound 볼륨 배율 - 기본 감쇠로 소리가 작게 들려서 기본값을 1보다 크게 잡아둠 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound", meta = (ClampMin = 0))
+	float HitSoundVolume = 1.0f;
 
 	UFUNCTION()
 	void HandleHitFlashUpdate(float Value);
