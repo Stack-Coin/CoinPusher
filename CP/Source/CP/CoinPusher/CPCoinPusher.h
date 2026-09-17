@@ -392,6 +392,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void SpawnTower(FName ItemID, int32 SpawnCount);
 
+	UFUNCTION(BlueprintPure, Category="CoinPusher")
+	bool CanUseItem(FName ItemID) const;
+
 	//CoinThrowAreaComponents 5개를 WaveThrowInterval 간격으로 순차적으로 ActiveThrow() 시킨다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void ActiveWaveThrow();

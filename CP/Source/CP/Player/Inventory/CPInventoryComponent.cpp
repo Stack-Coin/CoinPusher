@@ -135,6 +135,12 @@ bool UCPInventoryComponent::UseSlotItem(int32 SlotIndex)
 	}
 
 	FCPInventorySlot& Slot = Slots[SlotIndex];
+
+	if (CoinPusher && !CoinPusher->CanUseItem(Slot.ItemID))
+	{
+		return false;
+	}
+
 	const FName UsedItemID = Slot.ItemID;                // Count 감소 전에 미리 저장
 	const int32 BroadcastCount = Slot.UseBroadcastCount;  // 슬롯별 BP 지정값
 
