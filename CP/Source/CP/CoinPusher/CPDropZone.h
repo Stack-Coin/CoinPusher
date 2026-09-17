@@ -9,6 +9,7 @@
 
 class UBoxComponent;
 class ACPDispenser;
+class USoundBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCoinCollected, int32, NewCount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemCollected, FName, ItemCode);
@@ -94,6 +95,12 @@ protected:
 	 *  새로 시작되므로, 그 안에 다음 히트가 들어오면 자연스럽게 "시간 초기화"가 된다 */
 	FTimerHandle ComboWindowTimerHandle;
 
+	/** Normal/Passive/HP 코인이 DropZone에 떨어져 수집될 때마다 이 중 하나를 균등 확률로 랜덤 재생
+	 *  (PlayRandomItemDropSound) - Big/Monster/CoinTower/일반 아이템(ACPItem)은 대상 아님. 개수 제한
+	 *  없이 채워도 됨, 몇 개든 같은 확률로 뽑힘 */
+	UPROPERTY(EditAnywhere, Category="Sound")
+	TArray<TObjectPtr<USoundBase>> ItemDropSounds;
+
 public:
 
 	//Coin ���� �� BroadCast
@@ -170,6 +177,10 @@ protected:
 	/** Tick()에서 매 프레임 호출되어, ComboWindowStartTime 기준 남은 시간을 계산해 OnComboGaugeChanged로
 	 *  Broadcast한다 - 게이지가 매 틱 눈에 보이게 줄어드는 이유 */
 	void UpdateComboGaugeDisplay();
+
+	/** ItemDropSounds 중 하나를 FMath::RandRange로 균등하게 골라 Location에서 재생 (비어있으면 아무것도 안 함).
+	 *  OnVolumeBeginOverlap이 Normal/Passive/HP 코인 수집 시에만 호출 */
+	void PlayRandomItemDropSound(const FVector& Location) const;
 
 public:
 

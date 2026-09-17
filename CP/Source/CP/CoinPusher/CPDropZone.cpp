@@ -106,6 +106,13 @@ void ACPDropZone::OnVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 		if (Coin->Collect())
 		{
 			AddCollectedCoins(1, ItemID, CoinType, Coin->GetActorLocation());
+
+			// Normal/Passive/HP 코인이 떨어졌을 때만 ItemDropSounds 중 하나를 랜덤 재생 (Big은
+			// BigCoinHitSound/카메라 쉐이크로 이미 별도 처리, Monster/CoinTower는 대상 아님)
+			if (CoinType == ECPCoinType::Normal || CoinType == ECPCoinType::Passive || CoinType == ECPCoinType::HP)
+			{
+				PlayRandomItemDropSound(Coin->GetActorLocation());
+			}
 		}
 	}
 	else if (ACPItem* Item = Cast<ACPItem>(OtherActor))
@@ -116,6 +123,20 @@ void ACPDropZone::OnVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 		{
 			RecordCollectedItem(ItemCode, Item->GetActorLocation());
 		}
+	}
+}
+
+void ACPDropZone::PlayRandomItemDropSound(const FVector& Location) const
+{
+	if (ItemDropSounds.Num() == 0)
+	{
+		return;
+	}
+
+	const int32 RandomIndex = FMath::RandRange(0, ItemDropSounds.Num() - 1);
+	if (USoundBase* Sound = ItemDropSounds[RandomIndex])
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, Sound, Location);
 	}
 }
 
