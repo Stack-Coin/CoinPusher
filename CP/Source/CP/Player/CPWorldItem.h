@@ -12,6 +12,7 @@
 class USphereComponent;
 class UStaticMeshComponent;
 class UCPDebugCollisionShapeComponent;
+class UNiagaraComponent;
 
 /**
  *  A pickup an ICPInteractor (the player) must walk up to and press the Interact key to collect.
@@ -41,6 +42,12 @@ class CP_API ACPWorldItem : public AActor, public ICPInteractable
 	/** Draws InteractionRange's wireframe while the F1 debug widget's ItemPickup checkbox is on */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCPDebugCollisionShapeComponent* DebugPickupShape;
+
+	/** 이 아이템이 존재하는 동안 계속 재생되는 후광 이펙트. Niagara System Asset을 비워두면 아무것도
+	 *  재생하지 않는다. BP 자식 클래스(BP_CPGrowItem_* 등)마다 이 컴포넌트에서 직접 System Asset과
+	 *  상대 위치/회전/스케일(Transform)을 지정하면 된다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UNiagaraComponent* HaloEffectComponent;
 
 protected:
 

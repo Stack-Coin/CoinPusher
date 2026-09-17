@@ -37,6 +37,7 @@ class UCameraShakeBase;
 class UCPInventoryComponent;
 class ACPCoinPusher;
 class USoundBase;
+class UNiagaraSystem;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCPPlayerCharacter, Log, All);
 
@@ -192,6 +193,22 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Level", meta = (ClampMin = 0))
 	float LevelUpSoundVolume = 1.0f;
 
+	/** 레벨업 시(최초 1회) 재생할 이펙트. 비워두면 재생하지 않음 (see SetStat) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Level")
+	TObjectPtr<UNiagaraSystem> LevelUpEffect;
+
+	/** LevelUpEffect가 플레이어 RootComponent에 부착되어 따라다닐 로컬(상대) 위치 오프셋 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Level")
+	FVector LevelUpEffectLocationOffset = FVector::ZeroVector;
+
+	/** LevelUpEffect의 로컬(상대) 회전 오프셋 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Level")
+	FRotator LevelUpEffectRotationOffset = FRotator::ZeroRotator;
+
+	/** LevelUpEffect 스폰 스케일 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Level")
+	FVector LevelUpEffectScale = FVector::OneVector;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitFlash")
 	TObjectPtr<UCurveFloat> HitFlashCurve;
 
@@ -215,6 +232,18 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|HitCameraShake", meta = (ClampMin = 0))
 	float HitCameraShakeIntensity = 1.0f;
+
+	/** 플레이어가 데미지를 받을 때(TakeDamage) 재생할 사운드. 비워두면 재생하지 않음 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Damage")
+	TObjectPtr<USoundBase> DamageTakenSound;
+
+	/** DamageTakenSound 재생 위치(플레이어 위치 기준)에 더할 오프셋 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Damage")
+	FVector DamageTakenSoundLocationOffset = FVector::ZeroVector;
+
+	/** DamageTakenSound 재생 볼륨 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Damage", meta = (ClampMin = 0))
+	float DamageTakenSoundVolume = 1.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category="Wallet")
 	int32 ScoreCount = 0;
@@ -409,6 +438,22 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards", meta = (ClampMin = 0))
 	float HealthRecoverSoundVolume = 1.0f;
+
+	/** HealthItemID가 떨어져 HP가 회복될 때(최초 1회) 재생할 이펙트. 비워두면 재생하지 않음 (see HandleDropZoneItemDropped) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	TObjectPtr<UNiagaraSystem> HealthRecoverEffect;
+
+	/** HealthRecoverEffect가 플레이어 RootComponent에 부착되어 따라다닐 로컬(상대) 위치 오프셋 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	FVector HealthRecoverEffectLocationOffset = FVector::ZeroVector;
+
+	/** HealthRecoverEffect의 로컬(상대) 회전 오프셋 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	FRotator HealthRecoverEffectRotationOffset = FRotator::ZeroRotator;
+
+	/** HealthRecoverEffect 스폰 스케일 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	FVector HealthRecoverEffectScale = FVector::OneVector;
 
 	/** DropZone에 이 ItemID가 떨어지면 현재 무기의 패시브 스킬 실행 (see HandleDropZoneItemDropped) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")

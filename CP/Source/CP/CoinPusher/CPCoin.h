@@ -17,6 +17,7 @@ class UPrimitiveComponent;
 class ACPCoinThrowArea;
 class ACPCoinPusher;
 class USoundBase;
+class UNiagaraSystem;
 
 //CoinType별로 지정할 수 있는 Mesh/Material/PhysicsMaterial. 비워두면(nullptr) 해당 항목은 바꾸지 않는다
 USTRUCT(BlueprintType)
@@ -117,6 +118,54 @@ protected:
 	//CoinThrowArea를 활성화할 때, 이 코인의 위치 기준 월드 X방향으로 얼마나 떨어뜨려 배치할지
 	UPROPERTY(EditAnywhere, Category="Coin", meta = (AllowPrivateAccess = "true"))
 	float CoinThrowAreaOffsetX = 150.0f;
+
+	//일반 코인이 패시브 코인으로 전환될 때(최초 1회) 재생할 이펙트. 비워두면 재생하지 않음
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	TObjectPtr<UNiagaraSystem> PassiveConvertEffect;
+
+	//PassiveConvertEffect가 코인 RootComponent에 부착되어 따라다닐 로컬(상대) 위치 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector PassiveConvertEffectLocationOffset = FVector::ZeroVector;
+
+	//PassiveConvertEffect의 로컬(상대) 회전 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FRotator PassiveConvertEffectRotationOffset = FRotator::ZeroRotator;
+
+	//PassiveConvertEffect 스폰 스케일
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector PassiveConvertEffectScale = FVector::OneVector;
+
+	//일반 코인이 HP 코인으로 전환될 때(최초 1회) 재생할 이펙트. 비워두면 재생하지 않음
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	TObjectPtr<UNiagaraSystem> HPConvertEffect;
+
+	//HPConvertEffect가 코인 RootComponent에 부착되어 따라다닐 로컬(상대) 위치 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector HPConvertEffectLocationOffset = FVector::ZeroVector;
+
+	//HPConvertEffect의 로컬(상대) 회전 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FRotator HPConvertEffectRotationOffset = FRotator::ZeroRotator;
+
+	//HPConvertEffect 스폰 스케일
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector HPConvertEffectScale = FVector::OneVector;
+
+	//일반 코인이 몬스터 코인으로 전환될 때(최초 1회) 재생할 이펙트. 비워두면 재생하지 않음
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	TObjectPtr<UNiagaraSystem> MonsterConvertEffect;
+
+	//MonsterConvertEffect가 코인 RootComponent에 부착되어 따라다닐 로컬(상대) 위치 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector MonsterConvertEffectLocationOffset = FVector::ZeroVector;
+
+	//MonsterConvertEffect의 로컬(상대) 회전 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FRotator MonsterConvertEffectRotationOffset = FRotator::ZeroRotator;
+
+	//MonsterConvertEffect 스폰 스케일
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector MonsterConvertEffectScale = FVector::OneVector;
 
 	//Big 코인으로 전환될 때 곱해지는 스케일 배율 (전환 시점의 원본 스케일 대비). Passive/HP와 달리 원상복구되지 않는다
 	UPROPERTY(EditAnywhere, Category="Coin|Big", meta = (ClampMin = 0))

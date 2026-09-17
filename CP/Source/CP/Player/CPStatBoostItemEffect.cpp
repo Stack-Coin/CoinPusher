@@ -2,6 +2,7 @@
 
 #include "Player/CPStatBoostItemEffect.h"
 #include "Player/CPStatInterface.h"
+#include "GameFramework/Actor.h"
 
 void UCPStatBoostItemEffect::ApplyEffect(TScriptInterface<ICPStatInterface> Target)
 {
@@ -9,4 +10,6 @@ void UCPStatBoostItemEffect::ApplyEffect(TScriptInterface<ICPStatInterface> Targ
 	{
 		StatInterface->ModifyStat(StatToBoost, Amount);
 	}
+
+	PlayPickupEffect(Cast<AActor>(Target.GetObject()));
 }

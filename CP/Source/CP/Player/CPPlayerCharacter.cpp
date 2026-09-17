@@ -35,6 +35,7 @@
 #include "Curves/CurveFloat.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Camera/CameraShakeBase.h"
+#include "NiagaraFunctionLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogCPPlayerCharacter);
 
@@ -233,6 +234,13 @@ void ACPPlayerCharacter::HandleDropZoneItemDropped(FName ItemID)
 		if (HealthRecoverSound)
 		{
 			UGameplayStatics::PlaySoundAtLocation(this, HealthRecoverSound, GetActorLocation() + HealthRecoverSoundLocationOffset, HealthRecoverSoundVolume);
+		}
+
+		if (HealthRecoverEffect)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAttached(HealthRecoverEffect, GetRootComponent(), NAME_None,
+				HealthRecoverEffectLocationOffset, HealthRecoverEffectRotationOffset, HealthRecoverEffectScale,
+				EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
 		}
 	}
 
@@ -872,6 +880,11 @@ float ACPPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	PlayHitFlash();
 	PlayHitCameraShake();
 
+	if (DamageTakenSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, DamageTakenSound, GetActorLocation() + DamageTakenSoundLocationOffset, DamageTakenSoundVolume);
+	}
+
 	SetStat(ECPStatType::Health, GetStat(ECPStatType::Health) - DamageAmount);
 
 	if (GetStat(ECPStatType::Health) <= 0.0f)
@@ -1140,6 +1153,13 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 			{
 				UGameplayStatics::PlaySoundAtLocation(this, LevelUpSound, GetActorLocation() + LevelUpSoundLocationOffset, LevelUpSoundVolume);
 			}
+
+			if (Stats.Level > OldLevel && LevelUpEffect)
+			{
+				UNiagaraFunctionLibrary::SpawnSystemAttached(LevelUpEffect, GetRootComponent(), NAME_None,
+					LevelUpEffectLocationOffset, LevelUpEffectRotationOffset, LevelUpEffectScale,
+					EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
+			}
 		}
 		break;
 	}
@@ -1154,6 +1174,13 @@ void ACPPlayerCharacter::SetStat(ECPStatType StatType, float NewValue)
 			if (Stats.Level > OldLevel && LevelUpSound)
 			{
 				UGameplayStatics::PlaySoundAtLocation(this, LevelUpSound, GetActorLocation() + LevelUpSoundLocationOffset, LevelUpSoundVolume);
+			}
+
+			if (Stats.Level > OldLevel && LevelUpEffect)
+			{
+				UNiagaraFunctionLibrary::SpawnSystemAttached(LevelUpEffect, GetRootComponent(), NAME_None,
+					LevelUpEffectLocationOffset, LevelUpEffectRotationOffset, LevelUpEffectScale,
+					EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
 			}
 		}
 		break;
