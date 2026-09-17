@@ -11,6 +11,7 @@
 #include "Engine/DataTable.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Kismet/GameplayStatics.h"
+#include "TimerManager.h"
 
 ACPItem::ACPItem()
 {
@@ -30,6 +31,10 @@ ACPItem::ACPItem()
 
 	// disable navigation relevance so items don't affect NavMesh generation
 	CollisionSphere->bNavigationRelevant = false;
+
+	// 코인 푸셔 안에서 무엇이든 처음 부딪히는 순간(=들어간 순간)을 감지하기 위해 Hit 이벤트를 활성화
+	CollisionSphere->SetNotifyRigidBodyCollision(true);
+	CollisionSphere->OnComponentHit.AddDynamic(this, &ACPItem::HandleCollisionHit);
 
 	// create the visual mesh, purely cosmetic
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
@@ -52,6 +57,38 @@ void ACPItem::BeginPlay()
 	Super::BeginPlay();
 
 	ApplyItemData();
+
+	// 스폰 직후 디스펜서 등과의 초기 접촉으로 EnterSound가 곧바로 오발동하지 않도록,
+	// EnterSoundArmDelay가 지난 뒤에야 트리거가 활성화되게 함
+	GetWorldTimerManager().SetTimer(EnterSoundArmTimerHandle, this, &ACPItem::ArmEnterSound, EnterSoundArmDelay, false);
+}
+
+void ACPItem::ArmEnterSound()
+{
+	bEnterSoundArmed = true;
+}
+
+void ACPItem::SetEnterSound(USoundBase* NewEnterSound)
+{
+	if (!EnterSound)
+	{
+		EnterSound = NewEnterSound;
+	}
+}
+
+void ACPItem::HandleCollisionHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+	if (bHasPlayedEnterSound || !bEnterSoundArmed)
+	{
+		return;
+	}
+
+	bHasPlayedEnterSound = true;
+
+	if (EnterSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, EnterSound, GetActorLocation());
+	}
 }
 
 void ACPItem::ApplyItemData()

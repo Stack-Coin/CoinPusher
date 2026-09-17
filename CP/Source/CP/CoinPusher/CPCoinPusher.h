@@ -25,6 +25,7 @@ class ACPRoulette;
 class ACPTopDownPlayerController;
 class UCPCoinPointUI;
 class UDataTable;
+class USoundBase;
 
 /**Broadcast whenever this CoinPusher's health changes as a result of damage */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCoinPusherDamaged, float, Damage, AActor*, DamageCauser);
@@ -177,6 +178,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category="CoinPusher")
 	TObjectPtr<UDataTable> ItemDataTable;
 
+	//천장 Dispenser에서 ACPItem이 스폰될 때 그 아이템의 EnterSound가 비어있으면(개별 아이템 BP가 직접
+	//지정해두지 않았으면) 대신 적용되는 공용 사운드 - ACPDispenser::SpawnFromItemData()가 스폰 직후
+	//SpawnedItem->SetEnterSound()로 넘겨준다. 아이템 BP마다 일일이 지정할 필요 없이 여기 한 곳에서 통일 가능
+	UPROPERTY(EditAnywhere, Category="Sound")
+	TObjectPtr<USoundBase> ItemEnterSound;
+
 	//이 CoinPusher와 연동할 Roulette. 레벨에서 직접 연결해야 하며(InputA/InputB와 동일한 방식의 수동
 	//연결), BeginPlay에서 자동으로 이 Roulette의 OnPickedUp에 HandleRoulettePickedUp()을 등록해
 	//룰렛에서 아이템이 뽑힐 때마다(bRouletteToCoinPusher인 경우에만) 천장 Dispenser에서 그 아이템이 나오게 한다
@@ -288,6 +295,7 @@ public:
 	FORCEINLINE UCPCoinPusherViewCaptureComponent* GetViewCaptureComponent() const { return ViewCaptureComponent; }
 	FORCEINLINE UDataTable* GetItemDataTable() const { return ItemDataTable; }
 	FORCEINLINE ACPRoulette* GetLinkedRoulette() const { return LinkedRoulette; }
+	FORCEINLINE USoundBase* GetItemEnterSound() const { return ItemEnterSound; }
 
 	//ChildActorComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
 	UFUNCTION(BlueprintPure, Category="CoinPusher")

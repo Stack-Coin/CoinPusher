@@ -5,6 +5,7 @@
 #include "CPCoinPusherItem.h"
 #include "CPCoin.h"
 #include "CPItem.h"
+#include "CPCoinPusher.h"
 //#include "CPInput.h"
 #include "../Nexus/CPNexus.h"
 #include "Components/StaticMeshComponent.h"
@@ -137,6 +138,15 @@ AActor* ACPDispenser::SpawnFromItemData(FName ItemID, const FItemData& Row, TSub
 	if (ACPItem* SpawnedItem = Cast<ACPItem>(SpawnedActor))
 	{
 		SpawnedItem->SetItemId(ItemID);
+
+		// GetOwner()는 못 씀 - ChildActorComponent가 bSetOwner=false(엔진 기본값)라 이 Dispenser
+		// 자신의 Owner도 채워지지 않음(LinkedInput과 같은 이유). 대신 PostInitializeComponents()가
+		// 미리 넘겨준 OwningCoinPusher 멤버로 공용 ItemEnterSound를 전달(아이템 BP가 이미 자기
+		// 사운드를 지정해뒀으면 SetEnterSound() 내부에서 덮어쓰지 않음)
+		if (OwningCoinPusher)
+		{
+			SpawnedItem->SetEnterSound(OwningCoinPusher->GetItemEnterSound());
+		}
 	}
 
 	return SpawnedActor;

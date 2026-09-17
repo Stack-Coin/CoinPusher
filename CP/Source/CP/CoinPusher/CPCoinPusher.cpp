@@ -143,11 +143,23 @@ void ACPCoinPusher::PostInitializeComponents()
 	if (ACPDispenser* DispenserA = GetDispenserA())
 	{
 		DispenserA->SetLinkedInput(InputA);
+		DispenserA->SetOwningCoinPusher(this);
 	}
 
 	if (ACPDispenser* DispenserB = GetDispenserB())
 	{
 		DispenserB->SetLinkedInput(InputB);
+		DispenserB->SetOwningCoinPusher(this);
+	}
+
+	//천장 Dispenser들도 같은 이유(ChildActorComponent라 GetOwner()를 못 믿음)로 자기 자신을 직접 알려준다 -
+	//SpawnFromItemData()가 ACPItem 스폰 시 ItemEnterSound를 전달하는 데 사용
+	for (const TObjectPtr<UChildActorComponent>& CeilingComponent : CeilingDispenserComponents)
+	{
+		if (ACPDispenser* CeilingDispenser = CeilingComponent ? Cast<ACPDispenser>(CeilingComponent->GetChildActor()) : nullptr)
+		{
+			CeilingDispenser->SetOwningCoinPusher(this);
+		}
 	}
 
 	//DropZone도 마찬가지로 ChildActorComponent로 스폰되는 인스턴스라 레벨에서 직접 편집할 수
