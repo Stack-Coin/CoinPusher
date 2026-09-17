@@ -9,6 +9,7 @@
 #include "Components/ChildActorComponent.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
 
 ACPCoin::ACPCoin()
 {
@@ -107,16 +108,36 @@ void ACPCoin::SetCoinType(ECPCoinType NewType)
 	case ECPCoinType::Passive:
 		ItemID = PassiveCoinId;
 		StartScaleAnimation();
+		LockPositionTemporarily();
+		if (PassiveConvertEffect)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAttached(PassiveConvertEffect, GetRootComponent(), NAME_None,
+				PassiveConvertEffectLocationOffset, PassiveConvertEffectRotationOffset, PassiveConvertEffectScale,
+				EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
+		}
 		break;
 
 	case ECPCoinType::HP:
 		ItemID = HPCoinId;
 		StartScaleAnimation();
+		LockPositionTemporarily();
+		if (HPConvertEffect)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAttached(HPConvertEffect, GetRootComponent(), NAME_None,
+				HPConvertEffectLocationOffset, HPConvertEffectRotationOffset, HPConvertEffectScale,
+				EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
+		}
 		break;
 
 	case ECPCoinType::Monster:
 		ItemID = MonsterCoinId;
 		StartScaleAnimation();
+		if (MonsterConvertEffect)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAttached(MonsterConvertEffect, GetRootComponent(), NAME_None,
+				MonsterConvertEffectLocationOffset, MonsterConvertEffectRotationOffset, MonsterConvertEffectScale,
+				EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
+		}
 		break;
 
 	case ECPCoinType::Big:
@@ -154,6 +175,35 @@ void ACPCoin::CancelScaleAnimation()
 	ScaleAnimPhase = EScaleAnimPhase::None;
 	SetActorScale3D(ScaleAnimOriginalScale);
 	SetActorTickEnabled(false);
+}
+
+void ACPCoin::LockPositionTemporarily()
+{
+	if (PositionLockDuration <= 0.0f)
+	{
+		return;
+	}
+
+	bIsPositionLocked = true;
+	UpdateSimulatePhysics();
+
+	GetWorldTimerManager().SetTimer(PositionLockTimerHandle, this, &ACPCoin::UnlockPosition, PositionLockDuration, false);
+}
+
+void ACPCoin::UnlockPosition()
+{
+	bIsPositionLocked = false;
+	UpdateSimulatePhysics();
+}
+
+void ACPCoin::UpdateSimulatePhysics()
+{
+	if (!Mesh)
+	{
+		return;
+	}
+
+	Mesh->SetSimulatePhysics(!bIsTowerLocked && !bIsPositionLocked);
 }
 
 void ACPCoin::ApplyCoinTypeVisual(ECPCoinType NewType)
@@ -310,15 +360,11 @@ void ACPCoin::SetTowerLocked(bool bLocked)
 {
 	bIsTowerLocked = bLocked;
 
-	if (!Mesh)
-	{
-		return;
-	}
-
 	// SimulatePhysics를 끄면(Kinematic) 그 자체로 중력의 영향을 받지 않게 되고, 이후 스윕 없는 이동(부모
 	// 컴포넌트에 Attach된 채로 AttachToComponent/SetRelativeLocation 등으로 옮기는 방식)에는 Floor/Wall/
 	// Pusher 같은 정적/비-Simulate 콜리전에 막히지 않는다. 콜리전 프로파일 자체는 BlockAllDynamic 그대로
 	// 유지되므로, 여전히 Simulate 중인 다른(일반) 코인과는 밀어내는 물리 상호작용이 발생한다 -
-	// 즉 "Coin을 제외하고는 물리충돌을 하지 않는다"가 별도 콜리전 채널 설정 없이 자연스럽게 만족된다
-	Mesh->SetSimulatePhysics(!bLocked);
+	// 즉 "Coin을 제외하고는 물리충돌을 하지 않는다"가 별도 콜리전 채널 설정 없이 자연스럽게 만족된다.
+	// bIsPositionLocked(Passive/HP 전환 직후 위치 고정)가 걸려 있으면 타워가 먼저 풀려도 물리는 켜지지 않는다
+	UpdateSimulatePhysics();
 }

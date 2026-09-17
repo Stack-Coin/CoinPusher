@@ -1,6 +1,6 @@
 ---,MaxHealth,MoveSpeed,AttackPower,AttackInterval,AttackRange,TurnSpeed,MoveAcceptableRadius
-Normal,40,350,8,1,100,180,90
-Tanker,70,250,15,1,100,150,90
-Ranged,20,300,6,2,300,180,280
-Boss,2000,280,40,1.5,200,120,150
-Bomb,15,380,25,1,0,200,50
+Normal,10,400,4,0,100,0.2,0
+Tanker,20,300,8,0,100,0.2,0
+Ranged,8,350,6,2,120,0.2,300
+Bomb,10,450,10,1,78,0.2,0
+Boss,1000,500,40,0,100,2,0

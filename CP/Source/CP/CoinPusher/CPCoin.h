@@ -17,6 +17,7 @@ class UPrimitiveComponent;
 class ACPCoinThrowArea;
 class ACPCoinPusher;
 class USoundBase;
+class UNiagaraSystem;
 
 //CoinType별로 지정할 수 있는 Mesh/Material/PhysicsMaterial. 비워두면(nullptr) 해당 항목은 바꾸지 않는다
 USTRUCT(BlueprintType)
@@ -118,6 +119,54 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Coin", meta = (AllowPrivateAccess = "true"))
 	float CoinThrowAreaOffsetX = 150.0f;
 
+	//일반 코인이 패시브 코인으로 전환될 때(최초 1회) 재생할 이펙트. 비워두면 재생하지 않음
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	TObjectPtr<UNiagaraSystem> PassiveConvertEffect;
+
+	//PassiveConvertEffect가 코인 RootComponent에 부착되어 따라다닐 로컬(상대) 위치 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector PassiveConvertEffectLocationOffset = FVector::ZeroVector;
+
+	//PassiveConvertEffect의 로컬(상대) 회전 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FRotator PassiveConvertEffectRotationOffset = FRotator::ZeroRotator;
+
+	//PassiveConvertEffect 스폰 스케일
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector PassiveConvertEffectScale = FVector::OneVector;
+
+	//일반 코인이 HP 코인으로 전환될 때(최초 1회) 재생할 이펙트. 비워두면 재생하지 않음
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	TObjectPtr<UNiagaraSystem> HPConvertEffect;
+
+	//HPConvertEffect가 코인 RootComponent에 부착되어 따라다닐 로컬(상대) 위치 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector HPConvertEffectLocationOffset = FVector::ZeroVector;
+
+	//HPConvertEffect의 로컬(상대) 회전 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FRotator HPConvertEffectRotationOffset = FRotator::ZeroRotator;
+
+	//HPConvertEffect 스폰 스케일
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector HPConvertEffectScale = FVector::OneVector;
+
+	//일반 코인이 몬스터 코인으로 전환될 때(최초 1회) 재생할 이펙트. 비워두면 재생하지 않음
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	TObjectPtr<UNiagaraSystem> MonsterConvertEffect;
+
+	//MonsterConvertEffect가 코인 RootComponent에 부착되어 따라다닐 로컬(상대) 위치 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector MonsterConvertEffectLocationOffset = FVector::ZeroVector;
+
+	//MonsterConvertEffect의 로컬(상대) 회전 오프셋
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FRotator MonsterConvertEffectRotationOffset = FRotator::ZeroRotator;
+
+	//MonsterConvertEffect 스폰 스케일
+	UPROPERTY(EditAnywhere, Category="Coin|Effects")
+	FVector MonsterConvertEffectScale = FVector::OneVector;
+
 	//Big 코인으로 전환될 때 곱해지는 스케일 배율 (전환 시점의 원본 스케일 대비). Passive/HP와 달리 원상복구되지 않는다
 	UPROPERTY(EditAnywhere, Category="Coin|Big", meta = (ClampMin = 0))
 	float BigScaleMultiplier = 3.0f;
@@ -157,6 +206,18 @@ protected:
 	//CoinTowerSpawner 등이 SetTowerLocked(true)로 잠갔으면 true - 이 상태에서는 Launch()와 SetCoinType()이
 	//모두 조기 반환되어 아무 효과가 없다 (타워가 상승하는 동안 발사되거나 타입이 바뀌는 것을 방지)
 	bool bIsTowerLocked = false;
+
+	//Normal 코인이 Passive/HP 코인으로 전환된 직후 위치를 고정해두는 시간(초). 이 값은 BP(디테일 패널)에서
+	//자유롭게 조정 가능. 0 이하면 위치 고정을 하지 않는다
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Coin|PositionLock", meta = (ClampMin = 0))
+	float PositionLockDuration = 2.0f;
+
+	//LockPositionTemporarily()로 위치가 고정된 상태면 true - SetTowerLocked(false)가 호출되어도
+	//이 고정이 풀리기 전에는 물리 시뮬레이션을 다시 켜지 않도록 UpdateSimulatePhysics()에서 참고한다
+	bool bIsPositionLocked = false;
+
+	//bIsPositionLocked를 다시 false로 되돌리는 타이머 핸들
+	FTimerHandle PositionLockTimerHandle;
 
 public:
 
@@ -210,6 +271,17 @@ protected:
 
 	//진행 중이던 스케일 연출을 즉시 취소하고 원본 스케일로 되돌림 (다른 타입으로 바뀌었을 때 호출)
 	void CancelScaleAnimation();
+
+	//PositionLockDuration(0 초과일 때만) 동안 물리 시뮬레이션을 꺼서 현재 위치에 고정하고, 시간이 지나면
+	//UnlockPosition()이 자동으로 호출되도록 타이머를 예약한다 (Normal → Passive/HP 전환 시 호출)
+	void LockPositionTemporarily();
+
+	//LockPositionTemporarily()로 걸린 위치 고정을 해제 (타이머 만료 시 호출)
+	void UnlockPosition();
+
+	//bIsTowerLocked/bIsPositionLocked 중 하나라도 걸려 있으면 물리 시뮬레이션을 끄고, 둘 다 풀렸을 때만
+	//다시 켠다 - SetTowerLocked()/LockPositionTemporarily()/UnlockPosition()이 공용으로 사용
+	void UpdateSimulatePhysics();
 
 	//CoinTypeVisuals에서 NewType에 해당하는 Mesh/Material을 찾아 Mesh 컴포넌트에 적용
 	void ApplyCoinTypeVisual(ECPCoinType NewType);

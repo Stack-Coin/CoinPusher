@@ -6,6 +6,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Debug/CPDebugCollisionShapeComponent.h"
+#include "NiagaraComponent.h"
 #include "TimerManager.h"
 
 ACPWorldItem::ACPWorldItem()
@@ -48,6 +49,12 @@ ACPWorldItem::ACPWorldItem()
 	ItemMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ItemMesh"));
 	ItemMesh->SetupAttachment(CollisionBody);
 	ItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// System Asset을 지정하지 않으면 아무것도 재생하지 않는 빈 슬롯 - BP에서 System Asset과
+	// 상대 Transform(위치/회전/스케일)을 직접 지정
+	HaloEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("HaloEffectComponent"));
+	HaloEffectComponent->SetupAttachment(CollisionBody);
+	HaloEffectComponent->bAutoActivate = true;
 
 	InteractionRange->OnComponentBeginOverlap.AddDynamic(this, &ACPWorldItem::OnInteractionRangeBeginOverlap);
 	InteractionRange->OnComponentEndOverlap.AddDynamic(this, &ACPWorldItem::OnInteractionRangeEndOverlap);
