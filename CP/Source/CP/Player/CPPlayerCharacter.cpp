@@ -215,6 +215,42 @@ void ACPPlayerCharacter::HandleInventoryItemUsed(FName ItemID, int32 Count)
 	CoinPusher->SpawnTower(ItemID, Count);
 	CoinPusher->ConvertActive(ItemID, Count);
 	CoinPusher->HPConvertActive(ItemID, Count);
+
+	UDataTable* ItemDataTable = CoinPusher->GetItemDataTable();
+	const FItemData* Row = ItemDataTable
+		? ItemDataTable->FindRow<FItemData>(ItemID, TEXT("ACPPlayerCharacter::HandleInventoryItemUsed"))
+		: nullptr;
+	PlayItemUseSound(Row);
+}
+
+void ACPPlayerCharacter::PlayItemUseSound(const FItemData* Row) const
+{
+	if (!Row)
+	{
+		return;
+	}
+
+	USoundBase* UseSound = nullptr;
+	switch (Row->CoinType)
+	{
+	case ECPCoinType::Big:
+		UseSound = CrownUseSound;
+		break;
+	case ECPCoinType::CoinTower:
+		UseSound = TowerUseSound;
+		break;
+	case ECPCoinType::Passive:
+	case ECPCoinType::HP:
+		UseSound = PassiveOrHPUseSound;
+		break;
+	default:
+		break;
+	}
+
+	if (UseSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, UseSound, GetActorLocation());
+	}
 }
 
 void ACPPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
