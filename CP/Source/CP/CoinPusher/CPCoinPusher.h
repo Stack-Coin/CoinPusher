@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "CPCoinTypes.h"
 #include "CPDropZone.h"
+#include "Shakes/PerlinNoiseCameraShakePattern.h"
 #include "CPCoinPusher.generated.h"
 
 class UStaticMeshComponent;
@@ -118,6 +119,35 @@ class CP_API ACPCoinPusher : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCPCoinPusherViewCaptureComponent* ViewCaptureComponent;
 
+	//ViewCaptureBoom의 로컬 Y축(좌우) 흔들림 진폭/주파수 - StartCameraShake()가 트리거하는 노이즈 흔들림
+	UPROPERTY(EditAnywhere, Category="Camera Shake", meta = (AllowPrivateAccess = "true"))
+	FPerlinNoiseShaker HorizontalCameraShake;
+
+	//ViewCaptureBoom의 로컬 Z축(상하) 흔들림 진폭/주파수
+	UPROPERTY(EditAnywhere, Category="Camera Shake", meta = (AllowPrivateAccess = "true"))
+	FPerlinNoiseShaker VerticalCameraShake;
+
+	//StartCameraShake() 이후 흔들림이 지속되는 전체 시간(초)
+	UPROPERTY(EditAnywhere, Category="Camera Shake", meta = (AllowPrivateAccess = "true", ClampMin = 0))
+	float CameraShakeDuration = 0.3f;
+
+	//끝나기 이 시간(초) 전부터 진폭이 0으로 선형 감쇠되기 시작 (CameraShakeDuration 이상이면 시작부터 감쇠)
+	UPROPERTY(EditAnywhere, Category="Camera Shake", meta = (AllowPrivateAccess = "true", ClampMin = 0))
+	float CameraShakeFadeOutDuration = 0.15f;
+
+	//StartCameraShake() 호출 시점에 true - Tick()이 이 플래그를 보고 흔들림을 갱신
+	bool bIsCameraShaking = false;
+
+	//StartCameraShake() 이후 경과 시간(초) - CameraShakeDuration에 도달하면 흔들림 종료
+	float CameraShakeElapsedTime = 0.0f;
+
+	//흔들림이 시작되기 전 ViewCaptureBoom의 상대 위치 - 흔들림 도중/종료 시 이 값 기준으로 오프셋을 더하거나 복귀
+	FVector BaseBoomRelativeLocation = FVector::ZeroVector;
+
+	//HorizontalCameraShake/VerticalCameraShake::Update()가 각각 누적하는 노이즈 위상값 - 축마다 따로 가져야 함
+	float HorizontalCameraShakeNoiseOffset = 0.0f;
+	float VerticalCameraShakeNoiseOffset = 0.0f;
+
 public:
 	ACPCoinPusher();
 
@@ -200,8 +230,12 @@ public:
 	virtual void PostInitializeComponents() override;
 
 	//천장 Dispenser들이 게임 시작 시 코인을 드롭 + CoinGridSpawner에게 SpawnCoins()를 직접 호출해
-	//초기 코인을 깔아줌
+	//초기 코인을 깔아줌. ViewCaptureBoom의 현재 상대 위치를 BaseBoomRelativeLocation으로 캐싱해둔다
 	virtual void BeginPlay() override;
+
+	//bIsCameraShaking인 동안 매틱 HorizontalCameraShake/VerticalCameraShake로 오프셋을 계산해
+	//ViewCaptureBoom에 적용. CameraShakeDuration에 도달하면 BaseBoomRelativeLocation으로 복귀하고 정지
+	virtual void Tick(float DeltaTime) override;
 
 	//UGameplayStatics::ApplyDamage(및 ApplyPointDamage/ApplyRadialDamage)로 들어오는 데미지 처리
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
@@ -353,6 +387,11 @@ public:
 	//CoinThrowAreaComponents 5개를 WaveThrowInterval 간격으로 순차적으로 ActiveThrow() 시킨다
 	UFUNCTION(BlueprintCallable, Category="CoinPusher")
 	void ActiveWaveThrow();
+
+	//ViewCaptureBoom을 노이즈로 흔들기 시작 (ACPCoin::HandleMeshHit이 Big 코인 첫 충돌 시 호출).
+	//이미 흔들리는 중이면 경과 시간과 위상을 리셋해 처음부터 다시 시작
+	UFUNCTION(BlueprintCallable, Category="Camera Shake")
+	void StartCameraShake();
 
 protected:
 

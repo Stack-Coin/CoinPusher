@@ -16,6 +16,13 @@ class UCPEndingWidget;
 class UCPCoinPusherCaptureWidget;
 class UCPInGameWidget;
 
+/** 일시정지 메뉴가 열리고/닫힐 때(TogglePauseMenu) Broadcast - BGM 등 다른 시스템이 게임 일시정지
+ *  상태 변화에 반응할 수 있도록 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPGamePauseStateChanged, bool, bIsPaused);
+
+/** 승패가 결정되어 Ending 화면이 뜰 때(ShowEndingResult) Broadcast */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCPGameEnded, bool, bIsClear);
+
 /**
  *  PlayerController for the top-down / quarter view action prototype.
  *  Adds its Input Mapping Contexts and exposes the mouse cursor's world location for attacks.
@@ -194,4 +201,12 @@ public:
 	/** Returns the InGameUI instance created from InGameWidgetClass, or nullptr if unset */
 	UFUNCTION(BlueprintCallable, Category="UI|In Game")
 	UCPInGameWidget* GetInGameWidget() const { return InGameWidgetInstance; }
+
+	/** Broadcast right after TogglePauseMenu() actually changes the paused state */
+	UPROPERTY(BlueprintAssignable, Category="UI|Pause")
+	FOnCPGamePauseStateChanged OnGamePauseStateChanged;
+
+	/** Broadcast right after ShowEndingResult() shows the Clear/Lose ending */
+	UPROPERTY(BlueprintAssignable, Category="UI|Ending")
+	FOnCPGameEnded OnGameEnded;
 };

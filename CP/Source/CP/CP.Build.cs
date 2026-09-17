@@ -25,7 +25,7 @@ public class CP : ModuleRules
 			"GameplayTasks"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "ApplicationCore", "AnimGraphRuntime", "Landscape" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "ApplicationCore", "AnimGraphRuntime", "Landscape", "EngineCameras" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"CP",

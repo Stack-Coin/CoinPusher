@@ -184,6 +184,7 @@ void ACPTopDownPlayerController::TogglePauseMenu()
 	const bool bNewPausedState = !UGameplayStatics::IsGamePaused(this);
 	UGameplayStatics::SetGamePaused(this, bNewPausedState);
 	OwnerPC->SetPauseMenuVisible(bNewPausedState);
+	OwnerPC->OnGamePauseStateChanged.Broadcast(bNewPausedState);
 }
 
 void ACPTopDownPlayerController::SetPauseMenuVisible(bool bVisible)
@@ -223,6 +224,7 @@ void ACPTopDownPlayerController::ShowEndingResult(bool bIsClear)
 
 	UGameplayStatics::SetGamePaused(this, true);
 	OwnerPC->SetEndingMenuVisible(bIsClear);
+	OwnerPC->OnGameEnded.Broadcast(bIsClear);
 }
 
 void ACPTopDownPlayerController::SetEndingMenuVisible(bool bIsClear)

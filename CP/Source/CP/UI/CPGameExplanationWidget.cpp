@@ -5,6 +5,7 @@
 #include "Components/Image.h"
 #include "Engine/GameInstance.h"
 #include "InputCoreTypes.h"
+#include "Kismet/GameplayStatics.h"
 
 void UCPGameExplanationWidget::NativeConstruct()
 {
@@ -64,5 +65,14 @@ void UCPGameExplanationWidget::HandleSelectedControllerKeyPressed(FKey PressedKe
 
 	bHasRequestedLevelChange = true;
 
+	PlayClickSound();
 	SwitchToNextWidget();
+}
+
+void UCPGameExplanationWidget::PlayClickSound() const
+{
+	if (ClickSound)
+	{
+		UGameplayStatics::PlaySound2D(this, ClickSound);
+	}
 }

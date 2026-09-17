@@ -475,6 +475,7 @@ void UCPMonsterSpawnManagerComponent::SpawnBoss()
 	{
 		ActiveBoss = SpawnedBoss;
 		++TotalAliveMonsterCount;
+		OnBossAppeared.Broadcast();
 		// 보스는 MaxAliveMonsterCount 상한과 무관하게 항상 스폰을 보장함 - 그래서 위쪽에 상한 체크가 아예 없음
 		SpawnedBoss->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleBossDied);
 		SpawnedBoss->OnMonsterDied.AddUniqueDynamic(this, &UCPMonsterSpawnManagerComponent::HandleAnyMonsterDied);
@@ -868,7 +869,7 @@ void UCPMonsterSpawnManagerComponent::HandleRewardMonsterDied()
 
 void UCPMonsterSpawnManagerComponent::HandleBossDied()
 {
-
+	OnBossDefeated.Broadcast();
 
 	// 보스 페이즈 동안 계속 돌던 RoundMob 스폰 타이머를 멈춤
 	StopRoundMobSpawning();

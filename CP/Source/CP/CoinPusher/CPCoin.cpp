@@ -8,6 +8,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "TimerManager.h"
+#include "Kismet/GameplayStatics.h"
 
 ACPCoin::ACPCoin()
 {
@@ -271,17 +272,35 @@ void ACPCoin::ArmBigWaveThrow()
 
 void ACPCoin::HandleMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	if (CoinType != ECPCoinType::Big || bHasTriggeredBigWaveThrow || !bBigWaveThrowArmed)
+	// 두 가드(bHasTriggeredBigWaveThrow/bHasPlayedBigCoinHitEffects) 모두 이미 끝났으면 더 볼 것 없음
+	if (CoinType != ECPCoinType::Big || !bBigWaveThrowArmed || (bHasTriggeredBigWaveThrow && bHasPlayedBigCoinHitEffects))
 	{
 		return;
 	}
 
-	// 무엇과 부딪히든(Floor/Wall뿐 아니라 다른 코인 등도 포함) 상관없이 트리거 - 대상은 OwningCoinPusher가
-	// 이미 알고 있음 (Owner 체인은 ChildActorComponent가 스폰한 액터에 Owner를 채워주지 않아 신뢰할 수 없다)
-	if (OwningCoinPusher)
+	// ActiveWaveThrow는 기존과 동일하게 무엇과 부딪히든(Floor/Wall뿐 아니라 다른 코인 등도 포함) 상관없이
+	// 첫 충돌 1회로 트리거 - 대상은 OwningCoinPusher가 이미 알고 있음 (Owner 체인은 ChildActorComponent가
+	// 스폰한 액터에 Owner를 채워주지 않아 신뢰할 수 없다)
+	if (!bHasTriggeredBigWaveThrow && OwningCoinPusher)
 	{
 		bHasTriggeredBigWaveThrow = true;
 		OwningCoinPusher->ActiveWaveThrow();
+	}
+
+	// 사운드/카메라 쉐이크는 CoinPusherBoundary(Floor/Wall)에 부딪힌 것은 인정하지 않고, 그 외(다른 코인,
+	// 푸셔 메쉬 등)와 처음 부딪혔을 때만 1회 - bHasTriggeredBigWaveThrow와 별개 가드라서, 첫 충돌이 경계였어도
+	// 이후 실제로 코인/메쉬에 부딪히면 그때 재생된다
+	const bool bHitBoundary = OtherComp && OtherComp->GetCollisionObjectType() == ECC_GameTraceChannel10;
+
+	if (!bHasPlayedBigCoinHitEffects && !bHitBoundary && OwningCoinPusher)
+	{
+		bHasPlayedBigCoinHitEffects = true;
+		OwningCoinPusher->StartCameraShake();
+
+		if (BigCoinHitSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, BigCoinHitSound, GetActorLocation());
+		}
 	}
 }
 

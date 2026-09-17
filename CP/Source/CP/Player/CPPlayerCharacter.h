@@ -29,6 +29,7 @@ class UCPDebugCollisionShapeComponent;
 class UCPMonsterSpawnManagerComponent;
 class UDataTable;
 struct FCPPlayerLevelStatRow;
+struct FItemData;
 class UTimelineComponent;
 class UCurveFloat;
 class UMaterialInstanceDynamic;
@@ -280,6 +281,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Dash", meta = (ClampMin = 0))
 	float DashSoundVolume = 1.0f;
 
+	/** 인벤토리에서 Crown(Big) 코인 아이템을 사용했을 때 재생할 사운드 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use")
+	TObjectPtr<USoundBase> CrownUseSound;
+
+	/** 인벤토리에서 Tower(CoinTower) 아이템을 사용했을 때 재생할 사운드 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use")
+	TObjectPtr<USoundBase> TowerUseSound;
+
+	/** 인벤토리에서 Passive 또는 HP 코인 아이템을 사용했을 때 재생할 사운드 - 둘이 같은 사운드를 공유 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use")
+	TObjectPtr<USoundBase> PassiveOrHPUseSound;
+
 	/** Converts ApplyKnockback's Distance into a launch speed: Speed = Distance / KnockbackDuration
 	 *  (same convention as DashDistance/DashDuration) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Knockback", meta = (ClampMin = 0.01, Units = "s"))
@@ -470,6 +483,11 @@ protected:
 	 *  unconditionally is safe; only the one matching the used item's actual CoinType does anything */
 	UFUNCTION()
 	void HandleInventoryItemUsed(FName ItemID, int32 Count);
+
+	/** HandleInventoryItemUsed가 ItemDataTable에서 찾은 Row의 CoinType에 따라 CrownUseSound/
+	 *  TowerUseSound/PassiveOrHPUseSound 중 맞는 것을 재생 (Row가 없거나 해당 CoinType용 사운드가
+	 *  비어있으면 아무것도 하지 않음) */
+	void PlayItemUseSound(const FItemData* Row) const;
 
 public:
 

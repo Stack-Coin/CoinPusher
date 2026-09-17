@@ -8,6 +8,7 @@
 #include "CPStartScreenWidget.generated.h"
 
 class UImage;
+class USoundBase;
 
 /**
  *  게임 시작 시 처음 뜨는 화면. BackGround/GamePad/KeyBoard 이미지와 "Press Any Key" 안내 텍스트로
@@ -55,6 +56,10 @@ protected:
 	/** BlinkInterval마다 BlinkingImage의 가시성을 토글하는 타이머 핸들 */
 	FTimerHandle BlinkTimerHandle;
 
+	/** 첫 입력 감지 시, 그리고 다음 화면으로 전환하는 순간에 공통으로 재생할 사운드 */
+	UPROPERTY(EditAnywhere, Category="Start Screen")
+	TObjectPtr<USoundBase> ClickSound;
+
 	virtual void NativeConstruct() override;
 
 	/** OnAnyKeyPressed에 바인딩 - 점멸이 아직 시작되지 않았을 때만, 입력 장치 종류에 따라 반대쪽
@@ -71,4 +76,7 @@ protected:
 	 *  BlinkCount * 2번 토글하면(꺼짐/켜짐 합쳐서 BlinkCount번 점멸) 타이머를 멈추고
 	 *  SwitchToNextWidget()으로 다음 화면으로 전환한다 */
 	void HandleBlinkTick();
+
+	/** ClickSound를 2D(비-포지셔널)로 재생 - UI 사운드라 월드 위치가 필요 없다 */
+	void PlayClickSound() const;
 };
