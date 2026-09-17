@@ -9,6 +9,7 @@
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
 #include "Debug/CPDebugCollisionSubsystem.h"
@@ -17,6 +18,9 @@ namespace
 {
 	// Refresh rate for ACPProjectile's debug collision draw - a moving shape redrawn this often reads as continuous
 	constexpr float DebugDrawInterval = 0.05f;
+
+	// Refresh rate for ACPProjectile's fade-out - frequent enough to read as a smooth opacity transition
+	constexpr float FadeOutTickInterval = 0.02f;
 }
 
 ACPProjectile::ACPProjectile()
@@ -154,7 +158,7 @@ void ACPProjectile::OnProjectileHit(UPrimitiveComponent* HitComp, AActor* OtherA
 {
 	// A blocking hit only ever happens against world geometry (Pawns are set to overlap above), so it always stops the projectile
 	ProcessHit(OtherActor, Hit.Location);
-	Destroy();
+	BeginFadeOutAndDestroy();
 }
 
 void ACPProjectile::ProcessHit(AActor* OtherActor, const FVector& HitLocation)
@@ -189,7 +193,7 @@ void ACPProjectile::ProcessHit(AActor* OtherActor, const FVector& HitLocation)
 
 	if (!bCanPierce)
 	{
-		Destroy();
+		BeginFadeOutAndDestroy();
 	}
 }
 
@@ -201,4 +205,75 @@ void ACPProjectile::DrawDebugCollisionShape() const
 	}
 
 	DrawDebugSphere(GetWorld(), CollisionComp->GetComponentLocation(), CollisionComp->GetScaledSphereRadius(), 16, FColor::Cyan, false, DebugDrawInterval * 1.5f, 0, 1.0f);
+}
+
+void ACPProjectile::BeginFadeOutAndDestroy()
+{
+	if (bIsFadingOut)
+	{
+		return;
+	}
+
+	if (FadeOutDuration <= 0.0f)
+	{
+		Destroy();
+		return;
+	}
+
+	bIsFadingOut = true;
+	FadeOutElapsedTime = 0.0f;
+
+	if (ProjectileMovement)
+	{
+		ProjectileMovement->StopMovementImmediately();
+		ProjectileMovement->SetComponentTickEnabled(false);
+	}
+
+	if (CollisionComp)
+	{
+		CollisionComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	if (ProjectileEffectComponent)
+	{
+		ProjectileEffectComponent->Deactivate();
+	}
+
+	if (ProjectileMesh && FadeMaterialMIDs.IsEmpty())
+	{
+		for (int32 MaterialIndex = 0; MaterialIndex < ProjectileMesh->GetNumMaterials(); ++MaterialIndex)
+		{
+			if (UMaterialInstanceDynamic* MID = ProjectileMesh->CreateAndSetMaterialInstanceDynamic(MaterialIndex))
+			{
+				FadeMaterialMIDs.Add(MID);
+			}
+		}
+	}
+
+	GetWorldTimerManager().SetTimer(FadeOutTimerHandle, this, &ACPProjectile::TickFadeOut, FadeOutTickInterval, true);
+}
+
+void ACPProjectile::TickFadeOut()
+{
+	FadeOutElapsedTime += FadeOutTickInterval;
+
+	const float Opacity = 1.0f - FMath::Clamp(FadeOutElapsedTime / FadeOutDuration, 0.0f, 1.0f);
+	for (UMaterialInstanceDynamic* MID : FadeMaterialMIDs)
+	{
+		if (MID)
+		{
+			MID->SetScalarParameterValue(FadeOpacityParameterName, Opacity);
+		}
+	}
+
+	if (FadeOutElapsedTime >= FadeOutDuration)
+	{
+		GetWorldTimerManager().ClearTimer(FadeOutTimerHandle);
+		Destroy();
+	}
+}
+
+void ACPProjectile::LifeSpanExpired()
+{
+	BeginFadeOutAndDestroy();
 }

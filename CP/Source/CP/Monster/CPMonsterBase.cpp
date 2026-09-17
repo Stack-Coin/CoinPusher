@@ -427,7 +427,7 @@ void ACPMonsterBase::Dead()
 	{
 		FVector Location = GetActorLocation();
 		Location.X += 100.f;
-		Location.Z = 25.f;
+		Location.Z = 80.f;
 
 		FRotator Rotation = GetActorRotation();
 

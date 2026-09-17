@@ -14,6 +14,7 @@ class UProjectileMovementComponent;
 class UNiagaraSystem;
 class UNiagaraComponent;
 class USoundBase;
+class UMaterialInstanceDynamic;
 
 /**
  *  ACPProjectile
@@ -123,6 +124,32 @@ protected:
 	/** Redraws CollisionComp's sphere at its current location. Bound to DebugDrawTimerHandle when bDrawDebugCollision is true */
 	FTimerHandle DebugDrawTimerHandle;
 
+	/** How long the projectile takes to fade to transparent (ProjectileMesh's Opacity/FadeOpacityParameterName
+	 *  material parameter, 1 -> 0) before actually being destroyed - on a hit, a piercing hit's final Range
+	 *  timeout, or the Range timeout itself. 0 = destroyed instantly, no fade (old behavior) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile|Fade Out", meta = (ClampMin = 0, Units = "s"))
+	float FadeOutDuration = 0.3f;
+
+	/** Scalar parameter name BeginFadeOutAndDestroy drives from 1 (opaque) to 0 (transparent) on ProjectileMesh's
+	 *  per-instance dynamic material(s). ProjectileMesh's material needs a Translucent/Masked blend mode and a
+	 *  parameter with this name wired into its opacity - set up in the material/material instance, not here */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile|Fade Out")
+	FName FadeOpacityParameterName = TEXT("Opacity");
+
+	/** ProjectileMesh's materials, converted to dynamic instances the first time BeginFadeOutAndDestroy runs */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> FadeMaterialMIDs;
+
+	/** True from the first BeginFadeOutAndDestroy call until the projectile is actually destroyed - guards
+	 *  against a second hit (or the Range timeout) restarting the fade while it's already in progress */
+	bool bIsFadingOut = false;
+
+	/** Counts up from 0 to FadeOutDuration on FadeOutTimerHandle */
+	float FadeOutElapsedTime = 0.0f;
+
+	/** Ticks FadeOutElapsedTime/updates FadeMaterialMIDs while fading out, then destroys the projectile */
+	FTimerHandle FadeOutTimerHandle;
+
 	/** Damage dealt on hit. Set by the firing weapon via InitializeProjectile - not designer-editable per instance */
 	float DamageAmount = 0.0f;
 
@@ -155,7 +182,8 @@ protected:
 	UFUNCTION()
 	void OnProjectileOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
-	/** Shared hit handling: applies damage/knockback/hit effect once per actor, then destroys unless CanPierce */
+	/** Shared hit handling: applies damage/knockback/hit effect once per actor, then destroys (see
+	 *  BeginFadeOutAndDestroy) unless CanPierce */
 	void ProcessHit(AActor* OtherActor, const FVector& HitLocation);
 
 	/** Draws CollisionComp's sphere at its current location. Called on DebugDrawTimerHandle while bDrawDebugCollision is true */
@@ -165,4 +193,19 @@ protected:
 	 *  to match the F1 debug widget's PlayerWeapon checkbox */
 	UFUNCTION()
 	void HandleDebugCollisionVisibilityChanged(ECPDebugCollisionCategory Category, bool bVisible);
+
+	/** Stops movement/collision/the trail effect and, if FadeOutDuration > 0, fades ProjectileMesh's dynamic
+	 *  materials from opaque to transparent over that duration before destroying the projectile - instead of
+	 *  disappearing instantly. Called instead of Destroy() from every place this projectile used to destroy
+	 *  itself (a blocking hit, a non-piercing overlap hit, and the Range-based lifespan timeout below).
+	 *  No-ops if a fade is already in progress */
+	void BeginFadeOutAndDestroy();
+
+	/** Bound to FadeOutTimerHandle while fading out - advances FadeOutElapsedTime, updates FadeMaterialMIDs'
+	 *  FadeOpacityParameterName, and actually destroys the projectile once FadeOutElapsedTime reaches FadeOutDuration */
+	void TickFadeOut();
+
+	/** Overridden so the Range-based lifespan (SetLifeSpan in BeginPlay) fades out too instead of the engine's
+	 *  default instant Destroy() */
+	virtual void LifeSpanExpired() override;
 };
