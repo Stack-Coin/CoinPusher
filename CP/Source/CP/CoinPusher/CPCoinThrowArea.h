@@ -50,9 +50,10 @@ protected:
 
 public:
 
-	//이 영역과 겹쳐 있는 모든 Coin에게 월드 X(앞)/Z(위) 방향 속도를 부여해 날린다
+	//이 영역과 겹쳐 있는 모든 Coin에게 월드 X(앞)/Z(위) 방향 속도를 부여해 날린다. ActorToExclude가 지정되면
+	//(예: 스케일 연출 중인 자기 자신) 그 액터는 겹쳐 있어도 힘을 받지 않고 건너뛴다
 	UFUNCTION(BlueprintCallable, Category="Coin Throw Area")
-	void ActiveThrow();
+	void ActiveThrow(AActor* ActorToExclude = nullptr);
 
 	FORCEINLINE UBoxComponent* GetThrowVolume() const { return ThrowVolume; }
 };

@@ -16,7 +16,7 @@ ACPCoinThrowArea::ACPCoinThrowArea()
 	ThrowVolume->SetCollisionProfileName(FName("OverlapAllDynamic"));
 }
 
-void ACPCoinThrowArea::ActiveThrow()
+void ACPCoinThrowArea::ActiveThrow(AActor* ActorToExclude)
 {
 	if (!ThrowVolume)
 	{
@@ -28,6 +28,11 @@ void ACPCoinThrowArea::ActiveThrow()
 
 	for (AActor* OverlappingActor : OverlappingActors)
 	{
+		if (OverlappingActor == ActorToExclude)
+		{
+			continue;
+		}
+
 		ACPCoin* Coin = Cast<ACPCoin>(OverlappingActor);
 		if (!Coin)
 		{

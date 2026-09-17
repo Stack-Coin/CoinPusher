@@ -73,6 +73,14 @@ protected:
 
 	FTimerHandle GroupExpireTimerHandle;
 
+	/** Weapon passed in via the last Activate()'s Context - kept around only to reach its GetWorldTimerManager()
+	 *  from GetActiveDurationRemaining(), the same way Activate() itself uses Context.Weapon for GetWorld() */
+	TWeakObjectPtr<ACPWeaponBase> CachedWeapon;
+
+	/** LevelInfo.MaxDuration used by the last Activate() call - the "max time" pairing GetActiveDurationRemaining()'s
+	 *  "current time" for a buff icon widget's UpdateBuff(Current, Max) */
+	float ActiveMaxDuration = 0.0f;
+
 protected:
 
 	const FCPOrbitLevelData& GetLevelData(int32 Level) const;
@@ -80,4 +88,15 @@ protected:
 	void SpawnCrescentGroup(const FCPPassiveSkillActivationContext& Context, const FCPOrbitLevelData& LevelInfo);
 
 	void DespawnCrescentGroup();
+
+public:
+
+	/** Seconds left before the active crescent group despawns, or 0 if no group is currently active */
+	UFUNCTION(BlueprintPure, Category="Orbit")
+	float GetActiveDurationRemaining() const;
+
+	/** MaxDuration used by the last Activate() call - pair with GetActiveDurationRemaining() to drive a
+	 *  buff icon widget's UpdateBuff(Current, Max) */
+	UFUNCTION(BlueprintPure, Category="Orbit")
+	float GetActiveMaxDuration() const { return ActiveMaxDuration; }
 };

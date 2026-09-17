@@ -12,6 +12,7 @@
 class USphereComponent;
 class UStaticMeshComponent;
 class UCPDebugCollisionShapeComponent;
+class USoundBase;
 
 /**
  *  Simple pickup that grants score directly to the overlapping ACPPlayerCharacter the instant it
@@ -52,6 +53,17 @@ protected:
 
 	/** True once this coin has already been collected, to guard against duplicate overlaps */
 	bool bCollected = false;
+
+	/** Played at this coin's location the moment it's collected. Unset = no sound */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Coin|Sound")
+	TObjectPtr<USoundBase> CollectSound;
+
+	/** Added to this coin's location before CollectSound is played */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Coin|Sound")
+	FVector CollectSoundLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Coin|Sound", meta = (ClampMin = 0))
+	float CollectSoundVolume = 1.0f;
 
 	/** Re-enables CollisionSphere after PickupDelay. Started from BeginPlay */
 	FTimerHandle PickupDelayTimerHandle;

@@ -238,6 +238,22 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Move", meta = (ClampMin = 0, ClampMax = 1))
 	float MoveInputDeadzone = 0.15f;
 
+	/** BuffCode (PlayerBuffDataTable row name) used for the buff icon shown while the equipped weapon's
+	 *  attack-power passive buff is active (see ACPWeaponBase::ApplyPassiveStatBuff/UpdateAttackBuffIcon) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack|Buff Icons")
+	FName AttackBuffIconCode = FName("AttackBuff");
+
+	/** BuffCode (PlayerBuffDataTable row name) used for the buff icon shown while the equipped weapon's
+	 *  orbiting-crescent passive skill is active (see UCPOrbitPassiveSkillModule/UpdateOrbitBuffIcon) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats|Attack|Buff Icons")
+	FName OrbitBuffIconCode = FName("OrbitBuff");
+
+	/** Buff icon widgets currently shown for the two buffs above, tracked so Tick can keep updating the
+	 *  same instance instead of creating a new one every frame. Cleared back to null once the buff ends
+	 *  (see UpdateAttackBuffIcon/UpdateOrbitBuffIcon) - the widget removes itself from its parent then */
+	TWeakObjectPtr<class UCPBuffIconWidget> AttackBuffIconWidget;
+	TWeakObjectPtr<class UCPBuffIconWidget> OrbitBuffIconWidget;
+
 	/** True while a weapon combo string is in progress. Movement itself is NOT blocked while this is true -
 	 *  only the movement-driven rotation is: the character's facing is locked to the attack direction
 	 *  instead of following movement input (see HandleAttackStateChanged/OrientTowardsAttackDirection) */
@@ -383,6 +399,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards", meta = (ClampMin = 0))
 	float HealthGrantAmount = 10.0f;
 
+	/** HealthItemID가 떨어져 HP가 회복될 때 재생할 사운드. 비워두면 재생하지 않음 (see HandleDropZoneItemDropped) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	TObjectPtr<USoundBase> HealthRecoverSound;
+
+	/** HealthRecoverSound 재생 위치에 더할 오프셋 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
+	FVector HealthRecoverSoundLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards", meta = (ClampMin = 0))
+	float HealthRecoverSoundVolume = 1.0f;
+
 	/** DropZone에 이 ItemID가 떨어지면 현재 무기의 패시브 스킬 실행 (see HandleDropZoneItemDropped) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Drop Zone Rewards")
 	FName PassiveSkillItemID = FName("2C");
@@ -414,8 +441,25 @@ protected:
 	virtual void BeginPlay() override;
 
 	/** Drives the equipped weapon's movement-trail effect (see ACPWeaponBase::SetMovementEffectActive):
-	 *  on only while actually moving and not mid-attack (see bIsAttackLocked) */
+	 *  on only while actually moving and not mid-attack (see bIsAttackLocked). Also drives the two weapon
+	 *  passive-skill buff icons (see UpdateAttackBuffIcon/UpdateOrbitBuffIcon) */
 	virtual void Tick(float DeltaTime) override;
+
+	/** Shows/updates/hides the buff icon (AttackBuffIconCode) for CurrentWeapon's attack-power passive buff
+	 *  (see ACPWeaponBase::GetPassiveStatBuffTimeRemaining/GetPassiveStatBuffDuration). Called every tick */
+	void UpdateAttackBuffIcon(ACPWeaponBase* CurrentWeapon);
+
+	/** Shows/updates/hides the buff icon (OrbitBuffIconCode) for CurrentWeapon's orbiting-crescent passive
+	 *  skill, if its PassiveSkillModule is a UCPOrbitPassiveSkillModule (see GetActiveDurationRemaining/
+	 *  GetActiveMaxDuration). No-ops (icon stays hidden) for any other weapon/module. Called every tick */
+	void UpdateOrbitBuffIcon(ACPWeaponBase* CurrentWeapon);
+
+	/** Shared by UpdateAttackBuffIcon/UpdateOrbitBuffIcon: while Remaining > 0, creates IconRef via the
+	 *  current InGameWidget's BuffCreate(BuffCode) if it doesn't exist yet and calls UpdateBuff(Remaining,
+	 *  MaxDuration) on it. Once Remaining <= 0, calls UpdateBuff(0, MaxDuration) one last time (so the
+	 *  widget removes itself, per its own contract) and clears IconRef. No-ops entirely if there's no
+	 *  InGameWidget (e.g. no PlayerController yet) */
+	void UpdateBuffIcon(TWeakObjectPtr<class UCPBuffIconWidget>& IconRef, FName BuffCode, float Remaining, float MaxDuration);
 
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;

@@ -257,7 +257,9 @@ void ACPCoin::ActivateCoinThrowArea()
 
 	// 위/앞 방향과 마찬가지로 회전과 무관하게 항상 월드 X축을 기준으로 코인 옆에 배치
 	CoinThrowArea->SetActorLocation(GetActorLocation() + FVector(CoinThrowAreaOffsetX, 0.0f, 0.0f));
-	CoinThrowArea->ActiveThrow();
+	// 스케일 연출로 커진 상태라 오프셋을 두어도 자기 자신이 여전히 ThrowVolume과 겹칠 수 있으므로,
+	// 변환된 자기 자신은 힘을 받지 않도록 제외
+	CoinThrowArea->ActiveThrow(this);
 }
 
 ACPCoinThrowArea* ACPCoin::GetCoinThrowArea() const

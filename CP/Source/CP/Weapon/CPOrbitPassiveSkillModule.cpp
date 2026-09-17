@@ -31,9 +31,12 @@ void UCPOrbitPassiveSkillModule::Activate(const FCPPassiveSkillActivationContext
 		return;
 	}
 
+	CachedWeapon = Context.Weapon;
+
 	const FCPOrbitLevelData& LevelInfo = GetLevelData(Context.Weapon->GetWeaponLevel());
 	const int32 DesiredSatelliteCount = FMath::Max(LevelInfo.SatelliteCount, 1);
 	const float MaxDuration = FMath::Max(LevelInfo.MaxDuration, 0.01f);
+	ActiveMaxDuration = MaxDuration;
 
 	ActiveCrescents.RemoveAll([](const TObjectPtr<ACPOrbitingCrescent>& Crescent) { return !IsValid(Crescent); });
 
@@ -95,4 +98,15 @@ void UCPOrbitPassiveSkillModule::DespawnCrescentGroup()
 	}
 
 	ActiveCrescents.Reset();
+}
+
+float UCPOrbitPassiveSkillModule::GetActiveDurationRemaining() const
+{
+	ACPWeaponBase* Weapon = CachedWeapon.Get();
+	if (!Weapon || ActiveCrescents.IsEmpty())
+	{
+		return 0.0f;
+	}
+
+	return FMath::Max(Weapon->GetWorldTimerManager().GetTimerRemaining(GroupExpireTimerHandle), 0.0f);
 }
