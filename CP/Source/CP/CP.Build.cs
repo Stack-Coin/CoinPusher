@@ -22,7 +22,8 @@ public class CP : ModuleRules
 			"Slate",
 			"SlateCore",
 			"NavigationSystem",
-			"GameplayTasks"
+			"GameplayTasks",
+			"MediaAssets"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "ApplicationCore", "AnimGraphRuntime", "Landscape", "EngineCameras" });
