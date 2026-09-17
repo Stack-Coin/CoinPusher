@@ -12,6 +12,7 @@ class USceneComponent;
 //class ACPInput;
 class ACPNexus;
 class ACPCoin;
+class ACPCoinPusher;
 
 UCLASS(abstract)
 class CP_API ACPDispenser : public AActor
@@ -54,6 +55,13 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Dispenser")
 	TObjectPtr<ACPNexus> LinkedInput;
 
+	//이 Dispenser를 소유한 ACPCoinPusher. ChildActorComponent로 스폰되므로(LinkedInput과 동일한 이유로)
+	//GetOwner()를 믿을 수 없어, 소유자인 ACPCoinPusher가 PostInitializeComponents()에서
+	//SetOwningCoinPusher()로 직접 알려준다 - SpawnFromItemData()가 ACPItem을 스폰할 때 CoinPusher의
+	//공용 ItemEnterSound를 전달하는 데 사용
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Dispenser")
+	TObjectPtr<ACPCoinPusher> OwningCoinPusher;
+
 public:
 
 	virtual void BeginPlay() override;
@@ -81,6 +89,10 @@ public:
 	//소유자(ACPCoinPusher)가 LinkedInput을 설정할 때 사용. 기존에 연결되어 있던 Input의 델리게이트는 해제하고 새 Input에 다시 바인딩한다
 	UFUNCTION(BlueprintCallable, Category="Dispenser")
 	void SetLinkedInput(ACPNexus* NewLinkedInput);
+
+	//소유자(ACPCoinPusher)가 PostInitializeComponents()에서 자기 자신을 알려줄 때 사용
+	UFUNCTION(BlueprintCallable, Category="Dispenser")
+	void SetOwningCoinPusher(ACPCoinPusher* NewOwningCoinPusher) { OwningCoinPusher = NewOwningCoinPusher; }
 
 protected:
 

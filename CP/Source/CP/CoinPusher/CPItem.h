@@ -14,6 +14,8 @@ class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class ACPCoinPusher;
 class UCPCoinPusherViewCaptureComponent;
+class USoundBase;
+class UPrimitiveComponent;
 
 /**
  *  A physics-simulated prize item. Dispensed by ACPDispenser like a coin, but when collected
@@ -75,6 +77,24 @@ protected:
 	/** If true, this item has already been collected and is awaiting destruction */
 	bool bCollected = false;
 
+	/** 이 아이템이 코인 푸셔 안에서 무엇이든 처음 부딪혔을 때(=들어간 순간) 재생할 사운드 */
+	UPROPERTY(EditAnywhere, Category="Sound")
+	TObjectPtr<USoundBase> EnterSound;
+
+	/** 스폰(BeginPlay) 후 이 시간(초)이 지나야 EnterSound 트리거가 활성화된다 - 스폰 직후 디스펜서 등과의
+	 *  초기 접촉으로 곧바로 오발동하는 것을 방지 (ACPCoin::BigWaveThrowArmDelay와 동일한 목적) */
+	UPROPERTY(EditAnywhere, Category="Sound", meta = (ClampMin = 0))
+	float EnterSoundArmDelay = 0.05f;
+
+	/** EnterSoundArmDelay가 지나 EnterSound 트리거가 활성화되면 true */
+	bool bEnterSoundArmed = false;
+
+	/** EnterSound를 이미 재생했으면 true - 중복 재생 방지 가드 */
+	bool bHasPlayedEnterSound = false;
+
+	/** bEnterSoundArmed를 true로 바꾸는 타이머 핸들 */
+	FTimerHandle EnterSoundArmTimerHandle;
+
 	/** ImageMesh(빌보드 평면)가 카메라를 바라보도록 계산한 LookAt 회전에 추가로 더해줄 보정값 -
 	 *  플레인 메시 에셋의 정면(텍스처가 그려지는 면)이 로컬 +X가 아닌 다른 축을 향하고 있으면
 	 *  Yaw 180 등으로 보정해서 실제로 카메라 쪽을 보이는 면이 맞게 나오도록 조정한다 */
@@ -110,6 +130,14 @@ protected:
 	 *  (최초 1회만 탐색). 찾지 못하면 nullptr */
 	UCPCoinPusherViewCaptureComponent* GetCaptureComponent() const;
 
+	/** EnterSoundArmTimerHandle 만료 시 호출되어 bEnterSoundArmed를 true로 설정 */
+	void ArmEnterSound();
+
+	/** CollisionSphere->OnComponentHit에 바인딩 - 무엇과든(바닥/벽 포함) 처음 부딪히면(단,
+	 *  bEnterSoundArmed가 true인 이후) EnterSound를 1회 재생한다 */
+	UFUNCTION()
+	void HandleCollisionHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
 public:
 
 	/** Returns this item's identifying code */
@@ -122,6 +150,12 @@ public:
 	 *  ItemID를 전달한다(같은 값이면 아무 것도 하지 않음) */
 	UFUNCTION(BlueprintCallable, Category="Item")
 	void SetItemId(FName NewItemId);
+
+	/** EnterSound가 비어있을 때만(=이 아이템 BP가 직접 지정해두지 않았을 때만) NewEnterSound로 채운다 -
+	 *  ACPDispenser::SpawnFromItemData()가 스폰 직후 CoinPusher의 공용 ItemEnterSound를 넘겨줄 때 사용.
+	 *  이미 값이 있으면(아이템 BP가 개별 지정) 덮어쓰지 않는다 */
+	UFUNCTION(BlueprintCallable, Category="Item")
+	void SetEnterSound(USoundBase* NewEnterSound);
 
 	/** Called by ACPDropZone once it has already recorded this item (RecordCollectedItem) - plays the BP
 	 *  collection effect and destroys this actor. Returns false (and does nothing else) if this item was

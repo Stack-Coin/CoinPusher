@@ -9,6 +9,7 @@
 class USceneComponent;
 class ACPCoin;
 class ACPPusher;
+class USoundBase;
 
 /**
  *  SpawnTower(ItemID, N)을 호출하면 한 층에 CoinsPerFloor(5)개씩 원형으로 배치한 코인을 N개 층으로
@@ -89,6 +90,19 @@ protected:
 
 	//한 층에 원형으로 배치할 코인 개수
 	static constexpr int32 CoinsPerFloor = 5;
+
+	//상승 진행률(Alpha)이 이 값에 도달하면 TowerErectedSound를 재생 - 코인 타워가 CoinPusher 밖으로
+	//보이기 시작하는 시점에 맞춰 PIE에서 눈으로 보면서 튜닝하는 값 (0=스폰 직후/아직 안 보임, 1=완전히 다 올라옴)
+	UPROPERTY(EditAnywhere, Category="CoinTower|Sound", meta = (ClampMin = 0, ClampMax = 1))
+	float VisibleRiseAlpha = 0.4f;
+
+	//이번 상승에서 TowerErectedSound를 이미 재생했으면 true - 한 번만 재생되도록 막는 가드.
+	//SpawnTower()가 다음 타워 시작 시 false로 리셋
+	bool bHasPlayedTowerErectedSound = false;
+
+	//코인 타워가 CoinPusher 밖으로 보이기 시작하는 순간(VisibleRiseAlpha) 1회 재생
+	UPROPERTY(EditAnywhere, Category="CoinTower|Sound")
+	TObjectPtr<USoundBase> TowerErectedSound;
 
 	//SpawnTower() 호출부터 코인 Detach + Pusher 재개까지 진행 중이면 true - 이 동안은 SpawnTower()를
 	//다시 호출해도 무시된다 (요구사항: 이전 타워가 완전히 끝나기 전까지 새 타워를 스폰할 수 없음)

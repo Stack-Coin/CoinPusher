@@ -10,6 +10,7 @@
 #include "Player/CPTopDownPlayerController.h"
 #include "UI/CPInGameWidget.h"
 #include "Log/CPLogCategories.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace
 {
@@ -67,6 +68,11 @@ bool ACPRoulette::Roll(int32 PlayerLevel)
 	}
 
 	bIsRolling = true;
+
+	if (RollSound)
+	{
+		UGameplayStatics::PlaySound2D(this, RollSound);
+	}
 
 	const TArray<UCPRouletteWidget*> Widgets = GetLocalRouletteWidgets();
 	if (Widgets.Num() > 0)
