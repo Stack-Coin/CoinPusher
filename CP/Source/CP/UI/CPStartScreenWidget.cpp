@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "InputCoreTypes.h"
+#include "Kismet/GameplayStatics.h"
 
 void UCPStartScreenWidget::NativeConstruct()
 {
@@ -22,6 +23,8 @@ void UCPStartScreenWidget::HandleControllerInputDetected(FKey PressedKey)
 	{
 		return;
 	}
+
+	PlayClickSound();
 
 	const bool bIsGamepad = PressedKey.IsGamepadKey();
 
@@ -60,6 +63,7 @@ void UCPStartScreenWidget::ScheduleSwitchToNextWidget()
 	if (!BlinkingImage)
 	{
 		// 점멸시킬 아이콘이 없으면(WBP에 안 붙여둔 경우) 바로 전환
+		PlayClickSound();
 		SwitchToNextWidget();
 		return;
 	}
@@ -89,5 +93,14 @@ void UCPStartScreenWidget::HandleBlinkTick()
 		World->GetTimerManager().ClearTimer(BlinkTimerHandle);
 	}
 
+	PlayClickSound();
 	SwitchToNextWidget();
+}
+
+void UCPStartScreenWidget::PlayClickSound() const
+{
+	if (ClickSound)
+	{
+		UGameplayStatics::PlaySound2D(this, ClickSound);
+	}
 }

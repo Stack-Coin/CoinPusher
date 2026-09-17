@@ -8,6 +8,7 @@
 #include "CPGameExplanationWidget.generated.h"
 
 class UImage;
+class USoundBase;
 
 /**
  *  시작 화면(UCPStartScreenWidget) 다음에 뜨는 게임 설명 화면. UCPControllerTypeSubsystem에 기록된
@@ -38,6 +39,10 @@ protected:
 	/** 전환을 이미 요청했으면 true - 중복 입력으로 두 번 전환되는 것을 막는다 */
 	bool bHasRequestedLevelChange = false;
 
+	/** 매칭된 입력(=다음 화면 전환) 시 재생할 사운드 */
+	UPROPERTY(EditAnywhere, Category="Game Explanation")
+	TObjectPtr<USoundBase> ClickSound;
+
 	virtual void NativeConstruct() override;
 
 	/** 부모의 자동 전환(모든 입력에 반응)을 막기 위한 빈 오버라이드 - 실제 전환은
@@ -48,4 +53,7 @@ protected:
 	 *  NextWidgetClass(컷신 위젯)로 전환한다 (일치하지 않으면 무시) */
 	UFUNCTION()
 	void HandleSelectedControllerKeyPressed(FKey PressedKey);
+
+	/** ClickSound를 2D(비-포지셔널)로 재생 - UI 사운드라 월드 위치가 필요 없다 */
+	void PlayClickSound() const;
 };
