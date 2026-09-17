@@ -231,7 +231,23 @@ void ACPGameMode::HandleBossDefeated()
 void ACPGameMode::HandleGameEnded(bool bIsClear)
 {
 	bHasGameEnded = true;
-	UpdateBgmPlayback();
+
+	if (!BgmComponent)
+	{
+		return;
+	}
+
+	// 이 시점부턴 UpdateBgmPlayback()이 관여 안 함(bHasGameEnded 가드) - Clear/Lose BGM으로 직접 전환
+	USoundBase* EndingBgm = bIsClear ? ClearBgmSound : LoseBgmSound;
+	if (EndingBgm)
+	{
+		BgmComponent->SetSound(EndingBgm);
+		BgmComponent->Play();
+	}
+	else
+	{
+		BgmComponent->Stop();
+	}
 }
 
 float ACPGameMode::GetRequiredTeamExperience() const

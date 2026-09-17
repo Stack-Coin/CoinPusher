@@ -68,8 +68,17 @@ protected:
 	UPROPERTY(EditAnywhere, Category="BGM")
 	TObjectPtr<USoundBase> BossBgmSound;
 
-	/** MainBgmSound/BossBgmSound를 재생하는 단일 컴포넌트 - UpdateBgmPlayback()이 상황에 맞는 곡으로
-	 *  SetSound() 후 Play()함. BeginPlay에서 SpawnSound2D로 생성 */
+	/** 게임 승리(ShowEndingResult(true)) 시 재생되는 BGM */
+	UPROPERTY(EditAnywhere, Category="BGM")
+	TObjectPtr<USoundBase> ClearBgmSound;
+
+	/** 게임 패배(ShowEndingResult(false)) 시 재생되는 BGM */
+	UPROPERTY(EditAnywhere, Category="BGM")
+	TObjectPtr<USoundBase> LoseBgmSound;
+
+	/** MainBgmSound/BossBgmSound/ClearBgmSound/LoseBgmSound를 재생하는 단일 컴포넌트 - 평소엔
+	 *  UpdateBgmPlayback()이, 게임 종료 시엔 HandleGameEnded()가 직접 SetSound() 후 Play()함.
+	 *  BeginPlay에서 SpawnSound2D로 생성 */
 	UPROPERTY(Transient)
 	TObjectPtr<UAudioComponent> BgmComponent;
 
@@ -79,7 +88,8 @@ protected:
 	/** 보스가 살아있는 동안(SpawnBoss ~ HandleBossDied) true - true면 MainBgmSound 대신 BossBgmSound를 재생 */
 	bool bIsBossActive = false;
 
-	/** 게임이 끝난(승/패 Ending이 뜬) 후 true - true면 이후 영구히 아무 곡도 재생하지 않는다 */
+	/** 게임이 끝난(승/패 Ending이 뜬) 후 true - true면 UpdateBgmPlayback()이 더 이상 관여하지 않고
+	 *  (Pause/Boss 상태 변화 무시), HandleGameEnded()가 재생한 Clear/Lose BGM을 그대로 유지한다 */
 	bool bHasGameEnded = false;
 
 public:
