@@ -7,6 +7,7 @@
 #include "Log/CPLogCategories.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 ACPCoinTowerSpawner::ACPCoinTowerSpawner()
 {
@@ -67,6 +68,17 @@ void ACPCoinTowerSpawner::Tick(float DeltaTime)
 	const float Alpha = (UpTime > 0.0f) ? FMath::Clamp(RiseElapsedTime / UpTime, 0.0f, 1.0f) : 1.0f;
 	TowerRoot->SetRelativeLocation(FMath::Lerp(FVector::ZeroVector, CoinTowerPosition, Alpha));
 
+	// 코인 타워가 CoinPusher 밖으로 보이기 시작하는 지점(VisibleRiseAlpha)을 지나는 순간 1회 재생
+	if (!bHasPlayedTowerErectedSound && Alpha >= VisibleRiseAlpha)
+	{
+		bHasPlayedTowerErectedSound = true;
+
+		if (TowerErectedSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, TowerErectedSound, TowerRoot->GetComponentLocation());
+		}
+	}
+
 	if (Alpha >= 1.0f)
 	{
 		bIsRising = false;
@@ -106,6 +118,7 @@ void ACPCoinTowerSpawner::SpawnTower(FName ItemID, int32 N)
 
 	// 3. 스폰이 끝났으므로 상승 시작 (다음 Tick부터 진행)
 	bIsRising = true;
+	bHasPlayedTowerErectedSound = false;
 }
 
 void ACPCoinTowerSpawner::SpawnTowerCoins(int32 FloorCount)
