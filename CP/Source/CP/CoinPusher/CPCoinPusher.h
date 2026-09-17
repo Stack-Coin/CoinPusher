@@ -184,6 +184,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Sound")
 	TObjectPtr<USoundBase> ItemEnterSound;
 
+	UPROPERTY(EditAnywhere, Category="Sound", meta = (ClampMin = 0))
+	float ItemEnterSoundVolume = 1.0f;
+
 	//이 CoinPusher와 연동할 Roulette. 레벨에서 직접 연결해야 하며(InputA/InputB와 동일한 방식의 수동
 	//연결), BeginPlay에서 자동으로 이 Roulette의 OnPickedUp에 HandleRoulettePickedUp()을 등록해
 	//룰렛에서 아이템이 뽑힐 때마다(bRouletteToCoinPusher인 경우에만) 천장 Dispenser에서 그 아이템이 나오게 한다
@@ -296,6 +299,7 @@ public:
 	FORCEINLINE UDataTable* GetItemDataTable() const { return ItemDataTable; }
 	FORCEINLINE ACPRoulette* GetLinkedRoulette() const { return LinkedRoulette; }
 	FORCEINLINE USoundBase* GetItemEnterSound() const { return ItemEnterSound; }
+	FORCEINLINE float GetItemEnterSoundVolume() const { return ItemEnterSoundVolume; }
 
 	//ChildActorComponent가 실제로 스폰한 액터 인스턴스 반환 (BP에서 Child Actor Class를 지정해야 유효함)
 	UFUNCTION(BlueprintPure, Category="CoinPusher")

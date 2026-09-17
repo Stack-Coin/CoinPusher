@@ -104,6 +104,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="CoinTower|Sound")
 	TObjectPtr<USoundBase> TowerErectedSound;
 
+	UPROPERTY(EditAnywhere, Category="CoinTower|Sound", meta = (ClampMin = 0))
+	float TowerErectedSoundVolume = 1.0f;
+
 	//SpawnTower() 호출부터 코인 Detach + Pusher 재개까지 진행 중이면 true - 이 동안은 SpawnTower()를
 	//다시 호출해도 무시된다 (요구사항: 이전 타워가 완전히 끝나기 전까지 새 타워를 스폰할 수 없음)
 	bool bIsTowerActive = false;

@@ -73,6 +73,6 @@ void UCPGameExplanationWidget::PlayClickSound() const
 {
 	if (ClickSound)
 	{
-		UGameplayStatics::PlaySound2D(this, ClickSound);
+		UGameplayStatics::PlaySound2D(this, ClickSound, ClickSoundVolume);
 	}
 }

@@ -64,17 +64,29 @@ protected:
 	UPROPERTY(EditAnywhere, Category="BGM")
 	TObjectPtr<USoundBase> MainBgmSound;
 
+	UPROPERTY(EditAnywhere, Category="BGM", meta = (ClampMin = 0))
+	float MainBgmVolume = 1.0f;
+
 	/** 보스 출현 중(SpawnBoss ~ HandleBossDied) 재생되는 BGM */
 	UPROPERTY(EditAnywhere, Category="BGM")
 	TObjectPtr<USoundBase> BossBgmSound;
+
+	UPROPERTY(EditAnywhere, Category="BGM", meta = (ClampMin = 0))
+	float BossBgmVolume = 1.0f;
 
 	/** 게임 승리(ShowEndingResult(true)) 시 재생되는 BGM */
 	UPROPERTY(EditAnywhere, Category="BGM")
 	TObjectPtr<USoundBase> ClearBgmSound;
 
+	UPROPERTY(EditAnywhere, Category="BGM", meta = (ClampMin = 0))
+	float ClearBgmVolume = 1.0f;
+
 	/** 게임 패배(ShowEndingResult(false)) 시 재생되는 BGM */
 	UPROPERTY(EditAnywhere, Category="BGM")
 	TObjectPtr<USoundBase> LoseBgmSound;
+
+	UPROPERTY(EditAnywhere, Category="BGM", meta = (ClampMin = 0))
+	float LoseBgmVolume = 1.0f;
 
 	/** MainBgmSound/BossBgmSound/ClearBgmSound/LoseBgmSound를 재생하는 단일 컴포넌트 - 평소엔
 	 *  UpdateBgmPlayback()이, 게임 종료 시엔 HandleGameEnded()가 직접 SetSound() 후 Play()함.

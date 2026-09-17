@@ -294,17 +294,21 @@ void ACPPlayerCharacter::PlayItemUseSound(const FItemData* Row) const
 	}
 
 	USoundBase* UseSound = nullptr;
+	float UseSoundVolume = 1.0f;
 	switch (Row->CoinType)
 	{
 	case ECPCoinType::Big:
 		UseSound = CrownUseSound;
+		UseSoundVolume = CrownUseSoundVolume;
 		break;
 	case ECPCoinType::CoinTower:
 		UseSound = TowerUseSound;
+		UseSoundVolume = TowerUseSoundVolume;
 		break;
 	case ECPCoinType::Passive:
 	case ECPCoinType::HP:
 		UseSound = PassiveOrHPUseSound;
+		UseSoundVolume = PassiveOrHPUseSoundVolume;
 		break;
 	default:
 		break;
@@ -312,7 +316,7 @@ void ACPPlayerCharacter::PlayItemUseSound(const FItemData* Row) const
 
 	if (UseSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, UseSound, GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, UseSound, GetActorLocation(), UseSoundVolume);
 	}
 }
 

@@ -330,13 +330,22 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use")
 	TObjectPtr<USoundBase> CrownUseSound;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use", meta = (ClampMin = 0))
+	float CrownUseSoundVolume = 1.0f;
+
 	/** 인벤토리에서 Tower(CoinTower) 아이템을 사용했을 때 재생할 사운드 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use")
 	TObjectPtr<USoundBase> TowerUseSound;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use", meta = (ClampMin = 0))
+	float TowerUseSoundVolume = 1.0f;
+
 	/** 인벤토리에서 Passive 또는 HP 코인 아이템을 사용했을 때 재생할 사운드 - 둘이 같은 사운드를 공유 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use")
 	TObjectPtr<USoundBase> PassiveOrHPUseSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory|Item Use", meta = (ClampMin = 0))
+	float PassiveOrHPUseSoundVolume = 1.0f;
 
 	/** Converts ApplyKnockback's Distance into a launch speed: Speed = Distance / KnockbackDuration
 	 *  (same convention as DashDistance/DashDuration) */
