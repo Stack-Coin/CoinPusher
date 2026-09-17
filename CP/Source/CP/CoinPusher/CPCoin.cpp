@@ -9,6 +9,7 @@
 #include "Components/ChildActorComponent.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
 
 ACPCoin::ACPCoin()
 {
@@ -107,16 +108,34 @@ void ACPCoin::SetCoinType(ECPCoinType NewType)
 	case ECPCoinType::Passive:
 		ItemID = PassiveCoinId;
 		StartScaleAnimation();
+		if (PassiveConvertEffect)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAttached(PassiveConvertEffect, GetRootComponent(), NAME_None,
+				PassiveConvertEffectLocationOffset, PassiveConvertEffectRotationOffset, PassiveConvertEffectScale,
+				EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
+		}
 		break;
 
 	case ECPCoinType::HP:
 		ItemID = HPCoinId;
 		StartScaleAnimation();
+		if (HPConvertEffect)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAttached(HPConvertEffect, GetRootComponent(), NAME_None,
+				HPConvertEffectLocationOffset, HPConvertEffectRotationOffset, HPConvertEffectScale,
+				EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
+		}
 		break;
 
 	case ECPCoinType::Monster:
 		ItemID = MonsterCoinId;
 		StartScaleAnimation();
+		if (MonsterConvertEffect)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAttached(MonsterConvertEffect, GetRootComponent(), NAME_None,
+				MonsterConvertEffectLocationOffset, MonsterConvertEffectRotationOffset, MonsterConvertEffectScale,
+				EAttachLocation::KeepRelativeOffset, true, ENCPoolMethod::None);
+		}
 		break;
 
 	case ECPCoinType::Big:
