@@ -180,7 +180,7 @@ void ACPGameMode::StartBgm()
 	}
 
 	// bAutoDestroy=false - 이후 UpdateBgmPlayback()이 SetSound()로 곡만 바꿔가며 같은 컴포넌트를 재사용
-	BgmComponent = UGameplayStatics::SpawnSound2D(this, MainBgmSound, 1.f, 1.f, 0.f, nullptr, false, false);
+	BgmComponent = UGameplayStatics::SpawnSound2D(this, MainBgmSound, MainBgmVolume, 1.f, 0.f, nullptr, false, false);
 }
 
 void ACPGameMode::UpdateBgmPlayback()
@@ -206,6 +206,7 @@ void ACPGameMode::UpdateBgmPlayback()
 	if (BgmComponent->Sound != DesiredSound || !BgmComponent->IsPlaying())
 	{
 		BgmComponent->SetSound(DesiredSound);
+		BgmComponent->SetVolumeMultiplier(bIsBossActive ? BossBgmVolume : MainBgmVolume);
 		BgmComponent->Play();
 	}
 }
@@ -242,6 +243,7 @@ void ACPGameMode::HandleGameEnded(bool bIsClear)
 	if (EndingBgm)
 	{
 		BgmComponent->SetSound(EndingBgm);
+		BgmComponent->SetVolumeMultiplier(bIsClear ? ClearBgmVolume : LoseBgmVolume);
 		BgmComponent->Play();
 	}
 	else

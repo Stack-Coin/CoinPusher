@@ -75,7 +75,7 @@ void ACPCoinTowerSpawner::Tick(float DeltaTime)
 
 		if (TowerErectedSound)
 		{
-			UGameplayStatics::PlaySoundAtLocation(this, TowerErectedSound, TowerRoot->GetComponentLocation());
+			UGameplayStatics::PlaySoundAtLocation(this, TowerErectedSound, TowerRoot->GetComponentLocation(), TowerErectedSoundVolume);
 		}
 	}
 

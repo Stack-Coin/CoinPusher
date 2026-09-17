@@ -3,6 +3,7 @@
 #include "Player/CPWeaponPickupItem.h"
 #include "Player/CPWeaponEquipper.h"
 #include "Player/CPItemInventory.h"
+#include "Kismet/GameplayStatics.h"
 
 void ACPWeaponPickupItem::Interact(AActor* Interactor)
 {
@@ -27,6 +28,8 @@ void ACPWeaponPickupItem::Interact(AActor* Interactor)
 	{
 		Inventory->NotifyItemAcquired(ItemData);
 	}
+
+	UGameplayStatics::PlaySoundAtLocation(this, PickupSound, GetActorLocation() + PickupSoundLocationOffset, PickupSoundVolume);
 
 	Destroy();
 }

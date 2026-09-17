@@ -43,6 +43,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Game Explanation")
 	TObjectPtr<USoundBase> ClickSound;
 
+	UPROPERTY(EditAnywhere, Category="Game Explanation", meta = (ClampMin = 0))
+	float ClickSoundVolume = 1.0f;
+
 	virtual void NativeConstruct() override;
 
 	/** 부모의 자동 전환(모든 입력에 반응)을 막기 위한 빈 오버라이드 - 실제 전환은

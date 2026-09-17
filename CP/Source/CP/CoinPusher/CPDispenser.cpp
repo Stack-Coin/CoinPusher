@@ -145,7 +145,7 @@ AActor* ACPDispenser::SpawnFromItemData(FName ItemID, const FItemData& Row, TSub
 		// 사운드를 지정해뒀으면 SetEnterSound() 내부에서 덮어쓰지 않음)
 		if (OwningCoinPusher)
 		{
-			SpawnedItem->SetEnterSound(OwningCoinPusher->GetItemEnterSound());
+			SpawnedItem->SetEnterSound(OwningCoinPusher->GetItemEnterSound(), OwningCoinPusher->GetItemEnterSoundVolume());
 		}
 	}
 

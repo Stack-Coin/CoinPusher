@@ -60,6 +60,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Start Screen")
 	TObjectPtr<USoundBase> ClickSound;
 
+	UPROPERTY(EditAnywhere, Category="Start Screen", meta = (ClampMin = 0))
+	float ClickSoundVolume = 1.0f;
+
 	virtual void NativeConstruct() override;
 
 	/** OnAnyKeyPressed에 바인딩 - 점멸이 아직 시작되지 않았을 때만, 입력 장치 종류에 따라 반대쪽

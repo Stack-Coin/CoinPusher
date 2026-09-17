@@ -136,7 +136,7 @@ void ACPDropZone::PlayRandomItemDropSound(const FVector& Location) const
 	const int32 RandomIndex = FMath::RandRange(0, ItemDropSounds.Num() - 1);
 	if (USoundBase* Sound = ItemDropSounds[RandomIndex])
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, Sound, Location);
+		UGameplayStatics::PlaySoundAtLocation(this, Sound, Location, ItemDropSoundVolume);
 	}
 }
 

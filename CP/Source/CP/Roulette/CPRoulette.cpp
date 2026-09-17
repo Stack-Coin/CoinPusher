@@ -71,7 +71,7 @@ bool ACPRoulette::Roll(int32 PlayerLevel)
 
 	if (RollSound)
 	{
-		UGameplayStatics::PlaySound2D(this, RollSound);
+		UGameplayStatics::PlaySound2D(this, RollSound, RollSoundVolume);
 	}
 
 	const TArray<UCPRouletteWidget*> Widgets = GetLocalRouletteWidgets();

@@ -13,6 +13,7 @@ class USphereComponent;
 class UStaticMeshComponent;
 class UCPDebugCollisionShapeComponent;
 class UNiagaraComponent;
+class USoundBase;
 
 /**
  *  A pickup an ICPInteractor (the player) must walk up to and press the Interact key to collect.
@@ -85,6 +86,17 @@ protected:
 
 	/** LifetimeSeconds 경과 후 HandleLifetimeExpired()를 호출하는 타이머 핸들 */
 	FTimerHandle LifetimeExpireTimerHandle;
+
+	/** Played at this item's location the moment it's picked up. Unset = no sound */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item|Sound")
+	TObjectPtr<USoundBase> PickupSound;
+
+	/** Added to this item's location before PickupSound is played */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item|Sound")
+	FVector PickupSoundLocationOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item|Sound", meta = (ClampMin = 0))
+	float PickupSoundVolume = 1.0f;
 
 public:
 
