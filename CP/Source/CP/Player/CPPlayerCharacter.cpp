@@ -377,7 +377,7 @@ void ACPPlayerCharacter::UseSlotEast(const FInputActionValue& Value)
 {
 	if (InventoryComponent)
 	{
-		InventoryComponent->UseSlotItem(3);
+		InventoryComponent->UseSlotItem(2);
 	}
 }
 
