@@ -10,6 +10,7 @@ class USceneComponent;
 class UCPRouletteWidget;
 class UDataTable;
 class UTexture2D;
+class USoundBase;
 
 /** 룰렛에서 아이템이 뽑힐 때마다 ItemID/개수와 함께 Broadcast */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCPRoulettePickedUp, FName, ItemID, int32, Count);
@@ -62,6 +63,11 @@ protected:
 	 *  가장 마지막 행의 가중치를 그대로 사용한다 (테이블이 비어있거나 가중치 합이 0 이하면 균등 확률로 대체) */
 	UPROPERTY(EditAnywhere, Category="Roulette")
 	TObjectPtr<UDataTable> RouletteProbabilityDataTable;
+
+	/** Roll() 성공 시(스핀 시작) 1회 재생 - 스핀~당첨 연출(슈루룩+팡)이 한 클립에 담긴 단일 음원.
+	 *  EnterDuration+SpinDuration+PickUpDisplayDuration이 항상 고정 시간이라 매번 같은 타이밍에 맞는다 */
+	UPROPERTY(EditAnywhere, Category="Sound")
+	TObjectPtr<USoundBase> RollSound;
 
 	/** 스핀이 시작되어 결과가 결정되기 전까지 true. 두 플레이어가 하나의 룰렛을 공유하므로,
 	 *  한 플레이어가 돌리는 동안 다른 플레이어가 다시 Roll()을 호출하지 못하도록 막는 잠금 상태 */
