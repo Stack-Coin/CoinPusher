@@ -253,7 +253,7 @@ protected:
 
 	/** Score 보유량이 이 개수만큼 늘어날 때마다 티켓 1개 획득 (see AddScore) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Wallet", meta = (ClampMin = 1))
-	int32 ScorePerTicket = 30;
+	int32 ScorePerTicket = 20;
 
 	/** After an attack's motion actually ends (attack montage finished, or the last combo swing was
 	 *  dispatched if no montage is assigned - see ACPWeaponBase::OnAttackStateChanged), how long to keep
@@ -293,7 +293,7 @@ protected:
 	 *  any attack input - the aim direction still comes from GetAttackDirection() as usual (mouse cursor/
 	 *  gamepad right stick, falling back to the movement direction), so the player only ever adjusts where
 	 *  the auto-attack swings land, never whether it swings */
-	bool bAutoAttackEnabled = false;
+	bool bAutoAttackEnabled = true;
 
 	/** How often (in seconds) DoAttack() is retried while auto-attack is on. ACPWeaponBase::Attack() already
 	 *  no-ops on its own combo/interval cooldown (see CanAttack), so this only needs to be short enough that

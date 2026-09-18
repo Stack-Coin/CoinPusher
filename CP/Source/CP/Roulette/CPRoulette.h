@@ -82,6 +82,11 @@ protected:
 	FName PendingResultItemID;
 	int32 PendingResultSpawnCount = 0;
 
+	/** MustPickLevel 강제 당첨을 마지막으로 적용했던 PlayerLevel. 같은 레벨에서 이미 한 번
+	 *  강제 당첨이 나갔다면, 그 레벨을 벗어나 다음 레벨이 될 때까지는 다시 강제 당첨하지 않고
+	 *  RouletteProbabilityDataTable 가중치 추첨으로 넘어간다 (INDEX_NONE = 아직 한 번도 적용 안 함) */
+	int32 LastMustPickAppliedLevel = INDEX_NONE;
+
 	/** Roll() 시점에 추첨으로 확정된 행의 PickUpImage - 스핀이 끝나면 UCPRouletteWidget::PlaySpin에
 	 *  그대로 전달되어 PickUp 연출에 사용된다 */
 	UPROPERTY(Transient)
@@ -117,8 +122,10 @@ protected:
 	TArray<UCPRouletteWidget*> GetLocalRouletteWidgets();
 
 	/** RouletteDataTable의 각 행을 인덱스(0..N-1) 순서의 후보로 삼아 하나를 추첨한다. 후보 중
-	 *  MustPickLevel이 PlayerLevel과 같은 행이 하나 이상 있으면 그 행들 중 균등 확률로 반드시
-	 *  하나를 당첨시키고, 없으면 RouletteProbabilityDataTable에서 Level이 PlayerLevel과 같은 행을
+	 *  MustPickLevel이 PlayerLevel과 같은 행이 하나 이상 있고 아직 그 레벨에서 강제 당첨을 적용한
+	 *  적이 없으면(LastMustPickAppliedLevel != PlayerLevel) 그 행들 중 균등 확률로 반드시 하나를
+	 *  당첨시키고(이후 LastMustPickAppliedLevel을 PlayerLevel로 기록해 같은 레벨에서는 다음부터
+	 *  강제 당첨을 건너뜀), 그 외의 경우에는 RouletteProbabilityDataTable에서 Level이 PlayerLevel과 같은 행을
 	 *  찾아 그 행의 Roulette_index0~9 가중치로 추첨한다 (일치하는 Level 행이 없으면 테이블의 가장
 	 *  마지막 행 가중치를 그대로 사용하고, 테이블이 비어있거나 가중치 합이 0 이하면 균등 확률로
 	 *  대체). 뽑힌 행의 ItemID/PickEA를 PendingResultItemID/PendingResultSpawnCount에

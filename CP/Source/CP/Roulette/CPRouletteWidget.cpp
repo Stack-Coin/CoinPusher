@@ -2,6 +2,7 @@
 
 #include "CPRouletteWidget.h"
 #include "Components/Image.h"
+#include "Log/CPLogCategories.h"
 
 void UCPRouletteWidget::NativeConstruct()
 {
@@ -15,10 +16,21 @@ void UCPRouletteWidget::NativeConstruct()
 	}
 }
 
+void UCPRouletteWidget::NativeDestruct()
+{
+	UE_LOG(LogRoulette, Warning, TEXT("[UCPRouletteWidget:%s] NativeDestruct - State at destruction: %d"), *GetNameSafe(this), static_cast<int32>(State));
+
+	Super::NativeDestruct();
+}
+
 void UCPRouletteWidget::PlaySpin(int32 ResultIndex, int32 NumSlots, UTexture2D* PickUpTexture)
 {
+	UE_LOG(LogRoulette, Warning, TEXT("[UCPRouletteWidget:%s] PlaySpin called - ResultIndex: %d, NumSlots: %d, prev State: %d, Visibility: %d"),
+		*GetNameSafe(this), ResultIndex, NumSlots, static_cast<int32>(State), static_cast<int32>(GetVisibility()));
+
 	if (NumSlots <= 0)
 	{
+		UE_LOG(LogRoulette, Warning, TEXT("[UCPRouletteWidget:%s] PlaySpin aborted - NumSlots <= 0"), *GetNameSafe(this));
 		return;
 	}
 
@@ -80,6 +92,7 @@ void UCPRouletteWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTim
 		{
 			StateElapsedTime = 0.0f;
 			State = ERouletteState::Spinning;
+			UE_LOG(LogRoulette, Warning, TEXT("[UCPRouletteWidget:%s] State -> Spinning"), *GetNameSafe(this));
 		}
 
 		return;
@@ -116,6 +129,8 @@ void UCPRouletteWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTim
 
 void UCPRouletteWidget::ShowPickUp()
 {
+	UE_LOG(LogRoulette, Warning, TEXT("[UCPRouletteWidget:%s] ShowPickUp - PickUpImage: %s"), *GetNameSafe(this), *GetNameSafe(PickUpImage));
+
 	if (!PickUpImage)
 	{
 		// PickUp 연출용 이미지가 없으면 보여줄 것이 없으므로 대기 없이 바로 결과를 처리한다
@@ -130,10 +145,13 @@ void UCPRouletteWidget::ShowPickUp()
 
 	PickUpImage->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	State = ERouletteState::ShowingPickUp;
+	UE_LOG(LogRoulette, Warning, TEXT("[UCPRouletteWidget:%s] State -> ShowingPickUp"), *GetNameSafe(this));
 }
 
 void UCPRouletteWidget::FinishSpin()
 {
+	UE_LOG(LogRoulette, Warning, TEXT("[UCPRouletteWidget:%s] FinishSpin - broadcasting OnResultDetermined(%d)"), *GetNameSafe(this), PendingResultIndex);
+
 	State = ERouletteState::None;
 
 	if (PickUpImage)
@@ -143,6 +161,11 @@ void UCPRouletteWidget::FinishSpin()
 
 	OnResultDetermined.Broadcast(PendingResultIndex);
 
-	// PickUpImage가 사라지는 시점에 룰렛 UI 전체도 함께 비활성화한다
-	SetVisibility(ESlateVisibility::Collapsed);
+	// OnResultDetermined 처리 체인(연쇄 자동 롤 등)이 브로드캐스트 도중 같은 위젯으로 곧장 다음
+	// 스핀을 시작시켰을 수 있으므로, 그 경우 여기서 다시 Collapsed로 되돌리면 안 된다
+	if (State == ERouletteState::None)
+	{
+		// PickUpImage가 사라지는 시점에 룰렛 UI 전체도 함께 비활성화한다
+		SetVisibility(ESlateVisibility::Collapsed);
+	}
 }

@@ -154,6 +154,8 @@ void ACPPlayerCharacter::BeginPlay()
 		HitFlashTimeline->SetLooping(false);
 		HitFlashTimeline->SetPlayRate(HitFlashSpeed);
 	}
+
+	GetWorldTimerManager().SetTimer(AutoAttackTimerHandle, this, &ACPPlayerCharacter::TickAutoAttack, AutoAttackPollInterval, true);
 }
 
 void ACPPlayerCharacter::Tick(float DeltaTime)
@@ -395,8 +397,11 @@ ACPRoulette* ACPPlayerCharacter::GetOrFindRoulette()
 
 void ACPPlayerCharacter::TryStartNextAutoRoll()
 {
+	UE_LOG(LogPlayer, Warning, TEXT("TryStartNextAutoRoll called - PendingAutoRollCount: %d, bIsDowned: %d"), PendingAutoRollCount, bIsDowned);
+
 	if (PendingAutoRollCount <= 0 || bIsDowned)
 	{
+		UE_LOG(LogPlayer, Warning, TEXT("TryStartNextAutoRoll aborted - no pending rolls or player is downed"));
 		return;
 	}
 
@@ -404,12 +409,14 @@ void ACPPlayerCharacter::TryStartNextAutoRoll()
 	if (!RouletteActor || RouletteActor->IsRolling())
 	{
 		// 룰렛이 아직 없거나 이미 다른 스핀이 진행 중 - 그 스핀이 끝나면(HandleRouletteAutoRollFinished) 다시 시도된다
+		UE_LOG(LogPlayer, Warning, TEXT("TryStartNextAutoRoll deferred - RouletteActor: %s, IsRolling: %d"), *GetNameSafe(RouletteActor), RouletteActor ? RouletteActor->IsRolling() : false);
 		return;
 	}
 
 	if (!TrySpendTicket(1))
 	{
 		// 티켓이 부족해 더 이상 자동으로 돌릴 수 없으므로 남은 대기 수를 비운다
+		UE_LOG(LogPlayer, Warning, TEXT("TryStartNextAutoRoll stopped - not enough tickets, clearing PendingAutoRollCount"));
 		PendingAutoRollCount = 0;
 		return;
 	}
@@ -421,9 +428,14 @@ void ACPPlayerCharacter::TryStartNextAutoRoll()
 		// Roll() 자체가 실패(추첨 후보 없음 등 데이터 문제) - 같은 이유로 계속 실패할 자동 재시도가
 		// 무한 루프에 빠지지 않도록 남은 대기 수를 먼저 비운 뒤, 소모한 티켓만 직접 돌려준다
 		// (AddTicket()을 쓰면 다시 큐에 쌓여 즉시 재시도하게 됨)
+		UE_LOG(LogPlayer, Warning, TEXT("TryStartNextAutoRoll: Roll() failed - refunding ticket and clearing PendingAutoRollCount"));
 		PendingAutoRollCount = 0;
 		++TicketCount;
 		OnTicketChanged.Broadcast(TicketCount);
+	}
+	else
+	{
+		UE_LOG(LogPlayer, Warning, TEXT("TryStartNextAutoRoll: Roll() started successfully - remaining PendingAutoRollCount: %d"), PendingAutoRollCount);
 	}
 }
 

@@ -75,6 +75,9 @@ bool ACPRoulette::Roll(int32 PlayerLevel)
 	}
 
 	const TArray<UCPRouletteWidget*> Widgets = GetLocalRouletteWidgets();
+	UE_LOG(LogRoulette, Warning, TEXT("[ACPRoulette] Roll - ResultIndex: %d, CandidateCount: %d, WidgetCount: %d"),
+		ResultIndex, CandidateCount, Widgets.Num());
+
 	if (Widgets.Num() > 0)
 	{
 		// 로컬 스플릿 스크린의 모든 플레이어 화면에 동일한 룰렛 UI를 동시에 재생
@@ -82,6 +85,7 @@ bool ACPRoulette::Roll(int32 PlayerLevel)
 		{
 			if (Widget)
 			{
+				UE_LOG(LogRoulette, Warning, TEXT("[ACPRoulette] Roll - calling PlaySpin on Widget: %s"), *GetNameSafe(Widget));
 				Widget->PlaySpin(ResultIndex, CandidateCount, PendingResultPickUpImage);
 			}
 		}
@@ -89,6 +93,7 @@ bool ACPRoulette::Roll(int32 PlayerLevel)
 	else
 	{
 		// UI 없이도 결과 처리는 그대로 동작하도록 하는 폴백
+		UE_LOG(LogRoulette, Warning, TEXT("[ACPRoulette] Roll - no widgets found, falling back to immediate result"));
 		HandleRouletteResultDetermined(ResultIndex);
 	}
 
@@ -122,6 +127,9 @@ TArray<UCPRouletteWidget*> ACPRoulette::GetLocalRouletteWidgets()
 
 		// 매번 다시 호출해도 안전(AddUniqueDynamic) - InGameUI 인스턴스가 바뀌었을 수 있으므로
 		// 캐싱하지 않고 매 Roll()마다 새로 조회한다
+		UE_LOG(LogRoulette, Warning, TEXT("[ACPRoulette] GetLocalRouletteWidgets - PC: %s, InGameWidget: %s, RouletteWidget: %s"),
+			*GetNameSafe(PC), *GetNameSafe(InGameWidget), *GetNameSafe(RouletteWidget));
+
 		RouletteWidget->OnResultDetermined.AddUniqueDynamic(this, &ACPRoulette::HandleRouletteResultDetermined);
 		Widgets.Add(RouletteWidget);
 	}
@@ -160,13 +168,18 @@ bool ACPRoulette::PickWeightedItem(int32 PlayerLevel, int32& OutResultIndex, int
 		return false;
 	}
 
-	// PlayerLevel과 MustPickLevel이 같은 행이 있으면, 그 행(들) 중에서 균등 확률로 반드시 하나를 당첨시킨다
+	// PlayerLevel과 MustPickLevel이 같은 행이 있으면, 그 행(들) 중에서 균등 확률로 반드시 하나를
+	// 당첨시킨다 - 단, 같은 레벨에서 이미 한 번 강제 당첨을 적용했다면 다음 레벨이 될 때까지는
+	// 건너뛰고 확률 추첨으로 넘어간다
 	TArray<int32> MustPickIndices;
-	for (int32 Index = 0; Index < Candidates.Num(); ++Index)
+	if (LastMustPickAppliedLevel != PlayerLevel)
 	{
-		if (Candidates[Index].MustPickLevel == PlayerLevel)
+		for (int32 Index = 0; Index < Candidates.Num(); ++Index)
 		{
-			MustPickIndices.Add(Index);
+			if (Candidates[Index].MustPickLevel == PlayerLevel)
+			{
+				MustPickIndices.Add(Index);
+			}
 		}
 	}
 
@@ -174,6 +187,7 @@ bool ACPRoulette::PickWeightedItem(int32 PlayerLevel, int32& OutResultIndex, int
 	if (MustPickIndices.Num() > 0)
 	{
 		PickedIndex = MustPickIndices[FMath::RandRange(0, MustPickIndices.Num() - 1)];
+		LastMustPickAppliedLevel = PlayerLevel;
 	}
 	else
 	{
@@ -247,6 +261,7 @@ void ACPRoulette::HandleRouletteResultDetermined(int32 ResultIndex)
 	// 같은 스핀 결과에 대해 당첨 정보가 중복 전달되지 않도록 최초 1회만 처리
 	if (!bIsRolling)
 	{
+		UE_LOG(LogRoulette, Warning, TEXT("[ACPRoulette] HandleRouletteResultDetermined ignored - bIsRolling already false (duplicate broadcast), ResultIndex: %d"), ResultIndex);
 		return;
 	}
 

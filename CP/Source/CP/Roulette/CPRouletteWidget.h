@@ -100,6 +100,7 @@ public:
 protected:
 
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	/** 스핀이 끝났을 때 처리: PickUpImage를 PendingPickUpTexture로 채워 보이게 하고 ShowingPickUp

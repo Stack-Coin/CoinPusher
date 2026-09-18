@@ -4,8 +4,10 @@
 
 원형 돌림판 형태의 룰렛 기능. `Roll(PlayerLevel)`을 호출하면 `RouletteDataTable`(Row Struct는
 `FCPRouletteDataRow`, `Datatables/CPRouletteDataTypes.h`)의 각 행을 나열 순서대로 인덱스(0..N-1)
-삼아 추첨 후보로 삼는다. `PlayerLevel`과 `MustPickLevel`이 같은 행이 있으면 그 행(들) 중 균등 확률로
-반드시 하나를 당첨시키고, 없으면 `RouletteProbabilityDataTable`(Row Struct는
+삼아 추첨 후보로 삼는다. `PlayerLevel`과 `MustPickLevel`이 같은 행이 있고 그 레벨에서 아직 강제
+당첨을 적용한 적이 없으면 그 행(들) 중 균등 확률로 반드시 하나를 당첨시킨다(한 번 적용되면 같은
+레벨에서는 다음부터 건너뛰고, 다음 레벨이 되어야 다시 강제 당첨 대상이 된다). 그 외의 경우에는
+`RouletteProbabilityDataTable`(Row Struct는
 `FCPRouletteProbabilityRow`)에서 `Level`이 `PlayerLevel`과 같은 행을 찾아 그 행의
 `Roulette_index0`~`Roulette_index9` 가중치로 후보 인덱스를 추첨한다. 화면 중앙 위쪽에서 아래로
 등장하는 UI가 그 칸에서 멈추는 연출을 보여준 뒤, 당첨된 행의 `PickUpImage`를 잠시 보여주는 PickUp
@@ -76,7 +78,10 @@
   성공적으로 스핀을 시작했으면 `true` 반환
 - `PickWeightedItem(PlayerLevel, OutResultIndex, OutCandidateCount)` : `RouletteDataTable->GetRowNames()`
   순서대로 `FCPRouletteDataRow` 후보 목록을 만든다(이 순서가 곧 추첨 인덱스). 후보 중 `MustPickLevel`이
-  `PlayerLevel`과 같은 행이 하나 이상 있으면 그 행들 중 균등 확률로 반드시 하나를 당첨시킨다. 없으면
+  `PlayerLevel`과 같은 행이 하나 이상 있고, `LastMustPickAppliedLevel`(마지막으로 강제 당첨을 적용한
+  레벨)이 `PlayerLevel`과 다르면 그 행들 중 균등 확률로 반드시 하나를 당첨시키고
+  `LastMustPickAppliedLevel`을 `PlayerLevel`로 갱신한다 - 즉 같은 레벨에서는 한 번만 강제 당첨이
+  나가고, 다음 레벨이 될 때까지는 다시 나가지 않는다. 그 외의 경우에는
   `RouletteProbabilityDataTable`에서 `Level`이 `PlayerLevel`과 같은 행을 찾아 그 행의
   `Roulette_index0`~`9` 가중치로 추첨한다 - 일치하는 `Level` 행이 없으면 테이블에 정의된 순서상 가장
   마지막 행의 가중치를 그대로 사용하고, 테이블이 비어있거나 가중치 합이 0 이하면(설정 실수 등) 균등
