@@ -1138,7 +1138,7 @@ bool ACPPlayerCharacter::TrySpendScore(int32 Amount)
 
 void ACPPlayerCharacter::HandleFieldCoinCollected(int32 Amount)
 {
-	AddScore(Amount);
+	//AddScore(Amount);
 
 	if (CoinPusher)
 	{
